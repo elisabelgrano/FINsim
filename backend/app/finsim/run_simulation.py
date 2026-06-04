@@ -270,6 +270,7 @@ def main():
         )
 
         run_round_1(engine)
+        esporta_json_risultati(engine, round_n=1)
 
         engine.close()
         logger.info("Simulation runner completed successfully")
@@ -285,6 +286,53 @@ def main():
         logger.error(f"Unexpected error: {e}", exc_info=True)
         sys.exit(1)
 
+def esporta_json_risultati(engine, round_n=1):
+    import json
+    from pathlib import Path
+    
+    # 1. Scriviamo la query per estrarre i dati che ci servono
+    query = """
+    MATCH (p:Promotore)-[:EFFETTUA]->(d:DecisioneCommerciale {round: $round_n})
+    RETURN p.promotore_id AS promotore, d.cluster_riga AS riga, d.cluster_col AS col,
+           d.strategia AS strategia, d.approccio_comunicativo AS approccio, d.prodotto_suggerito AS prodotto
+    ORDER BY p.promotore_id, d.cluster_riga, d.cluster_col
+    """
+    
+    decisioni_da_salvare = []
+    
+    # 2. Chiediamo all'engine di eseguire la query su Neo4j
+    with engine._driver.session() as session:
+        risultati = session.run(query, round_n=round_n)
+        
+        # 3. Trasformiamo i risultati in una lista di dizionari
+        for record in risultati:
+            decisione = {
+                "promotore": record["promotore"],
+                "cluster": f"({record['riga']}, {record['col']})",
+                "strategia": record["strategia"],
+                "approccio_comunicativo": record["approccio"],
+                "prodotto_suggerito": record["prodotto"]
+            }
+            decisioni_da_salvare.append(decisione)
+    
+    # 4. CREAZIONE DELLA CARTELLA 'output'
+    # Calcola il percorso della cartella 'finsim' dove si trova questo script
+    finsim_dir = Path(__file__).parent
+    
+    # Crea il percorso per la nuova cartella 'output'
+    output_dir = finsim_dir / "output"
+    
+    # Crea fisicamente la cartella se non esiste già (senza dare errore se c'è già)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 5. Salva il file dentro la cartella 'output'
+    nome_file = f"risultati_round_{round_n}.json"
+    percorso_file = output_dir / nome_file
+    
+    with open(percorso_file, "w", encoding="utf-8") as file_json:
+        json.dump(decisioni_da_salvare, file_json, indent=4, ensure_ascii=False)
+        
+    print(f"\n[+] FILE CREATO: Ho salvato {len(decisioni_da_salvare)} decisioni nel file:\n -> {percorso_file}")
 
 if __name__ == '__main__':
     main()
