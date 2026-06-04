@@ -1,0 +1,145 @@
+{
+  "schema_version": "2.0",
+  "description": "FINsim ontology schema with allowed labels and relationships",
+  "allowed_labels": [
+    "Entity",
+    "ScenarioMacro",
+    "DirettivaBancaria",
+    "Promotore",
+    "Cliente",
+    "ProdottoFinanziario",
+    "ClusterProfilo",
+    "RagionamentoCluster",
+    "PropostaIndividuale",
+    "RispostaCliente",
+    "KPIRun",
+    "Interazione",
+    "Round"
+  ],
+  "allowed_relationships": [
+    "DEFINISCE",
+    "OPERA_IN",
+    "EMETTE",
+    "GESTISCE",
+    "APPARTIENE_A",
+    "HA_RICEVUTO",
+    "HA_RISPOSTO",
+    "CONTIENE",
+    "GENERA",
+    "INCLUDE",
+    "RELATION"
+  ],
+  "label_properties": {
+    "ScenarioMacro": {
+      "primary_key": "scenario_id",
+      "required": [
+        "scenario_id",
+        "nome",
+        "descrizione",
+        "tasso_riferimento"
+      ],
+      "optional": [
+        "liquidita_mercato",
+        "pressione_normativa",
+        "round_corrente",
+        "tassi_interesse",
+        "inflazione",
+        "sentiment_mercato"
+      ]
+    },
+    "DirettivaBancaria": {
+      "primary_key": "direttiva_id",
+      "required": [
+        "direttiva_id",
+        "scenario_rif",
+        "tipo",
+        "contenuto"
+      ],
+      "optional": [
+        "priorita",
+        "data_emissione",
+        "attiva",
+        "focus_prodotto",
+        "tolleranza_rischio_min",
+        "pressione_commerciale"
+      ]
+    },
+    "Promotore": {
+      "primary_key": "promotore_id",
+      "required": [
+        "promotore_id",
+        "nome",
+        "tipo"
+      ],
+      "optional": [
+        "portafoglio_clienti",
+        "score_performance",
+        "bias_prodotto",
+        "adattativo",
+        "livello_adattativita"
+      ]
+    },
+    "Cliente": {
+      "primary_key": "cliente_id",
+      "required": [
+        "cliente_id",
+        "nome",
+        "cluster_riga",
+        "cluster_col"
+      ],
+      "optional": [
+        "profilo_rischio",
+        "propensione_rischio",
+        "fascia_patrimoniale",
+        "fiducia_iniziale",
+        "fiducia_attuale",
+        "soddisfazione",
+        "prodotti_detenuti",
+        "urgenza_liquidita"
+      ]
+    },
+    "ClusterProfilo": {
+      "primary_key": "cluster_id",
+      "required": [
+        "cluster_id",
+        "nome"
+      ],
+      "optional": [
+        "profilo_rischio",
+        "fascia_patrimoniale"
+      ]
+    }
+  },
+  "relationship_rules": {
+    "DEFINISCE": {
+      "source": "ScenarioMacro",
+      "target": "DirettivaBancaria",
+      "cardinality": "1:N",
+      "description": "Un scenario definisce una o più direttive"
+    },
+    "OPERA_IN": {
+      "source": "Promotore",
+      "target": "ScenarioMacro",
+      "cardinality": "N:1",
+      "description": "Un promotore opera in uno scenario"
+    },
+    "EMETTE": {
+      "source": "DirettivaBancaria",
+      "target": "Promotore",
+      "cardinality": "1:N",
+      "description": "Una direttiva è emessa a uno o più promotori"
+    },
+    "GESTISCE": {
+      "source": "Promotore",
+      "target": "Cliente",
+      "cardinality": "N:N",
+      "description": "Un promotore gestisce uno o più clienti"
+    },
+    "APPARTIENE_A": {
+      "source": "Cliente",
+      "target": "ClusterProfilo",
+      "cardinality": "N:1",
+      "description": "Un cliente appartiene a un cluster profilo"
+    }
+  }
+}
