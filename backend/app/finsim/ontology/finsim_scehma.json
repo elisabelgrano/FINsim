@@ -1,0 +1,106 @@
+{
+  "version": "2.0",
+  "domain": "financial_promotion",
+  "allowed_labels": [
+    "ScenarioMacro",
+    "DirettivaBancaria",
+    "Promotore",
+    "Cliente",
+    "ProdottoFinanziario",
+    "ClusterProfilo",
+    "RagionamentoCluster",
+    "PropostaIndividuale",
+    "RispostaCliente",
+    "KPIRun",
+    "Interazione",
+    "Round"
+  ],
+  "allowed_relationships": [
+    "DEFINISCE_CONTESTO",
+    "APPLICA_DIRETTIVA",
+    "INTERAGISCE_CON",
+    "AVVIENE_IN_ROUND",
+    "EMETTE",
+    "GESTISCE",
+    "PROPONE",
+    "ACQUISTA",
+    "INFLUENZA",
+    "OPERA_IN",
+    "DEFINISCE",
+    "APPARTIENE_A",
+    "GENERA_STRATEGIA",
+    "RICEVE_PROPOSTA",
+    "PRODUCE_ESITO",
+    "REGISTRA_PERFORMANCE"
+  ],
+  "nodes": {
+    "ScenarioMacro": {
+      "properties": [
+        "scenario_id", "nome", "descrizione", "tasso_riferimento", 
+        "liquidita_mercato", "pressione_normativa", "round_corrente", 
+        "tassi_interesse", "inflazione", "sentiment_mercato"
+      ]
+    },
+    "DirettivaBancaria": {
+      "properties": [
+        "direttiva_id", "scenario_rif", "tipo", "contenuto", "priorita", 
+        "data_emissione", "attiva", "focus_prodotto", 
+        "tolleranza_rischio_min", "pressione_commerciale"
+      ]
+    },
+    "Promotore": {
+      "properties": [
+        "promotore_id", "nome", "tipo", "portafoglio_clienti", 
+        "score_performance", "bias_prodotto", "adattativo", "livello_adattativita"
+      ]
+    },
+    "Cliente": {
+      "properties": [
+        "cliente_id", "nome", "profilo_rischio", "cluster_riga", "cluster_col", 
+        "propensione_rischio", "fascia_patrimoniale", "fiducia_iniziale", "soddisfazione", 
+        "prodotti_detenuti", "fiducia_attuale", "urgenza_liquidita"
+      ]
+    },
+    "ProdottoFinanziario": {
+      "properties": [
+        "prodotto_id", "nome", "categoria", "rendimento_atteso", 
+        "rischio_profilo", "commissione"
+      ]
+    },
+    "ClusterProfilo": {
+      "properties": ["cluster_id", "nome", "profilo_rischio", "fascia_patrimoniale"]
+    },
+    "RagionamentoCluster": {
+      "properties": ["round", "scenario_id", "cluster_id", "strategia", "approccio_comunicativo", "prodotto_suggerito"]
+    },
+    "PropostaIndividuale": {
+      "properties": ["round", "prodotto_id", "ragionamento_testo", "proposta_tipo", "stile_comunicativo"]
+    },
+    "RispostaCliente": {
+      "properties": ["round", "scenario_id", "esito", "delta_fiducia", "motivazione_emotiva"]
+    },
+    "KPIRun": {
+      "properties": ["round", "scenario_id", "raccolta_netta", "tasso_conversione", "allineamento_direttiva"]
+    },
+    "Interazione": {
+      "properties": ["id_interazione", "esito", "feedback"]
+    },
+    "Round": {
+      "properties": ["id_round", "numero"]
+    }
+  },
+  "relationship_rules": [
+    {"type": "DEFINISCE", "from": "ScenarioMacro", "to": "DirettivaBancaria"},
+    {"type": "OPERA_IN", "from": "Promotore", "to": "ScenarioMacro"},
+    {"type": "EMETTE", "from": "DirettivaBancaria", "to": "Promotore"},
+    {"type": "GESTISCE", "from": "Promotore", "to": "Cliente"},
+    {"type": "APPARTIENE_A", "from": "Cliente", "to": "ClusterProfilo"},
+    {"type": "GENERA_STRATEGIA", "from": "Promotore", "to": "RagionamentoCluster"},
+    {"type": "PROPONE", "from": "Promotore", "to": "ProdottoFinanziario"},
+    {"type": "RICEVE_PROPOSTA", "from": "Cliente", "to": "PropostaIndividuale"},
+    {"type": "ACQUISTA", "from": "Cliente", "to": "ProdottoFinanziario"},
+    {"type": "PRODUCE_ESITO", "from": "Cliente", "to": "RispostaCliente"},
+    {"type": "INFLUENZA", "from": "Cliente", "to": "Cliente"},
+    {"type": "REGISTRA_PERFORMANCE", "from": "ScenarioMacro", "to": "KPIRun"}
+  ]
+}
