@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Run FINsim Simulation — Phase 4 Round 1 Execution
-FINSIM-MOD: Standalone simulation runner for local execution
+Run FINsim Simulation — Multi-Scenario, Multi-Round Execution
+FINSIM-MOD: Standalone simulation runner with scenario cycling and A/B testing
 
-Instantiates SimulationEngine, executes Round 1 for scenario S0,
-and prints detailed summary of commercial decisions and client trust metrics.
+Executes full simulation matrix: S0, S1, S2 scenarios with 3 rounds each.
+For each scenario:
+  1. Reset client trust/satisfaction and clean previous decisions
+  2. Run 3 consecutive rounds
+  3. Export scenario results to JSON
 """
 
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
+from datetime import datetime
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
@@ -38,86 +42,69 @@ logger = logging.getLogger('finsim.run_simulation')
 # ============================================================================
 
 
-def run_round_1(engine: SimulationEngine) -> None:
+def run_scenario_rounds(
+    engine: SimulationEngine,
+    scenario_id: str,
+    num_rounds: int = 3,
+) -> Dict[str, Any]:
     """
-    Execute Round 1 of scenario S0 and print comprehensive summary.
+    Execute multiple consecutive rounds for a scenario with result collection.
 
     Args:
         engine: Initialized SimulationEngine
+        scenario_id: Scenario identifier (e.g., 'S0', 'S1', 'S2')
+        num_rounds: Number of consecutive rounds to execute (default 3)
+
+    Returns:
+        Dict containing all round results and aggregated metrics
     """
     logger.info("=" * 80)
-    logger.info("FINsim Round 1 Execution — Scenario S0 (Baseline)")
+    logger.info(f"Starting scenario {scenario_id} execution ({num_rounds} rounds)")
     logger.info("=" * 80)
 
-    # Execute round
-    round_result = engine.esegui_round(scenario_id="S0", round_n=1)
+    scenario_result = {
+        'scenario_id': scenario_id,
+        'num_rounds': num_rounds,
+        'rounds': [],
+        'total_decisions': 0,
+        'total_clients_updated': 0,
+        'total_errors': 0,
+        'timestamp': datetime.now().isoformat(),
+    }
 
-    # Print execution summary
-    print("\n" + "=" * 80)
-    print("ROUND 1 EXECUTION SUMMARY")
-    print("=" * 80)
-    print(f"Scenario: {round_result['scenario_id']}")
-    print(f"Round: {round_result['round']}")
-    print(f"Promoters Processed: {round_result['promoters_processed']}")
-    print(f"Total Clusters: {round_result['total_clusters']}")
-    print(f"Commercial Decisions Created: {round_result['decisions_created']}")
-    print(f"Clients Updated: {round_result['clients_updated']}")
+    for round_n in range(1, num_rounds + 1):
+        try:
+            logger.info(f"\n--- Round {round_n}/{num_rounds} ---")
+            round_result = engine.esegui_round(scenario_id=scenario_id, round_n=round_n)
 
-    if round_result['errors']:
-        print(f"\nErrors ({len(round_result['errors'])}):")
-        for error in round_result['errors']:
-            print(f"  - {error}")
-    else:
-        print("\n✓ No errors during execution")
+            scenario_result['rounds'].append(round_result)
+            scenario_result['total_decisions'] += round_result['decisions_created']
+            scenario_result['total_clients_updated'] += round_result['clients_updated']
+            scenario_result['total_errors'] += len(round_result['errors'])
 
-    # Query DB for detailed decision summary
-    print("\n" + "=" * 80)
-    print("COMMERCIAL DECISIONS SUMMARY")
-    print("=" * 80)
+            # Print round summary
+            print(f"\n[Round {round_n}]")
+            print(f"  Promoters: {round_result['promoters_processed']}")
+            print(f"  Clusters: {round_result['total_clusters']}")
+            print(f"  Decisions: {round_result['decisions_created']}")
+            print(f"  Clients Updated: {round_result['clients_updated']}")
+            if round_result['errors']:
+                print(f"  Errors: {len(round_result['errors'])}")
 
-    decisions_summary = _fetch_decisions_summary(
-        neo4j_uri=Config.NEO4J_URI,
-        neo4j_user=Config.NEO4J_USER,
-        neo4j_password=Config.NEO4J_PASSWORD,
-        round_n=1,
-    )
+        except Exception as e:
+            error_msg = f"Round {round_n} failed: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            scenario_result['rounds'].append({'error': error_msg})
+            scenario_result['total_errors'] += 1
+            # Continue with next round instead of failing
 
-    if decisions_summary:
-        for i, decision in enumerate(decisions_summary, 1):
-            print(f"\n[Decision {i}]")
-            print(f"  Promoter: {decision['promotore_id']}")
-            print(f"  Cluster: ({decision['cluster_riga']}, {decision['cluster_col']})")
-            print(f"  Strategy: {decision['strategia'][:60]}...")
-            print(f"  Approach: {decision['approccio_comunicativo']}")
-            print(f"  Product: {decision['prodotto_suggerito']}")
-    else:
-        print("No decisions found in database")
+    logger.info(f"\n{'='*80}")
+    logger.info(f"Scenario {scenario_id} execution completed")
+    logger.info(f"  Total Decisions: {scenario_result['total_decisions']}")
+    logger.info(f"  Total Clients Updated: {scenario_result['total_clients_updated']}")
+    logger.info(f"  Total Errors: {scenario_result['total_errors']}")
 
-    # Query client trust metrics
-    print("\n" + "=" * 80)
-    print("CLIENT TRUST METRICS")
-    print("=" * 80)
-
-    trust_metrics = _fetch_client_trust_metrics(
-        neo4j_uri=Config.NEO4J_URI,
-        neo4j_user=Config.NEO4J_USER,
-        neo4j_password=Config.NEO4J_PASSWORD,
-    )
-
-    print(f"Total Clients: {trust_metrics['total_clients']}")
-    print(f"Average Trust: {trust_metrics['avg_trust']:.3f}")
-    print(f"Min Trust: {trust_metrics['min_trust']:.3f}")
-    print(f"Max Trust: {trust_metrics['max_trust']:.3f}")
-    print(f"Std Dev: {trust_metrics['std_dev']:.3f}")
-
-    # Distribution by trust range
-    print("\nTrust Distribution:")
-    for range_name, count in trust_metrics['trust_distribution'].items():
-        pct = (count / trust_metrics['total_clients'] * 100) if trust_metrics['total_clients'] > 0 else 0
-        print(f"  {range_name}: {count} ({pct:.1f}%)")
-
-    print("\n" + "=" * 80)
-    logger.info("Round 1 execution completed successfully")
+    return scenario_result
 
 
 # ============================================================================
@@ -254,12 +241,169 @@ def _fetch_client_trust_metrics(
 
 
 # ============================================================================
+# Reset and State Management
+# ============================================================================
+
+def reset_scenario_state(
+    neo4j_uri: str,
+    neo4j_user: str,
+    neo4j_password: str,
+) -> bool:
+    """
+    Reset client trust and satisfaction to default values before starting a scenario.
+    Also remove any DecisioneCommerciale nodes from previous rounds.
+
+    Args:
+        neo4j_uri: Neo4j connection URI
+        neo4j_user: Database username
+        neo4j_password: Database password
+
+    Returns:
+        True if reset successful, False otherwise
+    """
+    try:
+        driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+
+        with driver.session() as session:
+            # Reset client trust and satisfaction to defaults
+            reset_query = """
+            MATCH (c:Cliente)
+            SET c.fiducia_attuale = 0.7,
+                c.soddisfazione = 0.5
+            RETURN COUNT(c) as reset_count
+            """
+
+            result = session.run(reset_query)
+            reset_record = result.single()
+            reset_count = reset_record['reset_count'] if reset_record else 0
+
+            logger.info(f"Reset {reset_count} clients (fiducia→0.7, soddisfazione→0.5)")
+
+            # Remove DecisioneCommerciale nodes from previous rounds
+            delete_query = """
+            MATCH (d:DecisioneCommerciale)
+            DETACH DELETE d
+            RETURN COUNT(*) as deleted_count
+            """
+
+            result = session.run(delete_query)
+            delete_record = result.single()
+            deleted_count = delete_record['deleted_count'] if delete_record else 0
+
+            logger.info(f"Deleted {deleted_count} previous DecisioneCommerciale nodes")
+
+        driver.close()
+        return True
+
+    except Neo4jError as e:
+        logger.error(f"Neo4j error during reset: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error during reset: {e}", exc_info=True)
+        return False
+
+
+# ============================================================================
+# Results Export
+# ============================================================================
+
+def esporta_json_per_scenario(
+    engine: SimulationEngine,
+    scenario_id: str,
+    scenario_result: Dict[str, Any],
+) -> bool:
+    """
+    Export all rounds' decisions for a scenario to a single JSON file.
+
+    Collects all DecisioneCommerciale nodes and aggregates metrics for the scenario.
+
+    Args:
+        engine: Initialized SimulationEngine
+        scenario_id: Scenario identifier (e.g., 'S0', 'S1', 'S2')
+        scenario_result: Dict with round execution results
+
+    Returns:
+        True if export successful, False otherwise
+    """
+    try:
+        output_data = {
+            'scenario_id': scenario_id,
+            'timestamp': datetime.now().isoformat(),
+            'rounds': [],
+            'summary': {
+                'total_rounds': scenario_result['num_rounds'],
+                'total_decisions': scenario_result['total_decisions'],
+                'total_clients_updated': scenario_result['total_clients_updated'],
+                'total_errors': scenario_result['total_errors'],
+            }
+        }
+
+        # Collect decisions for all rounds in this scenario
+        with engine._driver.session() as session:
+            query = """
+            MATCH (p:Promotore)-[:EFFETTUA]->(d:DecisioneCommerciale)
+            RETURN p.promotore_id AS promotore,
+                   d.round AS round,
+                   d.cluster_riga AS riga,
+                   d.cluster_col AS col,
+                   d.strategia AS strategia,
+                   d.approccio_comunicativo AS approccio,
+                   d.prodotto_suggerito AS prodotto
+            ORDER BY d.round, p.promotore_id, d.cluster_riga, d.cluster_col
+            """
+
+            results = session.run(query)
+            decisions_by_round = {}
+
+            for record in results:
+                round_n = record['round']
+                if round_n not in decisions_by_round:
+                    decisions_by_round[round_n] = []
+
+                decision = {
+                    'promotore': record['promotore'],
+                    'cluster': f"({record['riga']}, {record['col']})",
+                    'strategia': record['strategia'],
+                    'approccio_comunicativo': record['approccio'],
+                    'prodotto_suggerito': record['prodotto'],
+                }
+                decisions_by_round[round_n].append(decision)
+
+            # Organize by round
+            for round_n in sorted(decisions_by_round.keys()):
+                output_data['rounds'].append({
+                    'round': round_n,
+                    'decisions_count': len(decisions_by_round[round_n]),
+                    'decisions': decisions_by_round[round_n],
+                })
+
+        # Write to file
+        finsim_dir = Path(__file__).parent
+        output_dir = finsim_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"risultati_{scenario_id}.json"
+        filepath = output_dir / filename
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"Exported scenario {scenario_id} to {filepath}")
+        print(f"\n[✓] Scenario {scenario_id} exported: {filepath}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error exporting scenario {scenario_id}: {e}", exc_info=True)
+        return False
+
+
+# ============================================================================
 # Entry Point
 # ============================================================================
 
-
 def main():
-    """Main entry point for simulation runner."""
+    """Main entry point: run full simulation matrix (S0, S1, S2 with 3 rounds each)."""
     try:
         logger.info("Initializing SimulationEngine...")
         engine = SimulationEngine(
@@ -269,15 +413,64 @@ def main():
             ollama_base_url=Config.EMBEDDING_BASE_URL,
         )
 
-        run_round_1(engine)
-        esporta_json_risultati(engine, round_n=1)
+        # MVP scenario list
+        scenarios = ['S0', 'S1', 'S2']
+        all_results = []
+
+        for scenario_id in scenarios:
+            try:
+                logger.info(f"\n\n{'='*80}")
+                logger.info(f"SCENARIO {scenario_id} START")
+                logger.info(f"{'='*80}\n")
+
+                # 1. Reset scenario state before running
+                logger.info(f"Resetting state for scenario {scenario_id}...")
+                if not reset_scenario_state(
+                    neo4j_uri=Config.NEO4J_URI,
+                    neo4j_user=Config.NEO4J_USER,
+                    neo4j_password=Config.NEO4J_PASSWORD,
+                ):
+                    logger.error(f"Failed to reset state for scenario {scenario_id}, continuing anyway...")
+
+                # 2. Run 3 consecutive rounds
+                scenario_result = run_scenario_rounds(
+                    engine=engine,
+                    scenario_id=scenario_id,
+                    num_rounds=3,
+                )
+
+                all_results.append(scenario_result)
+
+                # 3. Export scenario results
+                esporta_json_per_scenario(
+                    engine=engine,
+                    scenario_id=scenario_id,
+                    scenario_result=scenario_result,
+                )
+
+                logger.info(f"SCENARIO {scenario_id} COMPLETE\n")
+
+            except Exception as e:
+                error_msg = f"Error processing scenario {scenario_id}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                print(f"\n[✗] {error_msg}")
+                # Continue with next scenario instead of failing
+
+        # Print final summary
+        print(f"\n\n{'='*80}")
+        print("SIMULATION MATRIX COMPLETE")
+        print(f"{'='*80}")
+        print(f"Scenarios Executed: {len(all_results)}")
+        for result in all_results:
+            print(f"  - {result['scenario_id']}: {result['total_decisions']} decisions, "
+                  f"{result['total_clients_updated']} clients updated")
 
         engine.close()
         logger.info("Simulation runner completed successfully")
 
     except KeyError as e:
         logger.error(f"Configuration error: missing {e}")
-        logger.error("Ensure Config class has NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, EMBEDDING_BASE_URL")
+        logger.error("Ensure Config has NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, EMBEDDING_BASE_URL")
         sys.exit(1)
     except Neo4jError as e:
         logger.error(f"Neo4j connection error: {e}")
@@ -285,54 +478,6 @@ def main():
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         sys.exit(1)
-
-def esporta_json_risultati(engine, round_n=1):
-    import json
-    from pathlib import Path
-    
-    # 1. Scriviamo la query per estrarre i dati che ci servono
-    query = """
-    MATCH (p:Promotore)-[:EFFETTUA]->(d:DecisioneCommerciale {round: $round_n})
-    RETURN p.promotore_id AS promotore, d.cluster_riga AS riga, d.cluster_col AS col,
-           d.strategia AS strategia, d.approccio_comunicativo AS approccio, d.prodotto_suggerito AS prodotto
-    ORDER BY p.promotore_id, d.cluster_riga, d.cluster_col
-    """
-    
-    decisioni_da_salvare = []
-    
-    # 2. Chiediamo all'engine di eseguire la query su Neo4j
-    with engine._driver.session() as session:
-        risultati = session.run(query, round_n=round_n)
-        
-        # 3. Trasformiamo i risultati in una lista di dizionari
-        for record in risultati:
-            decisione = {
-                "promotore": record["promotore"],
-                "cluster": f"({record['riga']}, {record['col']})",
-                "strategia": record["strategia"],
-                "approccio_comunicativo": record["approccio"],
-                "prodotto_suggerito": record["prodotto"]
-            }
-            decisioni_da_salvare.append(decisione)
-    
-    # 4. CREAZIONE DELLA CARTELLA 'output'
-    # Calcola il percorso della cartella 'finsim' dove si trova questo script
-    finsim_dir = Path(__file__).parent
-    
-    # Crea il percorso per la nuova cartella 'output'
-    output_dir = finsim_dir / "output"
-    
-    # Crea fisicamente la cartella se non esiste già (senza dare errore se c'è già)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 5. Salva il file dentro la cartella 'output'
-    nome_file = f"risultati_round_{round_n}.json"
-    percorso_file = output_dir / nome_file
-    
-    with open(percorso_file, "w", encoding="utf-8") as file_json:
-        json.dump(decisioni_da_salvare, file_json, indent=4, ensure_ascii=False)
-        
-    print(f"\n[+] FILE CREATO: Ho salvato {len(decisioni_da_salvare)} decisioni nel file:\n -> {percorso_file}")
 
 if __name__ == '__main__':
     main()

@@ -186,9 +186,10 @@ def generate_relationships() -> List[Dict[str, Any]]:
             'properties': {'fact': 'Directive emitted to promoter'},
         })
 
-    # GESTISCE: Promotori → Clienti (Fisso gestisce 100 clienti, Adattativo vede tutti)
+    # GESTISCE: Promotori → Clienti (A/B split: Fisso 0-49, Adattativo 50-99)
     for i in range(100):
-        prom_uuid = 'promotore-fisso-1'
+        # Split clients equitably: first 50 to PROM-FISSO-1, next 50 to PROM-ADAPT-1
+        prom_uuid = 'promotore-fisso-1' if i < 50 else 'promotore-adattativo-1'
 
         rels.append({
             'uuid': str(uuid.uuid4()),
