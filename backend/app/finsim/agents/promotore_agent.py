@@ -30,7 +30,7 @@ class PromotoreAgent:
         self,
         ollama_client: OllamaClient,
         searcher: FinsimSearcher,
-        model_name: str = "qwen2.5:32b",
+        model_name: str = "qwen2.5:3b",
     ):
         """
         Initialize PromotoreAgent.
