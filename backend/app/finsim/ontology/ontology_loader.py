@@ -174,17 +174,16 @@ class OntologyLoader:
             now = datetime.now(timezone.utc).isoformat()
             inserted = 0
 
-            # Query 1: Crea tutti i nodi come Entity base + proprietà dal properties dict
+            # Query 1: Merge tutti i nodi come Entity base + proprietà dal properties dict
+            # Usa MERGE per idempotenza: se eseguito più volte, aggiorna o preserva
             query_base = """
             UNWIND $nodes_batch AS node_data
-            CREATE (n:Entity {
-                uuid: node_data.uuid,
-                graph_id: $graph_id,
-                name: node_data.properties.nome,
-                summary: node_data.properties.descrizione,
-                attributes_json: node_data.attributes_json,
-                created_at: $now
-            })
+            MERGE (n:Entity {uuid: node_data.uuid})
+            SET n.graph_id = $graph_id,
+                n.name = node_data.properties.nome,
+                n.summary = node_data.properties.descrizione,
+                n.attributes_json = node_data.attributes_json,
+                n.created_at = $now
             SET n += node_data.properties
             RETURN count(n) AS created
             """
@@ -309,23 +308,22 @@ class OntologyLoader:
                 batch_for_type = [r for r in rels_batch if r['type'] == rel_type]
 
                 # Genera query dinamica con tipo di relazione validato (sicuro perché validato)
+                # Usa MERGE per idempotenza: se eseguito più volte, preserva esistenti
                 # IMPORTANTE: rel_type è stato validato contro allowed_relationships
                 query = f"""
                 UNWIND $batch AS rel_data
                 MATCH (src:Entity {{uuid: rel_data.source_uuid}})
                 MATCH (tgt:Entity {{uuid: rel_data.target_uuid}})
-                CREATE (src)-[r:{rel_type} {{
-                    uuid: rel_data.uuid,
-                    graph_id: $graph_id,
-                    name: rel_data.type,
-                    fact: rel_data.fact,
-                    attributes_json: rel_data.attributes_json,
-                    created_at: $now,
-                    valid_at: null,
-                    invalid_at: null,
-                    expired_at: null,
-                    episode_ids: []
-                }}]->(tgt)
+                MERGE (src)-[r:{rel_type} {{uuid: rel_data.uuid}}]->(tgt)
+                SET r.graph_id = $graph_id,
+                    r.name = rel_data.type,
+                    r.fact = rel_data.fact,
+                    r.attributes_json = rel_data.attributes_json,
+                    r.created_at = $now,
+                    r.valid_at = null,
+                    r.invalid_at = null,
+                    r.expired_at = null,
+                    r.episode_ids = []
                 RETURN count(r) AS created
                 """
 

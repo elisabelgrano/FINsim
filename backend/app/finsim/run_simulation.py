@@ -250,7 +250,8 @@ def reset_scenario_state(
     neo4j_password: str,
 ) -> bool:
     """
-    Reset client trust and satisfaction to default values before starting a scenario.
+    Reset client trust and satisfaction to initial values before starting a scenario.
+    Preserves fiducia_iniziale (initial trust) set during population.
     Also remove any DecisioneCommerciale nodes from previous rounds.
 
     Args:
@@ -265,10 +266,11 @@ def reset_scenario_state(
         driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
 
         with driver.session() as session:
-            # Reset client trust and satisfaction to defaults
+            # Reset client trust from fiducia_iniziale and satisfaction to defaults
+            # This preserves the diversity of initial trust values set during population
             reset_query = """
             MATCH (c:Cliente)
-            SET c.fiducia_attuale = 0.7,
+            SET c.fiducia_attuale = c.fiducia_iniziale,
                 c.soddisfazione = 0.5
             RETURN COUNT(c) as reset_count
             """
@@ -277,7 +279,10 @@ def reset_scenario_state(
             reset_record = result.single()
             reset_count = reset_record['reset_count'] if reset_record else 0
 
-            logger.info(f"Reset {reset_count} clients (fiducia→0.7, soddisfazione→0.5)")
+            logger.info(
+                f"Reset {reset_count} clients "
+                f"(fiducia_attuale ← fiducia_iniziale, soddisfazione→0.5)"
+            )
 
             # Remove DecisioneCommerciale nodes from previous rounds
             delete_query = """
@@ -403,7 +408,7 @@ def esporta_json_per_scenario(
 # ============================================================================
 
 def main():
-    """Main entry point: run full simulation matrix (S0, S1, S2 with 3 rounds each)."""
+    """Main entry point: run full simulation matrix (S0, S1, S2 , S3, S4 with 1 round each)."""
     try:
         logger.info("Initializing SimulationEngine...")
         engine = SimulationEngine(
@@ -414,7 +419,7 @@ def main():
         )
 
         # MVP scenario list
-        scenarios = ['S0', 'S1', 'S2']
+        scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
         all_results = []
 
         for scenario_id in scenarios:
@@ -436,7 +441,7 @@ def main():
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=3,
+                    num_rounds=1,  # Per ora eseguiamo solo 1 round per scenario per test, poi aumenteremo a 3
                 )
 
                 all_results.append(scenario_result)
