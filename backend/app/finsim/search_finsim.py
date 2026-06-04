@@ -8,6 +8,7 @@ All queries use native driver parameters to prevent injection attacks.
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -29,7 +30,7 @@ class SecurityValidator:
         """
         if not ontology_path:
             # Default location relative to this file
-            ontology_path = Path(__file__).parent / 'ontology' / 'finsim_scehma.json'
+            ontology_path = Path(__file__).parent / 'ontology' / 'finsim_schema.json'
 
         try:
             with open(ontology_path, 'r', encoding='utf-8') as f:
@@ -164,7 +165,7 @@ class FinsimSearcher:
         Retrieve promoter and all managed clients (GESTISCE relationship).
 
         Args:
-            promotore_id: ID of the promoter
+            promotore_id: ID of the promoter (e.g., 'PROM-FISSO-1', 'PROM-ADAPT-1')
 
         Returns:
             Dict with structure:
@@ -196,15 +197,30 @@ class FinsimSearcher:
         """
         logger.info(f"Querying portfolio for promoter {promotore_id}")
 
+        # Calculate promoter UUID from promoter_id
+        # Pattern: PROM-TIPO-NUM → promotore-tipo-num
+        # Mapping: FISSO → fisso, ADAPT → adattativo
+        match = re.match(r'PROM-(\w+)-(\d+)', promotore_id, re.IGNORECASE)
+        if match:
+            tipo = match.group(1).upper()
+            num = match.group(2)
+            tipo_mapping = {'FISSO': 'fisso', 'ADAPT': 'adattativo'}
+            tipo_normalized = tipo_mapping.get(tipo, tipo.lower())
+            promotore_uuid = f"promotore-{tipo_normalized}-{num}"
+        else:
+            promotore_uuid = f"promotore-{promotore_id.lower()}"
+
+        logger.info(f"Calculated promotore_uuid: {promotore_uuid}")
+
         with self._driver.session() as session:
-            # Get promoter
-            promoter_query = "MATCH (p:Promotore {promotore_id: $pid}) RETURN p"
+            # Get promoter by UUID
+            promoter_query = "MATCH (p:Promotore {uuid: $puuid}) RETURN p"
             try:
-                promoter_result = session.run(promoter_query, pid=promotore_id)
+                promoter_result = session.run(promoter_query, puuid=promotore_uuid)
                 promoter_record = promoter_result.single()
 
                 if not promoter_record:
-                    logger.warning(f"Promoter not found: {promotore_id}")
+                    logger.warning(f"Promoter not found with uuid: {promotore_uuid}")
                     return {
                         'promotore': None,
                         'client_count': 0,
@@ -217,15 +233,15 @@ class FinsimSearcher:
                 logger.error(f"Query error fetching promoter: {e}")
                 raise
 
-            # Get managed clients via GESTISCE relationship
+            # Get managed clients via GESTISCE relationship using promoter UUID
             clients_query = """
-            MATCH (p:Promotore {promotore_id: $pid})-[r:GESTISCE]->(c:Cliente)
+            MATCH (p:Promotore {uuid: $promotore_id})-[r:GESTISCE]->(c:Cliente)
             RETURN c
             ORDER BY c.cliente_id
             """
 
             try:
-                clients_result = session.run(clients_query, pid=promotore_id)
+                clients_result = session.run(clients_query, promotore_id=promotore_uuid)
                 clients = [self._node_to_dict(record['c']) for record in clients_result]
 
                 response = {
@@ -234,7 +250,7 @@ class FinsimSearcher:
                     'clients': clients,
                 }
 
-                logger.info(f"Promoter {promotore_id} manages {len(clients)} clients")
+                logger.info(f"Promoter {promotore_id} (uuid={promotore_uuid}) manages {len(clients)} clients")
                 return response
 
             except Neo4jError as e:
@@ -246,7 +262,7 @@ class FinsimSearcher:
         Retrieve ScenarioMacro and active DirettivaBancaria for a round.
 
         Args:
-            scenario_id: ID of the scenario
+            scenario_id: ID of the scenario (e.g., 'S0', 'S1', etc.)
             round_n: Round number
 
         Returns:
@@ -279,15 +295,20 @@ class FinsimSearcher:
         """
         logger.info(f"Querying scenario state: {scenario_id}, round {round_n}")
 
+        # Calculate scenario UUID from scenario_id
+        # Pattern: S0, S1, S2, etc. → scenario-s0-baseline, scenario-s1-baseline, etc.
+        scenario_uuid = f"scenario-{scenario_id.lower()}-baseline"
+        logger.info(f"Calculated scenario_uuid: {scenario_uuid}")
+
         with self._driver.session() as session:
-            # Get scenario
-            scenario_query = "MATCH (s:ScenarioMacro {scenario_id: $sid}) RETURN s"
+            # Get scenario by UUID
+            scenario_query = "MATCH (s:ScenarioMacro {uuid: $suuid}) RETURN s"
             try:
-                scenario_result = session.run(scenario_query, sid=scenario_id)
+                scenario_result = session.run(scenario_query, suuid=scenario_uuid)
                 scenario_record = scenario_result.single()
 
                 if not scenario_record:
-                    logger.warning(f"Scenario not found: {scenario_id}")
+                    logger.warning(f"Scenario not found with uuid: {scenario_uuid}")
                     return {
                         'scenario': None,
                         'round': round_n,
@@ -300,18 +321,18 @@ class FinsimSearcher:
                 logger.error(f"Query error fetching scenario: {e}")
                 raise
 
-            # Get active directive via DEFINISCE relationship
-            # Filter by: attiva=true AND scenario_rif=scenario_id
+            # Get active directive via DEFINISCE relationship using scenario UUID
+            # Filter by: attiva=true AND scenario_rif=scenario_id (property)
             direttiva_query = """
-            MATCH (s:ScenarioMacro {scenario_id: $sid})-[r:DEFINISCE]->(d:DirettivaBancaria {attiva: true})
-            WHERE d.scenario_rif = $sid
+            MATCH (s:ScenarioMacro {uuid: $suuid})-[r:DEFINISCE]->(d:DirettivaBancaria {attiva: true})
+            WHERE d.scenario_rif = $scenario_id
             RETURN d
             LIMIT 1
             """
 
             direttiva = None
             try:
-                direttiva_result = session.run(direttiva_query, sid=scenario_id)
+                direttiva_result = session.run(direttiva_query, suuid=scenario_uuid, scenario_id=scenario_id)
                 direttiva_record = direttiva_result.single()
 
                 if direttiva_record:

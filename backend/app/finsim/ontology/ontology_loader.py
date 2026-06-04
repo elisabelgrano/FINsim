@@ -37,7 +37,7 @@ class OntologyLoader:
         Inizializza loader e carica schema.
 
         Args:
-            schema_path: Path a finsim_scehma.json. Se None, usa default.
+            schema_path: Path a finsim_schema.json. Se None, usa default.
             uri: Neo4j connection URI. Se None, usa Config.NEO4J_URI.
             user: Neo4j user. Se None, usa Config.NEO4J_USER.
             password: Neo4j password. Se None, usa Config.NEO4J_PASSWORD.
@@ -61,9 +61,9 @@ class OntologyLoader:
         logger.info(f"OntologyLoader inizializzato, connesso a {self._uri}")
 
     def _get_default_schema_path(self) -> str:
-        """Ritorna il path default a finsim_scehma.json."""
+        """Ritorna il path default a finsim_schema.json."""
         current_dir = Path(__file__).parent
-        return str(current_dir / 'finsim_scehma.json')
+        return str(current_dir / 'finsim_schema.json')
 
     def _load_schema(self, schema_path: str) -> None:
         """Carica e valida lo schema JSON."""
@@ -174,7 +174,7 @@ class OntologyLoader:
             now = datetime.now(timezone.utc).isoformat()
             inserted = 0
 
-            # Query 1: Crea tutti i nodi come Entity base
+            # Query 1: Crea tutti i nodi come Entity base + proprietà dal properties dict
             query_base = """
             UNWIND $nodes_batch AS node_data
             CREATE (n:Entity {
@@ -185,6 +185,7 @@ class OntologyLoader:
                 attributes_json: node_data.attributes_json,
                 created_at: $now
             })
+            SET n += node_data.properties
             RETURN count(n) AS created
             """
 
@@ -298,35 +299,46 @@ class OntologyLoader:
         # Inserisce relazioni
         def _create_relationships(tx):
             now = datetime.now(timezone.utc).isoformat()
+            created = 0
 
-            # Query parametrizzata: tutti i parametri sono parametrizzati
-            query = """
-            UNWIND $rels_batch AS rel_data
-            MATCH (src:Entity {uuid: rel_data.source_uuid})
-            MATCH (tgt:Entity {uuid: rel_data.target_uuid})
-            CREATE (src)-[r:RELATION {
-                uuid: rel_data.uuid,
-                graph_id: $graph_id,
-                name: rel_data.type,
-                fact: rel_data.fact,
-                attributes_json: rel_data.attributes_json,
-                created_at: $now,
-                valid_at: null,
-                invalid_at: null,
-                expired_at: null,
-                episode_ids: []
-            }]->(tgt)
-            RETURN count(r) AS created
-            """
+            # Crea relazioni per ogni tipo validato, raggruppando per efficienza
+            rel_types = set(rel['type'] for rel in rels_batch)
 
-            result = tx.run(
-                query,
-                rels_batch=rels_batch,
-                graph_id=graph_id,
-                now=now,
-            )
-            record = result.single()
-            return record['created'] if record else len(rels_batch)
+            for rel_type in rel_types:
+                # Filtra batch per questo tipo di relazione
+                batch_for_type = [r for r in rels_batch if r['type'] == rel_type]
+
+                # Genera query dinamica con tipo di relazione validato (sicuro perché validato)
+                # IMPORTANTE: rel_type è stato validato contro allowed_relationships
+                query = f"""
+                UNWIND $batch AS rel_data
+                MATCH (src:Entity {{uuid: rel_data.source_uuid}})
+                MATCH (tgt:Entity {{uuid: rel_data.target_uuid}})
+                CREATE (src)-[r:{rel_type} {{
+                    uuid: rel_data.uuid,
+                    graph_id: $graph_id,
+                    name: rel_data.type,
+                    fact: rel_data.fact,
+                    attributes_json: rel_data.attributes_json,
+                    created_at: $now,
+                    valid_at: null,
+                    invalid_at: null,
+                    expired_at: null,
+                    episode_ids: []
+                }}]->(tgt)
+                RETURN count(r) AS created
+                """
+
+                result = tx.run(
+                    query,
+                    batch=batch_for_type,
+                    graph_id=graph_id,
+                    now=now,
+                )
+                record = result.single()
+                created += record['created'] if record else len(batch_for_type)
+
+            return created
 
         try:
             with self._driver.session() as session:
