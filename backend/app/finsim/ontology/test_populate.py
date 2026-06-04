@@ -36,9 +36,9 @@ def test_data_generation() -> bool:
         logger.info("  ✓ DirettivaBancaria")
 
         promotori = generate_promotori()
-        assert len(promotori) == 3, "Numero promotori non valido"
-        assert promotori[2]['properties']['adattativo'] is True, "Promotore adattativo non segnalato"
-        logger.info("  ✓ 3 Promotori (2 Fissi, 1 Adattativo)")
+        assert len(promotori) == 2, "Numero promotori non valido"
+        assert promotori[1]['properties']['adattativo'] is True, "Promotore adattativo non segnalato"
+        logger.info("  ✓ 2 Promotori (1 Fisso, 1 Adattativo)")
 
         clusters = generate_cluster_profili()
         assert len(clusters) == 20, "Numero cluster non valido"

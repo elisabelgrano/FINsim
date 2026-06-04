@@ -54,7 +54,7 @@ def generate_direttiva_bancaria() -> Dict[str, Any]:
 
 
 def generate_promotori() -> List[Dict[str, Any]]:
-    """Genera 3 promotori: 2 Fissi (Benchmark), 1 Adattativo (AI-driven)."""
+    """Genera 2 promotori: 1 Fisso (Benchmark), 1 Adattativo (AI-driven)."""
     return [
         {
             'uuid': 'promotore-fisso-1',
@@ -63,22 +63,8 @@ def generate_promotori() -> List[Dict[str, Any]]:
                 'promotore_id': 'PROM-FISSO-1',
                 'nome': 'Promotore Fisso 1',
                 'tipo': 'Benchmark',
-                'portafoglio_clienti': 50,
+                'portafoglio_clienti': 100,
                 'score_performance': 0.65,
-                'bias_prodotto': 'Bond_Corporate',
-                'adattativo': False,
-                'livello_adattativita': 0.0,
-            }
-        },
-        {
-            'uuid': 'promotore-fisso-2',
-            'label': 'Promotore',
-            'properties': {
-                'promotore_id': 'PROM-FISSO-2',
-                'nome': 'Promotore Fisso 2',
-                'tipo': 'Benchmark',
-                'portafoglio_clienti': 50,
-                'score_performance': 0.62,
                 'bias_prodotto': 'Bond_Corporate',
                 'adattativo': False,
                 'livello_adattativita': 0.0,
@@ -174,10 +160,9 @@ def generate_relationships() -> List[Dict[str, Any]]:
         'properties': {'fact': 'S0 defines directive v1'},
     })
 
-    # OPERA_IN: Promotori → ScenarioMacro (3 promotori)
+    # OPERA_IN: Promotori → ScenarioMacro (2 promotori)
     for prom_uuid in [
         'promotore-fisso-1',
-        'promotore-fisso-2',
         'promotore-adattativo-1',
     ]:
         rels.append({
@@ -188,10 +173,9 @@ def generate_relationships() -> List[Dict[str, Any]]:
             'properties': {'fact': 'Promoter operates in scenario S0'},
         })
 
-    # EMETTE: DirettivaBancaria → Promotori (3 promotori)
+    # EMETTE: DirettivaBancaria → Promotori (2 promotori)
     for prom_uuid in [
         'promotore-fisso-1',
-        'promotore-fisso-2',
         'promotore-adattativo-1',
     ]:
         rels.append({
@@ -202,12 +186,9 @@ def generate_relationships() -> List[Dict[str, Any]]:
             'properties': {'fact': 'Directive emitted to promoter'},
         })
 
-    # GESTISCE: Promotori → Clienti (distribuzione: 50/50 ai Fissi, Adattativo vede tutti)
+    # GESTISCE: Promotori → Clienti (Fisso gestisce 100 clienti, Adattativo vede tutti)
     for i in range(100):
-        if i < 50:
-            prom_uuid = 'promotore-fisso-1'
-        else:
-            prom_uuid = 'promotore-fisso-2'
+        prom_uuid = 'promotore-fisso-1'
 
         rels.append({
             'uuid': str(uuid.uuid4()),
@@ -254,7 +235,7 @@ def populate_s0(graph_id: str = 'finsim-s0-baseline') -> Dict[str, Any]:
         all_nodes = [scenario, direttiva] + promotori + clusters + clienti
         logger.info(
             f"Generati {len(all_nodes)} nodi: "
-            f"1 ScenarioMacro, 1 DirettivaBancaria, 3 Promotori, 20 Cluster, 100 Clienti"
+            f"1 ScenarioMacro, 1 DirettivaBancaria, 2 Promotori, 20 Cluster, 100 Clienti"
         )
 
         # Genera relazioni
