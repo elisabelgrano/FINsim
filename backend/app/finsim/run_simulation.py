@@ -325,7 +325,7 @@ def main():
         )
 
         # MongoDB connection
-        mongo_uri = getattr(Config, 'MONGO_URI', 'mongodb://localhost:27017/?authSource=admin')
+        mongo_uri = getattr(Config, 'MONGO_URI', 'mongodb://elisa:deepleey@127.0.0.1:27017/?authSource=admin')
         try:
             client = MongoClient(mongo_uri)
             db = client["finsim_analytics"]
