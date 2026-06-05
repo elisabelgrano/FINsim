@@ -196,7 +196,7 @@ def generate_promotori() -> List[Dict[str, Any]]:
                 'promotore_id': 'PROM-FISSO-1',
                 'nome': 'Promotore Fisso 1',
                 'tipo': 'Benchmark',
-                'portafoglio_clienti': 100,
+                'portafoglio_clienti': 50,
                 'score_performance': 0.65,
                 'bias_prodotto': 'Bond_Corporate',
                 'adattativo': False,
@@ -210,7 +210,7 @@ def generate_promotori() -> List[Dict[str, Any]]:
                 'promotore_id': 'PROM-ADAPT-1',
                 'nome': 'Promotore Adattativo 1',
                 'tipo': 'AI-Driven',
-                'portafoglio_clienti': 100,
+                'portafoglio_clienti': 50,
                 'score_performance': 0.0,
                 'bias_prodotto': '',
                 'adattativo': True,
@@ -323,10 +323,12 @@ def generate_relationships() -> List[Dict[str, Any]]:
                 'properties': {'fact': f'Directive {scenario.upper()} emitted to promoter'},
             })
 
-    # GESTISCE: Promotori → Clienti (A/B split: Fisso 0-49, Adattativo 50-99)
+    # GESTISCE: Promotori → Clienti (A/B split: cluster_riga < 2 → Fisso, cluster_riga >= 2 → Adattativo)
     for i in range(100):
-        # Split clients equitably: first 50 to PROM-FISSO-1, next 50 to PROM-ADAPT-1
-        prom_uuid = 'promotore-fisso-1' if i < 50 else 'promotore-adattativo-1'
+        # Determina cluster_riga usando la stessa logica di generate_clienti()
+        cluster_row = (i // 5) % 4
+        # Split esclusivo basato su cluster_riga: < 2 → Fisso, >= 2 → Adattativo
+        prom_uuid = 'promotore-fisso-1' if cluster_row < 2 else 'promotore-adattativo-1'
 
         rels.append({
             'uuid': str(uuid.uuid4()),
