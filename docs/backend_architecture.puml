@@ -5,7 +5,7 @@ skinparam DefaultFontName DejaVu Sans
 skinparam ArrowColor #8ebef5
 skinparam arrowLollipop false
 
-title FINsim Backend Architecture — MVP (A/B Testing, 5 Scenarios, 20 Rounds)
+title FINsim Backend Architecture — A/B Testing, 5 Scenarios, 20 Rounds
 
 ' ============================================================================
 ' COMPONENTS
