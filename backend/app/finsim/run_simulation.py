@@ -418,11 +418,28 @@ def main():
             ollama_base_url=Config.EMBEDDING_BASE_URL,
         )
 
-        # MVP scenario list
+        # Scenario list
         scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
         all_results = []
+        
+        # Dove cercare i file di cache per ogni scenario (se implementato)
+        finsim_dir = Path(__file__).parent
+        output_dir = finsim_dir / "output"
+        # Definiamo dove cercare i file di cache
+        finsim_dir = Path(__file__).parent
+        output_dir = finsim_dir / "output"
+        
+        # Assicuriamoci che la cartella esista prima di iniziare a cercare i file di cache
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         for scenario_id in scenarios:
+            
+            # logica di skip se il file di output esiste già (per evitare di sovrascrivere risultati esistenti)
+            file_cache = output_dir / f"risultati_{scenario_id}.json"
+            if file_cache.exists():
+                logger.info(f"⏭️ SKIP: Scenario {scenario_id} già completato (trovato {file_cache.name}). Passo al prossimo.")
+                continue
+            
             try:
                 logger.info(f"\n\n{'='*80}")
                 logger.info(f"SCENARIO {scenario_id} START")
@@ -437,7 +454,7 @@ def main():
                 ):
                     logger.error(f"Failed to reset state for scenario {scenario_id}, continuing anyway...")
 
-                # 2. Run 3 consecutive rounds
+                # 2. Run x consecutive rounds
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
