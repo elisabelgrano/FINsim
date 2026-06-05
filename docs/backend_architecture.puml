@@ -1,7 +1,8 @@
 @startuml FINsim Backend Architecture
-!theme plain
-skinparam backgroundColor #f5f5f5
-skinparam DefaultFontName Courier New
+!theme cerulean
+skinparam backgroundColor transparent
+skinparam DefaultFontName DejaVu Sans
+skinparam ArrowColor #8ebef5
 skinparam arrowLollipop false
 
 title FINsim Backend Architecture — MVP (A/B Testing, 5 Scenarios, 20 Rounds)
