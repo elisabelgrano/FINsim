@@ -3,19 +3,19 @@
 Run FINsim Simulation — Multi-Scenario, Multi-Round Execution
 FINSIM-MOD: Standalone simulation runner with scenario cycling and A/B testing
 
-Executes full simulation matrix: S0, S1, S2 scenarios with 3 rounds each.
+Executes full simulation matrix: S0, S1, S2, S3, S4 scenarios with 1 round each.
 For each scenario:
   1. Reset client trust/satisfaction and clean previous decisions
-  2. Run 3 consecutive rounds
-  3. Export scenario results to JSON
+  2. Run consecutive rounds
+  3. Save scenario results to MongoDB
 """
 
-import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime
+from pymongo import MongoClient
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
@@ -308,107 +308,13 @@ def reset_scenario_state(
         return False
 
 
-# ============================================================================
-# Results Export
-# ============================================================================
-
-def esporta_json_per_scenario(
-    engine: SimulationEngine,
-    scenario_id: str,
-    scenario_result: Dict[str, Any],
-) -> bool:
-    """
-    Export all rounds' decisions for a scenario to a single JSON file.
-
-    Collects all DecisioneCommerciale nodes and aggregates metrics for the scenario.
-
-    Args:
-        engine: Initialized SimulationEngine
-        scenario_id: Scenario identifier (e.g., 'S0', 'S1', 'S2')
-        scenario_result: Dict with round execution results
-
-    Returns:
-        True if export successful, False otherwise
-    """
-    try:
-        output_data = {
-            'scenario_id': scenario_id,
-            'timestamp': datetime.now().isoformat(),
-            'rounds': [],
-            'summary': {
-                'total_rounds': scenario_result['num_rounds'],
-                'total_decisions': scenario_result['total_decisions'],
-                'total_clients_updated': scenario_result['total_clients_updated'],
-                'total_errors': scenario_result['total_errors'],
-            }
-        }
-
-        # Collect decisions for all rounds in this scenario
-        with engine._driver.session() as session:
-            query = """
-            MATCH (p:Promotore)-[:EFFETTUA]->(d:DecisioneCommerciale)
-            RETURN p.promotore_id AS promotore,
-                   d.round AS round,
-                   d.cluster_riga AS riga,
-                   d.cluster_col AS col,
-                   d.strategia AS strategia,
-                   d.approccio_comunicativo AS approccio,
-                   d.prodotto_suggerito AS prodotto
-            ORDER BY d.round, p.promotore_id, d.cluster_riga, d.cluster_col
-            """
-
-            results = session.run(query)
-            decisions_by_round = {}
-
-            for record in results:
-                round_n = record['round']
-                if round_n not in decisions_by_round:
-                    decisions_by_round[round_n] = []
-
-                decision = {
-                    'promotore': record['promotore'],
-                    'cluster': f"({record['riga']}, {record['col']})",
-                    'strategia': record['strategia'],
-                    'approccio_comunicativo': record['approccio'],
-                    'prodotto_suggerito': record['prodotto'],
-                }
-                decisions_by_round[round_n].append(decision)
-
-            # Organize by round
-            for round_n in sorted(decisions_by_round.keys()):
-                output_data['rounds'].append({
-                    'round': round_n,
-                    'decisions_count': len(decisions_by_round[round_n]),
-                    'decisions': decisions_by_round[round_n],
-                })
-
-        # Write to file
-        finsim_dir = Path(__file__).parent
-        output_dir = finsim_dir / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        filename = f"risultati_{scenario_id}.json"
-        filepath = output_dir / filename
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
-
-        logger.info(f"Exported scenario {scenario_id} to {filepath}")
-        print(f"\n[✓] Scenario {scenario_id} exported: {filepath}")
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Error exporting scenario {scenario_id}: {e}", exc_info=True)
-        return False
-
 
 # ============================================================================
 # Entry Point
 # ============================================================================
 
 def main():
-    """Main entry point: run full simulation matrix (S0, S1, S2 , S3, S4 with 1 round each)."""
+    """Main entry point: run full simulation matrix (S0, S1, S2, S3, S4 with 1 round each)."""
     try:
         logger.info("Initializing SimulationEngine...")
         engine = SimulationEngine(
@@ -418,34 +324,34 @@ def main():
             ollama_base_url=Config.EMBEDDING_BASE_URL,
         )
 
+        # MongoDB connection
+        mongo_uri = getattr(Config, 'MONGO_URI', 'mongodb://localhost:27017/?authSource=admin')
+        try:
+            client = MongoClient(mongo_uri)
+            db = client["finsim_analytics"]
+            collection = db["simulation_history"]
+            logger.info("MongoDB connection established successfully.")
+        except Exception as e:
+            logger.error(f"MongoDB connection error: {e}")
+            return
+
         # Scenario list
         scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
         all_results = []
-        
-        # Dove cercare i file di cache per ogni scenario (se implementato)
-        finsim_dir = Path(__file__).parent
-        output_dir = finsim_dir / "output"
-        # Definiamo dove cercare i file di cache
-        finsim_dir = Path(__file__).parent
-        output_dir = finsim_dir / "output"
-        
-        # Assicuriamoci che la cartella esista prima di iniziare a cercare i file di cache
-        output_dir.mkdir(parents=True, exist_ok=True)
 
         for scenario_id in scenarios:
-            
-            # logica di skip se il file di output esiste già (per evitare di sovrascrivere risultati esistenti)
-            file_cache = output_dir / f"risultati_{scenario_id}.json"
-            if file_cache.exists():
-                logger.info(f"⏭️ SKIP: Scenario {scenario_id} già completato (trovato {file_cache.name}). Passo al prossimo.")
+            # Cache check: skip if scenario already exists in MongoDB
+            existing_doc = collection.find_one({"scenario_id": scenario_id})
+            if existing_doc:
+                logger.info(f"Scenario {scenario_id} already completed. Skipping execution.")
                 continue
-            
+
             try:
                 logger.info(f"\n\n{'='*80}")
                 logger.info(f"SCENARIO {scenario_id} START")
                 logger.info(f"{'='*80}\n")
 
-                # 1. Reset scenario state before running
+                # Reset scenario state before running
                 logger.info(f"Resetting state for scenario {scenario_id}...")
                 if not reset_scenario_state(
                     neo4j_uri=Config.NEO4J_URI,
@@ -454,21 +360,19 @@ def main():
                 ):
                     logger.error(f"Failed to reset state for scenario {scenario_id}, continuing anyway...")
 
-                # 2. Run x consecutive rounds
+                # Run consecutive rounds
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=1,  # Per ora eseguiamo solo 1 round per scenario per test, poi aumenteremo a 3
+                    num_rounds=1,
                 )
 
                 all_results.append(scenario_result)
 
-                # 3. Export scenario results
-                esporta_json_per_scenario(
-                    engine=engine,
-                    scenario_id=scenario_id,
-                    scenario_result=scenario_result,
-                )
+                # Save scenario results to MongoDB
+                scenario_result["scenario_id"] = scenario_id
+                collection.insert_one(scenario_result)
+                logger.info(f"Scenario {scenario_id} results saved to MongoDB.")
 
                 logger.info(f"SCENARIO {scenario_id} COMPLETE\n")
 
@@ -476,7 +380,6 @@ def main():
                 error_msg = f"Error processing scenario {scenario_id}: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 print(f"\n[✗] {error_msg}")
-                # Continue with next scenario instead of failing
 
         # Print final summary
         print(f"\n\n{'='*80}")
