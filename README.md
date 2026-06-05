@@ -194,6 +194,196 @@ CPU-only mode works but is significantly slower for LLM inference. For lighter s
 
 AGPL-3.0 — same as the original MiroFish project. See [LICENSE](./LICENSE).
 
+---
+
+## FINsim — Financial Promotion Simulator (MVP)
+
+FINsim is a specialized fork of MiroFish-Offline designed to simulate financial product promotion scenarios with **A/B testing** across 5 macroeconomic scenarios and 20 consecutive rounds. The system compares adaptive (AI-driven) vs. fixed (benchmark) promotional strategies across 100 synthetic clients using swarm intelligence.
+
+### FINsim Architecture (4-Level Hierarchy)
+
+```
+Level 1: ScenarioMacro (1 deterministic node)
+         ├─ S0: Baseline Neutral (2.0% rate, geopolitical tension)
+         ├─ S1: Rate Shock / Spike (2.5% rate, equity crash)
+         ├─ S2: Acute Crisis / Liquidity (3.0% rate, flight to quality)
+         ├─ S3: Opportunity / Regulatory Pressure (1.8% rate, compliance boost)
+         └─ S4: Dynamic Bifurcation (S0 until R10, then pivot)
+
+Level 2: DirettivaBancaria (1 adaptive agent, HEAVY_LLM: qwen2.5:32b)
+         └─ Generates bank policy & product focus per round
+
+Level 3: Promotori (N agents in parallel)
+         ├─ 50 clients → Fixed Strategy (benchmark broadcast)
+         └─ 50 clients → Adaptive Strategy (LLM-driven, LIGHT_LLM: qwen2.5:3b)
+
+Level 4: Clienti (100 synthetic agents, LIGHT_LLM batch processing)
+         └─ React to promoter strategies, update trust & satisfaction
+```
+
+### Quick Start — FINsim
+
+#### Prerequisites
+
+- **Neo4j 5.15+** (running, bolt://localhost:7687)
+- **Ollama** with models pre-pulled:
+  ```bash
+  ollama pull qwen2.5:32b    # Bank Directive generation (HEAVY_LLM)
+  ollama pull qwen2.5:3b     # Promoter & Client strategies (LIGHT_LLM)
+  ```
+- **Python 3.11+**
+
+#### 1. Wipe and Populate the Database
+
+Clean the Neo4j database and populate with FINsim schema, scenarios, and 100 synthetic clients:
+
+```bash
+cd backend/app/finsim/ontology
+python schema_runner.py wipe    # Delete all nodes/relationships
+python populate_finsim.py       # Create S0-S4 scenarios, bank directives, promoters, 100 clients
+```
+
+**What happens:**
+- Creates 5 `ScenarioMacro` nodes (S0–S4) with macroeconomic parameters
+- Creates 1 `DirettivaBancaria` node (bank policy per scenario)
+- Creates 2 `Promotore` nodes: Fixed (ID=1) and Adaptive (ID=2)
+- Creates 100 `Cliente` nodes arranged in a 10×10 grid with diverse trust profiles
+- Initializes client satisfaction, risk tolerance, and decision history
+
+#### 2. Run the Simulation
+
+Execute all 5 scenarios with 1 round each (or customize in code):
+
+```bash
+cd backend/app/finsim
+python run_simulation.py
+```
+
+**What happens:**
+1. For each scenario (S0–S4):
+   - **Reset** client trust to initial values and clear previous decisions
+   - **Run** 1 round (configurable: change `num_rounds=1` to `num_rounds=20` for full 20-round cycles)
+   - **Export** scenario results to `output/risultati_SX.json`
+2. Each round:
+   - Queries Neo4j for active client clusters per promoter
+   - Generates adaptive strategy via PromotoreAgent (LLM)
+   - Executes fixed benchmark strategy in parallel (50/50 A/B split)
+   - Calculates client reactions based on product–risk congruence
+   - Persists decisions to DB as `DecisioneCommerciale` nodes
+   - Updates client trust and satisfaction metrics
+
+#### 3. Caching & Skip Logic
+
+The simulation implements a **file-based cache** to avoid re-running completed scenarios:
+
+- **Cache files location:** `backend/app/finsim/output/risultati_SX.json`
+- **Skip behavior:** If `risultati_S0.json` exists, scenario S0 is skipped with a log message
+- **Force recalculation:** Delete the JSON file(s) to force a re-run:
+  ```bash
+  rm backend/app/finsim/output/risultati_*.json
+  python run_simulation.py
+  ```
+
+### Output Structure
+
+After a complete run, the `output/` directory contains:
+
+```
+backend/app/finsim/output/
+├─ risultati_S0.json      # Baseline scenario: rounds, decisions, trust metrics
+├─ risultati_S1.json      # Rate shock scenario
+├─ risultati_S2.json      # Acute crisis scenario
+├─ risultati_S3.json      # Opportunity scenario
+└─ risultati_S4.json      # Bifurcation scenario
+```
+
+**Each JSON structure:**
+```json
+{
+  "scenario_id": "S0",
+  "timestamp": "2026-06-05T14:23:45.123456",
+  "rounds": [
+    {
+      "round": 1,
+      "decisions_count": 100,
+      "decisions": [
+        {
+          "promotore": "P1_Fisso",
+          "cluster": "(0, 0)",
+          "strategia": "Cautious Income",
+          "approccio_comunicativo": "Risk-aware education",
+          "prodotto_suggerito": "Government Bonds"
+        },
+        ...
+      ]
+    }
+  ],
+  "summary": {
+    "total_rounds": 1,
+    "total_decisions": 100,
+    "total_clients_updated": 100,
+    "total_errors": 0
+  }
+}
+```
+
+### FINsim Code Structure
+
+```
+backend/app/finsim/
+├─ run_simulation.py              # Entry point: orchestrates scenario cycles & caching
+├─ simulation_engine.py           # Core loop: round execution, state management
+├─ search_finsim.py              # Secure Neo4j queries (parameterized, allowlist validation)
+├─ agents/
+│  └─ promotore_agent.py          # Promoter strategy generation (LLM)
+├─ llm/
+│  └─ ollama_client.py            # Ollama REST client with retry & timeout
+└─ ontology/
+   ├─ populate_finsim.py          # Scenario & client population
+   ├─ schema_runner.py            # Schema wipe command
+   ├─ ontology_loader.py          # Neo4j node/relationship loader
+   ├─ finsim_schema.json          # Allowed labels & relationships (security allowlist)
+   └─ test_populate.py            # Integration tests
+```
+
+### Configuration (`.env`)
+
+FINsim uses the same `.env` as MiroFish-Offline. Key settings:
+
+```bash
+# Ollama (local models)
+EMBEDDING_BASE_URL=http://localhost:11434
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL_NAME=qwen2.5:32b
+
+# Neo4j
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=mirofish
+```
+
+### Security Rules (FINsim-Specific)
+
+**Critical Neo4j Security:**
+- ✅ All queries use **parameterized driver calls** — never f-strings
+- ✅ Labels & relationships validated against `finsim_schema.json` allowlist before execution
+- ⚠️ Known CVE-2026-7059: path traversal in simulation.py (Platform param) — fixed in Phase 7
+- ⚠️ Known CVE-2026-7058: command injection in services/send_command — fixed in Phase 7
+
+**Untouchable Files:**
+- `backend/app/config.py` — central configuration
+- `backend/app/storage/neo4j_storage.py` — Neo4j interface
+- `docker-compose.yml` — container orchestration
+
+### Next Steps
+
+- **Phase 5:** Dashboard for real-time round metrics & trust evolution charts
+- **Phase 6:** Multi-scenario comparison report generation
+- **Phase 7:** Security audit & CVE remediation
+- **Phase 8:** Deploy to production with monitoring
+
+---
+
 ## Credits & Attribution
 
 This is a modified fork of [MiroFish](https://github.com/666ghj/MiroFish) by [666ghj](https://github.com/666ghj), originally supported by [Shanda Group](https://www.shanda.com/). The simulation engine is powered by [OASIS](https://github.com/camel-ai/oasis) from the CAMEL-AI team.
@@ -203,3 +393,4 @@ This is a modified fork of [MiroFish](https://github.com/666ghj/MiroFish) by [66
 - Entire frontend translated from Chinese to English (20 files, 1,000+ strings)
 - All Zep references replaced with Neo4j across the UI
 - Rebranded to MiroFish Offline
+- **FINsim module added:** Financial promotion simulator with A/B testing, 5 scenarios, 20-round progression

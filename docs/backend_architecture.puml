@@ -1,0 +1,160 @@
+@startuml FINsim Backend Architecture
+!theme plain
+skinparam backgroundColor #f5f5f5
+skinparam DefaultFontName Courier New
+skinparam arrowLollipop false
+
+title FINsim Backend Architecture — MVP (A/B Testing, 5 Scenarios, 20 Rounds)
+
+' ============================================================================
+' COMPONENTS
+' ============================================================================
+
+package "Entry Point" {
+  component [run_simulation.py\n(Orchestrator)] as RunSimulation
+  note right of RunSimulation
+    Main entry point:
+    - Cycles through 5 scenarios (S0-S4)
+    - Manages cache check & skip logic
+    - Exports JSON results per scenario
+  end note
+}
+
+package "Caching & File I/O" {
+  component [File Cache Manager\n(output/*.json)] as CacheManager
+  note right of CacheManager
+    Stores scenario results:
+    - risultati_S0.json
+    - risultati_S1.json
+    - ... risultati_S4.json
+
+    Skip logic: If file exists,
+    scenario is skipped
+  end note
+}
+
+package "Simulation Engine (Core)" {
+  component [SimulationEngine\n(esegui_round)] as SimEngine
+  note bottom of SimEngine
+    Orchestrates round loop:
+    1. Query active clusters (Neo4j)
+    2. Generate strategies (PromotoreAgent)
+    3. Persist decisions (DecisioneCommerciale)
+    4. Update client reactions
+  end note
+}
+
+package "Strategy Generation (LLM Layer)" {
+  component [PromotoreAgent\nStrategy Generator] as PromAgent
+  note bottom of PromAgent
+    Generates cluster-specific strategies:
+    - Scenario context (rates, liquidity)
+    - Bank directive (product focus)
+    - Client profiles (risk tolerance)
+    Uses: qwen2.5:3b (LIGHT_LLM)
+  end note
+
+  component [OllamaClient\nREST Interface] as OllamaClient
+  note bottom of OllamaClient
+    Local LLM API client:
+    - Timeout-aware requests
+    - Retry logic + fallback
+    - Parameterized prompts
+    Endpoint: http://localhost:11434
+  end note
+}
+
+package "Data Access Layer" {
+  component [FinsimSearcher\n(Secure Queries)] as Searcher
+  note bottom of Searcher
+    Parameterized Neo4j queries:
+    - Allowlist validation (labels, rels)
+    - Cluster lookup (grid position)
+    - Promoter portfolios
+    - Scenario state
+    Uses: finsim_schema.json
+  end note
+}
+
+package "Persistent Storage" {
+  database [Neo4j\n(5.15 Community)] as NeoDb
+  note bottom of NeoDb
+    Graph structure:
+    - ScenarioMacro (S0-S4)
+    - DirettivaBancaria (1 per scenario)
+    - Promotori (2: Fixed, Adaptive)
+    - Clienti (100 synthetic, 10x10 grid)
+    - DecisioneCommerciale (decisions)
+  end note
+}
+
+package "Output & Results" {
+  component [JSON Exporter\n(esporta_json)] as Exporter
+  note bottom of Exporter
+    Exports scenario results:
+    - Round-by-round decisions
+    - Trust metrics (avg, distribution)
+    - Promoter performance (A/B)
+    Format: JSON (UTF-8)
+  end note
+}
+
+' ============================================================================
+' RELATIONSHIPS & FLOW
+' ============================================================================
+
+RunSimulation --> CacheManager : "1. Check cache\n(file exists?)"
+CacheManager --> RunSimulation : "Skip or Proceed"
+
+RunSimulation --> SimEngine : "2. Execute scenario\n(if not cached)"
+
+SimEngine --> Searcher : "Query clusters,\npromoter data,\nscenario state"
+
+Searcher --> NeoDb : "Parameterized\nCypher queries"
+NeoDb --> Searcher : "Node & relationship\nresults"
+
+SimEngine --> PromAgent : "Generate strategy\nfor cluster"
+
+PromAgent --> OllamaClient : "HTTP POST\n(system + user prompt)"
+OllamaClient --> PromAgent : "JSON strategy\nresponse"
+
+SimEngine --> NeoDb : "Persist decisions\n(DecisioneCommerciale)"
+SimEngine --> NeoDb : "Update client trust\n& satisfaction"
+
+SimEngine --> Exporter : "Collect decisions\n& metrics"
+Exporter --> CacheManager : "Write JSON\nto output folder"
+
+' ============================================================================
+' LEGEND & NOTES
+' ============================================================================
+
+note as Legend
+  **A/B Testing Matrix:**
+  - 100 clients total
+  - Promotore Fisso (Fixed): 50 clients → Benchmark broadcast
+  - Promotore Adattativo (Adaptive): 50 clients → LLM-driven strategy
+
+  **Scenario Execution:**
+  - S0: Baseline Neutral (2.0% rate)
+  - S1: Rate Shock (2.5% rate)
+  - S2: Acute Crisis (3.0% rate, liquidity crisis)
+  - S3: Opportunity (1.8% rate, regulatory pressure)
+  - S4: Bifurcation (S0 → pivot at R10)
+
+  **Round Loop (per scenario):**
+  - Reset client state (trust ← initial, satisfaction → 0.5)
+  - For each round (1..20):
+    - For each promoter cluster:
+      - Query clients in grid cell
+      - Generate strategy (LLM)
+      - Calculate client reactions
+      - Persist to DB
+
+  **Security Model:**
+  ✓ Parameterized Neo4j queries (no f-string injection)
+  ✓ Label/relationship allowlist validation
+  ✓ Timeout-aware LLM requests
+  ✓ Error recovery & continue logic
+end note
+
+@enduml
