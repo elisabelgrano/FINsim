@@ -518,7 +518,7 @@ class SimulationEngine:
             
             # pesi per fascia patrimoniale
             pesi_patrimonio = {0: 1, 1: 2, 2: 5, 3: 10, 4: 25}
-            storia_soddisfazione_adattivo = []
+            storia_soddisfazione_adattativo = []
             
             for r_idx, round_data in enumerate(scenario_data.get('rounds', [])):
                 round_num = round_data.get('round')
