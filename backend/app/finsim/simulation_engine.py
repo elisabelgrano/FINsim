@@ -204,7 +204,7 @@ class SimulationEngine:
                             MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
                             WHere c.cluster_riga = $riga AND c.cluster_col = $col
                             RETURN
-                                avg(c.fiducia_Attuale - c.fiducia_iniziale) as avg_delta_fiducia,
+                                avg(c.fiducia_attuale - c.fiducia_iniziale) as avg_delta_fiducia,
                                 avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione
                             """
                             metrics_res = session.run(metrics_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
