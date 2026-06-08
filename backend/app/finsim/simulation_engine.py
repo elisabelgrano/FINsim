@@ -208,8 +208,8 @@ class SimulationEngine:
                             """
                             metrics_res = session.run(metrics_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
                             
-                            delta_fiducia = round(metrics_res['avg_delta_fiducia'], 2) if metrics_res and metrics_res['avg_delta_fiducia'] is not None else 0.0
-                            delta_soddisfazione = round(metrics_res['avg_delta_soddisfazione'], 2) if metrics_res and metrics_res['avg_delta_soddisfazione'] is not None else 0.0
+                            delta_fiducia = round(metrics_res['avg_delta_fiducia'], 4) if metrics_res and metrics_res['avg_delta_fiducia'] is not None else 0.0
+                            delta_soddisfazione = round(metrics_res['avg_delta_soddisfazione'], 4) if metrics_res and metrics_res['avg_delta_soddisfazione'] is not None else 0.0
                             
                             promoter_data_for_mongo['strategies'].append({
                                 'cluster_coords': [riga, col],
