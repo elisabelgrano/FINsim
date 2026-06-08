@@ -503,7 +503,7 @@ class SimulationEngine:
 
         return clusters
     
-    def calcola_metriche_business(self, scenario_data):
+    def _calcola_metriche_business(self, scenario_data):
             """
             Calcola i KPI di business aggregando i dati storici dei round simulati.
             """
