@@ -510,7 +510,7 @@ class SimulationEngine:
             metrics = {
                 "val_aggiunto_personalizzazione":0.0,
                 "soddisfazione_ponderata_fisso":0.0,
-                "soddisfazione_ponderata_adattivo":0.0,
+                "soddisfazione_ponderata_adattativo":0.0,
                 "clienti_salvati_dal_churn":0,
                 "velocita_variazione_soddisfazione": [],
                 "efficacia_strategica_prodotti": {}
@@ -541,7 +541,7 @@ class SimulationEngine:
                         delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
                     
                         sodd_fisso_round += delta_sodd
-                        metrics["soddisfazione_pesata_patrimonio_fisso"] += (delta_sodd * peso)
+                        metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
                         mappa_fisso[coords] = delta_sodd
                         
                         # Gestione prodotto (a volte l'LLM risponde con una lista o dizionario)
@@ -565,7 +565,7 @@ class SimulationEngine:
                         delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
                         
                         sodd_adapt_round += delta_sodd
-                        metrics["soddisfazione_pesata_patrimonio_adattativo"] += (delta_sodd * peso)
+                        metrics["soddisfazione_ponderata_adattativo"] += (delta_sodd * peso)
                         
                         # --- METRICA: Salvataggio Churn ---
                         # Se nello stesso round, il fisso perde soddisfazione ma l'adattativo è in positivo:
