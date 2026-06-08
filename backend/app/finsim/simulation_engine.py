@@ -335,93 +335,66 @@ class SimulationEngine:
 
     def calcola_reazione_clienti(
         self,
-        session: Neo4jSession,
+        session,
         promotore_uuid: str,
         riga: int,
         col: int,
         prodotto_suggerito: str,
     ) -> int:
-        """
-        Update client trust based on product-risk congruence.
-
-        Risk mapping:
-        - Product: "azion" → ALTO, "obblig" → MEDIO, else → BASSO
-        - Client: "Aggressivo" → ALTO, "Moderato" → MEDIO, "Conservativo" → BASSO
-
-        Trust update logic:
-        - Exact match (product risk == client risk): +0.1 (max 1.0)
-        - 1-level mismatch: no change
-        - 2-level mismatch: -0.15 (min 0.0)
-
-        Args:
-            session: Neo4j session
-            promotore_uuid: Promoter UUID
-            riga: Cluster row
-            col: Cluster column
-            prodotto_suggerito: Suggested product name
-
-        Returns:
-            Number of clients updated
-        """
         try:
             # Map product risk
             prodotto_lower = prodotto_suggerito.lower()
-            if 'azion' in prodotto_lower:
+            if 'azion' in prodotto_lower or 'equity' in prodotto_lower:
                 rischio_prodotto = 'ALTO'
-            elif 'obblig' in prodotto_lower:
+            elif 'obblig' in prodotto_lower or 'bond' in prodotto_lower:
                 rischio_prodotto = 'MEDIO'
             else:
                 rischio_prodotto = 'BASSO'
 
-            logger.info(
-                f"Product risk mapping: '{prodotto_suggerito}' → {rischio_prodotto}"
-            )
-
             # Get all clients in cluster managed by this promoter
+            # ORA CHIEDIAMO ANCHE LA SODDISFAZIONE!
             get_clients_query = """
             MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
             RETURN c.uuid as client_uuid, c.profilo_rischio as profilo_rischio,
-                   c.fiducia_attuale as fiducia_attuale
+                   c.fiducia_attuale as fiducia_attuale, c.soddisfazione as soddisfazione
             """
 
             clients_result = session.run(
-                get_clients_query,
-                promotore_uuid=promotore_uuid,
-                riga=riga,
-                col=col,
+                get_clients_query, promotore_uuid=promotore_uuid, riga=riga, col=col
             )
-
             clients = list(clients_result)
-            logger.info(f"Found {len(clients)} clients in cluster ({riga}, {col})")
-
             clients_updated = 0
 
             for client in clients:
                 client_uuid = client['client_uuid']
                 profilo_rischio = client['profilo_rischio']
                 fiducia_attuale = client['fiducia_attuale'] or 0.5
+                soddisfazione = client['soddisfazione'] or 0.5
 
-                # Map client risk to comparable level
-                if profilo_rischio == 'Aggressivo':
+                # Map client risk - RISOLTO IL BUG LINGUISTICO!
+                if profilo_rischio in ['Aggressivo', 'Growth']:
                     rischio_cliente = 'ALTO'
-                elif profilo_rischio == 'Moderato':
+                elif profilo_rischio in ['Moderato', 'Balanced']:
                     rischio_cliente = 'MEDIO'
-                else:  # 'Conservativo'
+                else:
                     rischio_cliente = 'BASSO'
 
-                # Calculate trust delta
-                delta_fiducia = self._calcola_delta_fiducia(
-                    rischio_prodotto, rischio_cliente
-                )
+                # Calcoliamo i Delta
+                delta_fiducia = self._calcola_delta_fiducia(rischio_prodotto, rischio_cliente)
+                
+                # Leghiamo la soddisfazione alla fiducia in modo logico (+10% di delta fiducia = +5% soddisfazione)
+                delta_soddisfazione = delta_fiducia * 0.5 
 
-                # Apply update
+                # Apply update (assicurandoci che stiano tra 0 e 1)
                 fiducia_nuova = max(0.0, min(1.0, fiducia_attuale + delta_fiducia))
+                soddisf_nuova = max(0.0, min(1.0, soddisfazione + delta_soddisfazione))
 
-                # Update client in DB
+                # Update BOTH properties in DB!
                 update_query = """
                 MATCH (c:Cliente {uuid: $client_uuid})
-                SET c.fiducia_attuale = $fiducia_nuova
+                SET c.fiducia_attuale = $fiducia_nuova,
+                    c.soddisfazione = $soddisf_nuova
                 RETURN c.uuid
                 """
 
@@ -429,22 +402,16 @@ class SimulationEngine:
                     update_query,
                     client_uuid=client_uuid,
                     fiducia_nuova=fiducia_nuova,
+                    soddisf_nuova=soddisf_nuova,
                 )
 
                 if update_result.single():
                     clients_updated += 1
-                    logger.debug(
-                        f"  Client {client_uuid}: fiducia {fiducia_attuale:.2f} "
-                        f"→ {fiducia_nuova:.2f} (delta={delta_fiducia:+.2f})"
-                    )
 
             return clients_updated
 
-        except Neo4jError as e:
-            logger.error(f"Neo4j error in calcola_reazione_clienti: {e}")
-            return 0
         except Exception as e:
-            logger.error(f"Unexpected error in calcola_reazione_clienti: {e}")
+            logger.error(f"Error in calcola_reazione_clienti: {e}")
             return 0
 
     @staticmethod
