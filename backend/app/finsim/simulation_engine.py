@@ -372,7 +372,7 @@ class SimulationEngine:
                 fiducia_attuale = client['fiducia_attuale'] or 0.5
                 soddisfazione = client['soddisfazione'] or 0.5
 
-                # Map client risk - RISOLTO IL BUG LINGUISTICO!
+                # Map client risk
                 if profilo_rischio in ['Aggressivo', 'Growth']:
                     rischio_cliente = 'ALTO'
                 elif profilo_rischio in ['Moderato', 'Balanced']:
