@@ -599,8 +599,8 @@ class SimulationEngine:
 
             # --- Pulizia finale dei decimali ---
             metrics["valore_aggiunto_personalizzazione"] = round(metrics["valore_aggiunto_personalizzazione"], 4)
-            metrics["soddisfazione_pesata_patrimonio_fisso"] = round(metrics["soddisfazione_pesata_patrimonio_fisso"], 4)
-            metrics["soddisfazione_pesata_patrimonio_adattativo"] = round(metrics["soddisfazione_pesata_patrimonio_adattativo"], 4)
+            metrics["soddisfazione_ponderata_patrimonio_fisso"] = round(metrics["soddisfazione_pesata_patrimonio_fisso"], 4)
+            metrics["soddisfazione_ponderata_patrimonio_adattativo"] = round(metrics["soddisfazione_pesata_patrimonio_adattativo"], 4)
             for k in metrics["efficacia_strategica_prodotti"]:
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4)
 
