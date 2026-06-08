@@ -199,12 +199,23 @@ class SimulationEngine:
                             result['clients_updated'] += clients_updated
                             logger.info(f"    Updated {clients_updated} clients")
                             
+                            metrics_query = """
+                            MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
+                            WHere c.cluster_riga = $riga AND c.cluster_col = $col
+                            RETURN
+                                avg(c.fiducia_Attuale - c.fiducia_Iniziale) as avg_delta_fiducia,
+                                avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione"""
+                            
                             promoter_data_for_mongo['strategies'].append({
                                 'cluster_coords': [riga, col],
                                 'clients_in_cluster': clients_updated,
                                 'llm_strategy': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
                                 'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                                'performance_metrics': {
+                                    'delta_fiducia_medio': delta_fiducia,
+                                    'delta_soddisfazione_medio': delta_soddisfazione
+                                }
                             })
 
                         except Exception as e:
