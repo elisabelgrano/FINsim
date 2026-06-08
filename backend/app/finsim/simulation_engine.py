@@ -111,6 +111,7 @@ class SimulationEngine:
             'decisions_created': 0,
             'clients_updated': 0,
             'errors': [],
+            'promoters_data': []
         }
 
         with self._driver.session() as session:
@@ -121,6 +122,10 @@ class SimulationEngine:
             for promoter in promoters:
                 promotore_id = promoter['promotore_id']
                 promotore_uuid = promoter['uuid']
+                
+                promoter_data_for_mongo = {
+                    'promotore_id': promotore_id,
+                    'strategies': []}
 
                 try:
                     logger.info(f"Processing promoter: {promotore_id} (uuid={promotore_uuid})")
@@ -193,6 +198,14 @@ class SimulationEngine:
 
                             result['clients_updated'] += clients_updated
                             logger.info(f"    Updated {clients_updated} clients")
+                            
+                            promoter_data_for_mongo['strategies'].append({
+                                'cluster_coords': [riga, col],
+                                'clients_in_cluster': clients_updated,
+                                'llm_strategy': strategy_result['strategia'],
+                                'approccio_comunicativo': strategy_result['approccio_comunicativo'],
+                                'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                            })
 
                         except Exception as e:
                             error_msg = f"Cluster ({riga}, {col}): {str(e)}"
@@ -200,6 +213,8 @@ class SimulationEngine:
                             result['errors'].append(error_msg)
 
                     result['promoters_processed'] += 1
+                    
+                    result['promoters_data'].append(promoter_data_for_mongo)
 
                 except Exception as e:
                     error_msg = f"Promoter {promotore_id}: {str(e)}"
