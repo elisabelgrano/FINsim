@@ -508,7 +508,7 @@ class SimulationEngine:
             Calcola i KPI di business aggregando i dati storici dei round simulati.
             """
             metrics = {
-                "val_aggiunto_personalizzazione":0.0,
+                "valore_aggiunto_personalizzazione":0.0,
                 "soddisfazione_ponderata_fisso":0.0,
                 "soddisfazione_ponderata_adattativo":0.0,
                 "clienti_salvati_dal_churn":0,
