@@ -336,7 +336,7 @@ def main():
             return
 
         # Scenario list
-        scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
+        scenarios = ['S1']
         all_results = []
 
         for scenario_id in scenarios:
@@ -364,13 +364,17 @@ def main():
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=1,
+                    num_rounds=10,
                 )
 
                 all_results.append(scenario_result)
 
                 # Save scenario results to MongoDB
                 scenario_result["scenario_id"] = scenario_id
+                
+                logger.info(f"Calcolo metriche di business avanzate per {scenario_id}...")
+                scenario_result["business_metrics"] = engine._calcola_metriche_business(scenario_result)
+                
                 collection.insert_one(scenario_result)
                 logger.info(f"Scenario {scenario_id} results saved to MongoDB.")
 
