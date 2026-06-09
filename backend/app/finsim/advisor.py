@@ -88,7 +88,7 @@ class OllamaAdvisor:
 
     OLLAMA_GENERATE_URL = "http://localhost:11434/api/generate"
     OLLAMA_TIMEOUT = 120  # seconds
-    MODEL_NAME = "qwen2.5:3b"
+    MODEL_NAME = "gemma4:e4b"
 
     @staticmethod
     def _format_metrics_context(metrics_data: Dict[str, Any]) -> str:
