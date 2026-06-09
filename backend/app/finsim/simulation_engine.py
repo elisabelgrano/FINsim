@@ -508,7 +508,7 @@ class SimulationEngine:
             Calcola i KPI di business aggregando i dati storici dei round simulati.
             """
             metrics = {
-                "val_aggiunto_personalizzazione":0.0,
+                "valore_aggiunto_personalizzazione":0.0,
                 "soddisfazione_ponderata_fisso":0.0,
                 "soddisfazione_ponderata_adattivo":0.0,
                 "clienti_salvati_dal_churn":0,
@@ -541,7 +541,7 @@ class SimulationEngine:
                         delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
                     
                         sodd_fisso_round += delta_sodd
-                        metrics["soddisfazione_pesata_patrimonio_fisso"] += (delta_sodd * peso)
+                        metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
                         mappa_fisso[coords] = delta_sodd
                         
                         # Gestione prodotto (a volte l'LLM risponde con una lista o dizionario)
@@ -565,7 +565,7 @@ class SimulationEngine:
                         delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
                         
                         sodd_adapt_round += delta_sodd
-                        metrics["soddisfazione_pesata_patrimonio_adattativo"] += (delta_sodd * peso)
+                        metrics["soddisfazione_ponderata_adattativo"] += (delta_sodd * peso)
                         
                         # --- METRICA: Salvataggio Churn ---
                         # Se nello stesso round, il fisso perde soddisfazione ma l'adattativo è in positivo:
@@ -599,8 +599,8 @@ class SimulationEngine:
 
             # --- Pulizia finale dei decimali ---
             metrics["valore_aggiunto_personalizzazione"] = round(metrics["valore_aggiunto_personalizzazione"], 4)
-            metrics["soddisfazione_pesata_patrimonio_fisso"] = round(metrics["soddisfazione_pesata_patrimonio_fisso"], 4)
-            metrics["soddisfazione_pesata_patrimonio_adattativo"] = round(metrics["soddisfazione_pesata_patrimonio_adattativo"], 4)
+            metrics["soddisfazione_ponderata_fisso"] = round(metrics["soddisfazione_ponderata_fisso"], 4)
+            metrics["soddisfazione_ponderata_adattativo"] = round(metrics["soddisfazione_ponderata_adattativo"], 4)
             for k in metrics["efficacia_strategica_prodotti"]:
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4)
 
