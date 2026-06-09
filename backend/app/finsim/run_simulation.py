@@ -335,7 +335,7 @@ def main():
             return
 
         # Scenario list
-        scenarios = ['S3']
+        scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
         all_results = []
 
         for scenario_id in scenarios:
@@ -363,7 +363,7 @@ def main():
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=10,
+                    num_rounds=20,
                 )
 
                 all_results.append(scenario_result)
