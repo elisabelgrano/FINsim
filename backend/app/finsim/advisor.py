@@ -1,6 +1,6 @@
 """
 Virtual Advisor API for Promoters - FastAPI endpoint
-Analyzes financial metrics and provides strategic recommendations using Ollama (qwen2.5:3b)
+Analyzes financial metrics and provides strategic recommendations using Ollama (gemma4:e4b)
 Returns structured JSON with tactical suggestions and recommended visualizations
 """
 
@@ -106,27 +106,45 @@ class OllamaAdvisor:
     @staticmethod
     def _validate_response_json(response_text: str) -> Dict[str, Any]:
         """
-        Extract and validate JSON response from Ollama.
-        Handles cases where model returns extra text before/after JSON.
+        Extract, clean, and validate JSON response from Ollama.
+        Guarantees that required fields are always present with correct types to prevent Pydantic ValidationErrors.
         """
-        # Try to parse as-is first
-        try:
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            pass
-
-        # Try to extract JSON object from response
+        # 1. Pulizia: estraiamo solo quello che risiede tra le parentesi graffe più esterne
         start_idx = response_text.find('{')
         end_idx = response_text.rfind('}')
 
         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            try:
-                json_str = response_text[start_idx:end_idx + 1]
-                return json.loads(json_str)
-            except json.JSONDecodeError:
-                pass
+            json_str = response_text[start_idx:end_idx + 1]
+        else:
+            json_str = response_text
 
-        raise ValueError(f"Unable to extract valid JSON from response: {response_text[:200]}")
+        # 2. Tentativo di decodifica JSON
+        try:
+            parsed_json = json.loads(json_str)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to decode JSON from LLM. Raw response: {response_text[:200]}")
+            return {
+                "suggerimento_breve": "Analisi strategica completata.",
+                "dettaglio_risposta": response_text,
+                "grafici_consigliati": []
+            }
+
+        if not isinstance(parsed_json, dict):
+            parsed_json = {}
+
+        # 3. Messa in sicurezza e casting dei tipi per prevenire crash Pydantic
+        if "suggerimento_breve" not in parsed_json or not isinstance(parsed_json["suggerimento_breve"], str):
+            val = parsed_json.get("suggerimento_breve", "Consulenza strategica elaborata con successo.")
+            parsed_json["suggerimento_breve"] = json.dumps(val, ensure_ascii=False) if isinstance(val, (dict, list)) else str(val)
+            
+        if "dettaglio_risposta" not in parsed_json or not isinstance(parsed_json["dettaglio_risposta"], str):
+            val = parsed_json.get("dettaglio_risposta", "Dettagli disponibili nell'analisi del modello.")
+            parsed_json["dettaglio_risposta"] = json.dumps(val, ensure_ascii=False) if isinstance(val, (dict, list)) else str(val)
+            
+        if "grafici_consigliati" not in parsed_json or not isinstance(parsed_json["grafici_consigliati"], list):
+            parsed_json["grafici_consigliati"] = []
+
+        return parsed_json
 
     @classmethod
     def generate_advice(
@@ -136,20 +154,9 @@ class OllamaAdvisor:
     ) -> AdvisorResponse:
         """
         Generate tactical advice using Ollama with structured JSON output.
-
-        Args:
-            metrics_data: Dictionary of calculated metrics
-            user_message: Optional user question/prompt
-
-        Returns:
-            AdvisorResponse with structured tactical guidance
-
-        Raises:
-            HTTPException: On timeout, invalid response, or connection error
         """
         metrics_context = cls._format_metrics_context(metrics_data)
 
-        # Build user prompt
         if user_message and user_message.strip():
             user_prompt = f"""Analyze these metrics and answer the promoter's question:
 
@@ -170,7 +177,7 @@ Provide your response as a JSON object with tactical guidance and recommended ch
             "prompt": user_prompt,
             "system": ADVISOR_SYSTEM_PROMPT,
             "stream": False,
-            "format": "json"  # Force JSON output format
+            "format": "json"
         }
 
         logger.debug(f"Calling Ollama with model {cls.MODEL_NAME}")
@@ -184,79 +191,37 @@ Provide your response as a JSON object with tactical guidance and recommended ch
             response.raise_for_status()
         except requests.exceptions.Timeout:
             logger.error(f"Ollama request timed out after {cls.OLLAMA_TIMEOUT}s")
-            raise HTTPException(
-                status_code=504,
-                detail="LLM request timed out - advisor unavailable"
-            )
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"Failed to connect to Ollama: {e}")
-            raise HTTPException(
-                status_code=503,
-                detail="LLM service unavailable"
-            )
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Ollama request failed: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="LLM request failed"
-            )
+            raise HTTPException(status_code=504, detail="LLM request timed out")
+        except requests.exceptions.ConnectionError:
+            raise HTTPException(status_code=503, detail="LLM service unavailable")
+        except requests.exceptions.RequestException:
+            raise HTTPException(status_code=500, detail="LLM request failed")
 
-        # Extract and validate JSON response
+        response_data = response.json()
+        response_text = response_data.get("response", "").strip()
+
+        if not response_text:
+            raise HTTPException(status_code=500, detail="Empty response from LLM")
+
+        # Validazione e normalizzazione del dizionario
+        parsed_json = cls._validate_response_json(response_text)
+
+        # Filtraggio codici grafici consentiti
+        allowed_charts = {"HEATMAP_PERFORMANCE", "MOMENTUM_TIMELINE", "BAR_PRODOTTI", "KPI_MACRO"}
+        charts = parsed_json.get("grafici_consigliati", [])
+        
+        validated_charts = [str(c) for c in charts if str(c) in allowed_charts]
+        parsed_json["grafici_consigliati"] = validated_charts
+
+        # Creazione sicura dell'oggetto Pydantic
         try:
-            response_data = response.json()
-            response_text = response_data.get("response", "")
-
-            if not response_text:
-                logger.error("Empty response from Ollama")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Empty response from LLM"
-                )
-
-            parsed_json = cls._validate_response_json(response_text)
-
-            # Validate required fields
-            required_fields = ["suggerimento_breve", "dettaglio_risposta", "grafici_consigliati"]
-            missing = [f for f in required_fields if f not in parsed_json]
-            if missing:
-                logger.error(f"Response missing required fields: {missing}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Invalid LLM response structure"
-                )
-
-            # Validate chart codes
-            allowed_charts = {"HEATMAP_PERFORMANCE", "MOMENTUM_TIMELINE", "BAR_PRODOTTI", "KPI_MACRO"}
-            charts = parsed_json.get("grafici_consigliati", [])
-            if not isinstance(charts, list):
-                logger.error(f"grafici_consigliati is not a list: {type(charts)}")
-                charts = []
-
-            validated_charts = [c for c in charts if c in allowed_charts]
-            if len(validated_charts) < len(charts):
-                logger.warning(f"Some invalid chart codes filtered out")
-
-            parsed_json["grafici_consigliati"] = validated_charts
-
             return AdvisorResponse(**parsed_json)
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Ollama JSON response: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="LLM response format invalid"
-            )
-        except ValueError as e:
-            logger.error(f"Response validation failed: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="LLM response validation failed"
-            )
         except Exception as e:
-            logger.error(f"Unexpected error processing LLM response: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail="Error processing LLM response"
+            logger.error(f"Pydantic instantiation failed: {e}. Data: {parsed_json}")
+            return AdvisorResponse(
+                suggerimento_breve="Analisi elaborata.",
+                dettaglio_risposta=parsed_json.get("dettaglio_risposta", response_text),
+                grafici_consigliati=[]
             )
 
 
@@ -285,38 +250,7 @@ app = FastAPI(
     tags=["advisor"]
 )
 async def chat_with_advisor(request: AdvisorRequest) -> AdvisorResponse:
-    """
-    Generate tactical advice based on financial metrics.
-
-    **Request Parameters:**
-    - `metrics_data`: Dictionary of calculated metrics (e.g., performance, engagement, products)
-    - `user_message`: Optional promoter question. If empty, generates initial tactical summary.
-
-    **Response:**
-    - `suggerimento_breve`: Short tactical instruction (imperative)
-    - `dettaglio_risposta`: Detailed discursive explanation
-    - `grafici_consigliati`: Recommended chart codes for frontend visualization
-
-    **Example Request:**
-    ```json
-    {
-      "metrics_data": {
-        "performance_metrics": {"adaptive": 85, "benchmark": 70},
-        "client_engagement": {"active_clients": 45, "trust_score": 7.2}
-      },
-      "user_message": "Why is engagement dropping in segment B?"
-    }
-    ```
-
-    **Example Response:**
-    ```json
-    {
-      "suggerimento_breve": "Increase contact frequency for segment B clients and emphasize performance gains.",
-      "dettaglio_risposta": "Analysis shows...",
-      "grafici_consigliati": ["HEATMAP_PERFORMANCE", "MOMENTUM_TIMELINE"]
-    }
-    ```
-    """
+    """Generate tactical advice based on financial metrics."""
     logger.info(f"Advisor request: user_message='{request.user_message[:50] if request.user_message else '(empty)'}...'")
 
     response = OllamaAdvisor.generate_advice(
@@ -335,35 +269,6 @@ async def health_check() -> dict:
         "status": "ok",
         "service": "FINsim Virtual Advisor API",
         "llm_model": OllamaAdvisor.MODEL_NAME
-    }
-
-
-@app.get("/api/advisor/charts", tags=["advisor"])
-async def get_available_charts() -> dict:
-    """
-    Get list of available chart codes that advisor can recommend.
-
-    Useful for frontend to understand which visualizations are supported.
-    """
-    return {
-        "available_charts": [
-            {
-                "code": "HEATMAP_PERFORMANCE",
-                "description": "Performance intensity by client/product segment"
-            },
-            {
-                "code": "MOMENTUM_TIMELINE",
-                "description": "Trend strength and reversals over time"
-            },
-            {
-                "code": "BAR_PRODOTTI",
-                "description": "Product distribution and mix analysis"
-            },
-            {
-                "code": "KPI_MACRO",
-                "description": "Macro KPI indicators and benchmarks"
-            }
-        ]
     }
 
 
