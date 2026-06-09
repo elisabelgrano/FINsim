@@ -13,7 +13,6 @@ from uuid import uuid4
 
 from neo4j import GraphDatabase, Session as Neo4jSession
 from neo4j.exceptions import Neo4jError
-from sklearn import metrics
 
 from backend.app.finsim.agents.promotore_agent import PromotoreAgent
 from backend.app.finsim.llm.ollama_client import OllamaClient
@@ -202,7 +201,7 @@ class SimulationEngine:
                             
                             metrics_query = """
                             MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
-                            WHere c.cluster_riga = $riga AND c.cluster_col = $col
+                            WHERE c.cluster_riga = $riga AND c.cluster_col = $col
                             RETURN
                                 avg(c.fiducia_attuale - c.fiducia_iniziale) as avg_delta_fiducia,
                                 avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione
@@ -336,7 +335,7 @@ class SimulationEngine:
 
     def calcola_reazione_clienti(
         self,
-        session,
+        session: Neo4jSession,
         promotore_uuid: str,
         riga: int,
         col: int,
@@ -502,83 +501,91 @@ class SimulationEngine:
         ]
 
         return clusters
-    
-    def _calcola_metriche_business(self, scenario_data):
-            """
-            Calcola i KPI di business aggregando i dati storici dei round simulati.
-            """
-            metrics = {
-                "valore_aggiunto_personalizzazione":0.0,
-                "soddisfazione_ponderata_fisso":0.0,
-                "soddisfazione_ponderata_adattivo":0.0,
-                "clienti_salvati_dal_churn":0,
-                "velocita_variazione_soddisfazione": [],
-                "efficacia_strategica_prodotti": {}
-            }
-            
-            # pesi per fascia patrimoniale
-            pesi_patrimonio = {0: 1, 1: 2, 2: 5, 3: 10, 4: 25}
-            storia_soddisfazione_adattativo = []
-            
-            for r_idx, round_data in enumerate(scenario_data.get('rounds', [])):
-                round_num = round_data.get('round')
-                
-                fisso_data = next((p for p in round_data.get('promoters_data', []) if p['promotore_id'] == 'PROM-FISSO-1'), None)
-                adapt_data = next((p for p in round_data.get('promoters_data', []) if p['promotore_id'] == 'PROM-ADATTIVO-1'), None)
-                
-                sodd_fisso_round = 0.0
-                sodd_adapt_round = 0.0
-                mappa_fisso = {}
-                
-                # calcoli promotore fisso
-                if fisso_data:
-                    for strat in fisso_data.get('strategies', []):
-                        coords = tuple(strat['cluster_coords'])
-                        col = coords[1]
-                        peso = pesi_patrimonio.get(col, 1)
-                        
-                        # estrae delta json
-                        delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
-                    
-                        sodd_fisso_round += delta_sodd
-                        metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
-                        mappa_fisso[coords] = delta_sodd
-                        
-                        # Gestione prodotto (a volte l'LLM risponde con una lista o dizionario)
-                        prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
-                        if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
-                            prod = prod_raw[0].get('nome_prodotto', 'Misto')
-                        else:
-                            prod = str(prod_raw)
-                            
-                        if prod not in metrics["efficacia_strategica_prodotti"]:
-                            metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
-                        metrics["efficacia_strategica_prodotti"][prod]["utilizzi"] += 1
-                        metrics["efficacia_strategica_prodotti"][prod]["soddisfazione_generata"] += delta_sodd
 
-                # Calcoli Promotore Adattativo ---
-                if adapt_data:
-                    for strat in adapt_data.get('strategies', []):
-                        coords = tuple(strat['cluster_coords'])
-                        col = coords[1]
-                        peso = pesi_patrimonio.get(col, 1)
-                        delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
-                        
-                        sodd_adapt_round += delta_sodd
-                        metrics["soddisfazione_ponderata_adattativo"] += (delta_sodd * peso)
-                        
-                        # --- METRICA: Salvataggio Churn ---
-                        # Se nello stesso round, il fisso perde soddisfazione ma l'adattativo è in positivo:
-                        if coords in mappa_fisso:
-                            if mappa_fisso[coords] < 0 and delta_sodd >= 0:
-                                metrics["clienti_salvati_dal_churn"] += 1
-                                
-                        # Gestione Prodotto Adattativo
-                        prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
-                        if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
-                            prod = prod_raw[0].get('nome_prodotto', 'Misto')
-                        else:
-                            prod = str(prod_raw)
+    def calcola_metriche_business(self, scenario_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calcola i KPI di business aggregando i dati storici dei round simulati.
+
+        Args:
+            scenario_data: Dict con 'rounds' contenente i dati aggregati per ogni round
+
+        Returns:
+            Dict con metriche di business calcolate
+        """
+        metrics = {
+            "valore_aggiunto_personalizzazione": 0.0,
+            "soddisfazione_ponderata_fisso": 0.0,
+            "soddisfazione_ponderata_adattativo": 0.0,
+            "clienti_salvati_dal_churn": 0,
+            "velocita_variazione_soddisfazione": [],
+            "efficacia_strategica_prodotti": {}
+        }
+
+        # pesi per fascia patrimoniale
+        pesi_patrimonio = {0: 1, 1: 2, 2: 5, 3: 10, 4: 25}
+        storia_soddisfazione_adattativo = []
+
+        for r_idx, round_data in enumerate(scenario_data.get('rounds', [])):
+            round_num = round_data.get('round')
+
+            fisso_data = next((p for p in round_data.get('promoters_data', [])
+                               if p['promotore_id'] == 'PROM-FISSO-1'), None)
+            adapt_data = next((p for p in round_data.get('promoters_data', [])
+                               if p['promotore_id'] == 'PROM-ADATTIVO-1'), None)
+
+            sodd_fisso_round = 0.0
+            sodd_adapt_round = 0.0
+            mappa_fisso = {}
+
+            # calcoli promotore fisso
+            if fisso_data:
+                for strat in fisso_data.get('strategies', []):
+                    coords = tuple(strat['cluster_coords'])
+                    col = coords[1]
+                    peso = pesi_patrimonio.get(col, 1)
+
+                    # estrae delta json
+                    delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
+
+                    sodd_fisso_round += delta_sodd
+                    metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
+                    mappa_fisso[coords] = delta_sodd
+
+                    # Gestione prodotto (a volte l'LLM risponde con una lista o dizionario)
+                    prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
+                    if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
+                        prod = prod_raw[0].get('nome_prodotto', 'Misto')
+                    else:
+                        prod = str(prod_raw)
+
+                    if prod not in metrics["efficacia_strategica_prodotti"]:
+                        metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
+                    metrics["efficacia_strategica_prodotti"][prod]["utilizzi"] += 1
+                    metrics["efficacia_strategica_prodotti"][prod]["soddisfazione_generata"] += delta_sodd
+
+            # Calcoli Promotore Adattativo ---
+            if adapt_data:
+                for strat in adapt_data.get('strategies', []):
+                    coords = tuple(strat['cluster_coords'])
+                    col = coords[1]
+                    peso = pesi_patrimonio.get(col, 1)
+                    delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
+
+                    sodd_adapt_round += delta_sodd
+                    metrics["soddisfazione_ponderata_adattativo"] += (delta_sodd * peso)
+
+                    # --- METRICA: Salvataggio Churn ---
+                    # Se nello stesso round, il fisso perde soddisfazione ma l'adattativo è in positivo:
+                    if coords in mappa_fisso:
+                        if mappa_fisso[coords] < 0 and delta_sodd >= 0:
+                            metrics["clienti_salvati_dal_churn"] += 1
+
+                    # Gestione Prodotto Adattativo
+                    prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
+                    if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
+                        prod = prod_raw[0].get('nome_prodotto', 'Misto')
+                    else:
+                        prod = str(prod_raw)
 
                     if prod not in metrics["efficacia_strategica_prodotti"]:
                         metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
@@ -589,19 +596,22 @@ class SimulationEngine:
             metrics["valore_aggiunto_personalizzazione"] += (sodd_adapt_round - sodd_fisso_round)
 
             # 4. Velocità di Variazione (Momentum)
-            storia_soddisfazione_adattivo.append(sodd_adapt_round)
+            storia_soddisfazione_adattativo.append(sodd_adapt_round)
             if r_idx > 0:
-                variazione = sodd_adapt_round - storia_soddisfazione_adattivo[r_idx - 1]
+                variazione = sodd_adapt_round - storia_soddisfazione_adattativo[r_idx - 1]
                 metrics["velocita_variazione_soddisfazione"].append({
                     "round": round_num,
                     "variazione_netta": round(variazione, 4)
                 })
 
-            # --- Pulizia finale dei decimali ---
-            metrics["valore_aggiunto_personalizzazione"] = round(metrics["valore_aggiunto_personalizzazione"], 4)
-            metrics["soddisfazione_ponderata_fisso"] = round(metrics["soddisfazione_ponderata_fisso"], 4)
-            metrics["soddisfazione_ponderata_adattativo"] = round(metrics["soddisfazione_ponderata_adattativo"], 4)
-            for k in metrics["efficacia_strategica_prodotti"]:
-                metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4)
+        # --- Pulizia finale dei decimali ---
+        metrics["valore_aggiunto_personalizzazione"] = round(metrics["valore_aggiunto_personalizzazione"], 4)
+        metrics["soddisfazione_ponderata_fisso"] = round(metrics["soddisfazione_ponderata_fisso"], 4)
+        metrics["soddisfazione_ponderata_adattativo"] = round(metrics["soddisfazione_ponderata_adattativo"], 4)
+        for k in metrics["efficacia_strategica_prodotti"]:
+            metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(
+                metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4
+            )
 
-        return metrics                
+        return metrics
+
