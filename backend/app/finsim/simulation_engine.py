@@ -502,15 +502,16 @@ class SimulationEngine:
 
         return clusters
 
-    def calcola_metriche_business(self, scenario_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _calcola_metriche_business(self, scenario_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Calcola i KPI di business aggregando i dati storici dei round simulati.
+        Include pre-calcolo griglia 4x5 per heatmap e analisi automatica covariate.
 
         Args:
             scenario_data: Dict con 'rounds' contenente i dati aggregati per ogni round
 
         Returns:
-            Dict con metriche di business calcolate
+            Dict con metriche di business calcolate, heatmap e covariate
         """
         metrics = {
             "valore_aggiunto_personalizzazione": 0.0,
@@ -518,12 +519,21 @@ class SimulationEngine:
             "soddisfazione_ponderata_adattativo": 0.0,
             "clienti_salvati_dal_churn": 0,
             "velocita_variazione_soddisfazione": [],
-            "efficacia_strategica_prodotti": {}
+            "efficacia_strategica_prodotti": {},
+            "stato_finale_mappa_cluster": [],
+            "analisi_covariate": {}
         }
 
-        # pesi per fascia patrimoniale
         pesi_patrimonio = {0: 1, 1: 2, 2: 5, 3: 10, 4: 25}
         storia_soddisfazione_adattativo = []
+
+        mappa_accumulazione = {}
+        for riga in range(4):
+            for colonna in range(5):
+                mappa_accumulazione[(riga, colonna)] = {
+                    "soddisfazione_accumulata_fisso": 0.0,
+                    "soddisfazione_accumulata_adattivo": 0.0
+                }
 
         for r_idx, round_data in enumerate(scenario_data.get('rounds', [])):
             round_num = round_data.get('round')
@@ -537,21 +547,21 @@ class SimulationEngine:
             sodd_adapt_round = 0.0
             mappa_fisso = {}
 
-            # calcoli promotore fisso
             if fisso_data:
                 for strat in fisso_data.get('strategies', []):
                     coords = tuple(strat['cluster_coords'])
-                    col = coords[1]
-                    peso = pesi_patrimonio.get(col, 1)
+                    colonna = coords[1]
+                    peso = pesi_patrimonio.get(colonna, 1)
 
-                    # estrae delta json
                     delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
 
                     sodd_fisso_round += delta_sodd
                     metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
                     mappa_fisso[coords] = delta_sodd
 
-                    # Gestione prodotto (a volte l'LLM risponde con una lista o dizionario)
+                    if coords in mappa_accumulazione:
+                        mappa_accumulazione[coords]["soddisfazione_accumulata_fisso"] += delta_sodd
+
                     prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
                     if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
                         prod = prod_raw[0].get('nome_prodotto', 'Misto')
@@ -563,24 +573,23 @@ class SimulationEngine:
                     metrics["efficacia_strategica_prodotti"][prod]["utilizzi"] += 1
                     metrics["efficacia_strategica_prodotti"][prod]["soddisfazione_generata"] += delta_sodd
 
-            # Calcoli Promotore Adattativo ---
             if adapt_data:
                 for strat in adapt_data.get('strategies', []):
                     coords = tuple(strat['cluster_coords'])
-                    col = coords[1]
-                    peso = pesi_patrimonio.get(col, 1)
+                    colonna = coords[1]
+                    peso = pesi_patrimonio.get(colonna, 1)
                     delta_sodd = strat.get('performance_metrics', {}).get('delta_soddisfazione_medio', 0.0)
 
                     sodd_adapt_round += delta_sodd
                     metrics["soddisfazione_ponderata_adattativo"] += (delta_sodd * peso)
 
-                    # --- METRICA: Salvataggio Churn ---
-                    # Se nello stesso round, il fisso perde soddisfazione ma l'adattativo è in positivo:
+                    if coords in mappa_accumulazione:
+                        mappa_accumulazione[coords]["soddisfazione_accumulata_adattivo"] += delta_sodd
+
                     if coords in mappa_fisso:
                         if mappa_fisso[coords] < 0 and delta_sodd >= 0:
                             metrics["clienti_salvati_dal_churn"] += 1
 
-                    # Gestione Prodotto Adattativo
                     prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
                     if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
                         prod = prod_raw[0].get('nome_prodotto', 'Misto')
@@ -592,10 +601,8 @@ class SimulationEngine:
                     metrics["efficacia_strategica_prodotti"][prod]["utilizzi"] += 1
                     metrics["efficacia_strategica_prodotti"][prod]["soddisfazione_generata"] += delta_sodd
 
-            # 3. Valore Aggiunto Personalizzazione
             metrics["valore_aggiunto_personalizzazione"] += (sodd_adapt_round - sodd_fisso_round)
 
-            # 4. Velocità di Variazione (Momentum)
             storia_soddisfazione_adattativo.append(sodd_adapt_round)
             if r_idx > 0:
                 variazione = sodd_adapt_round - storia_soddisfazione_adattativo[r_idx - 1]
@@ -604,7 +611,56 @@ class SimulationEngine:
                     "variazione_netta": round(variazione, 4)
                 })
 
-        # --- Pulizia finale dei decimali ---
+        mappa_cluster_lista = []
+        vantaggio_per_riga = {i: [] for i in range(4)}
+        vantaggio_per_colonna = {j: [] for j in range(5)}
+
+        for riga in range(4):
+            for colonna in range(5):
+                coords = (riga, colonna)
+                acc_fisso = mappa_accumulazione[coords]["soddisfazione_accumulata_fisso"]
+                acc_adattivo = mappa_accumulazione[coords]["soddisfazione_accumulata_adattivo"]
+                vantaggio_netto = acc_adattivo - acc_fisso
+
+                mappa_cluster_lista.append({
+                    "riga": riga,
+                    "colonna": colonna,
+                    "soddisfazione_accumulata_fisso": round(acc_fisso, 4),
+                    "soddisfazione_accumulata_adattivo": round(acc_adattivo, 4),
+                    "vantaggio_netto_ia": round(vantaggio_netto, 4)
+                })
+
+                vantaggio_per_riga[riga].append(vantaggio_netto)
+                vantaggio_per_colonna[colonna].append(vantaggio_netto)
+
+        metrics["stato_finale_mappa_cluster"] = mappa_cluster_lista
+
+        media_vantaggio_riga = {i: sum(vals) / len(vals) if vals else 0.0 for i, vals in vantaggio_per_riga.items()}
+        media_vantaggio_colonna = {j: sum(vals) / len(vals) if vals else 0.0 for j, vals in vantaggio_per_colonna.items()}
+
+        miglior_riga_adattivo = max(media_vantaggio_riga, key=media_vantaggio_riga.get)
+        media_vantaggio_riga_adattivo = round(media_vantaggio_riga[miglior_riga_adattivo], 4)
+
+        miglior_colonna_adattivo = max(media_vantaggio_colonna, key=media_vantaggio_colonna.get)
+        media_vantaggio_colonna_adattivo = round(media_vantaggio_colonna[miglior_colonna_adattivo], 4)
+
+        peggiore_riga_fisso = min(media_vantaggio_riga, key=media_vantaggio_riga.get)
+        media_vantaggio_riga_fisso = round(media_vantaggio_riga[peggiore_riga_fisso], 4)
+
+        peggiore_colonna_fisso = min(media_vantaggio_colonna, key=media_vantaggio_colonna.get)
+        media_vantaggio_colonna_fisso = round(media_vantaggio_colonna[peggiore_colonna_fisso], 4)
+
+        metrics["analisi_covariate"] = {
+            "miglior_riga_adattivo": miglior_riga_adattivo,
+            "media_vantaggio_riga_adattivo": media_vantaggio_riga_adattivo,
+            "miglior_colonna_adattivo": miglior_colonna_adattivo,
+            "media_vantaggio_colonna_adattivo": media_vantaggio_colonna_adattivo,
+            "peggiore_riga_fisso": peggiore_riga_fisso,
+            "media_vantaggio_riga_fisso": media_vantaggio_riga_fisso,
+            "peggiore_colonna_fisso": peggiore_colonna_fisso,
+            "media_vantaggio_colonna_fisso": media_vantaggio_colonna_fisso
+        }
+
         metrics["valore_aggiunto_personalizzazione"] = round(metrics["valore_aggiunto_personalizzazione"], 4)
         metrics["soddisfazione_ponderata_fisso"] = round(metrics["soddisfazione_ponderata_fisso"], 4)
         metrics["soddisfazione_ponderata_adattativo"] = round(metrics["soddisfazione_ponderata_adattativo"], 4)

@@ -7,6 +7,7 @@ Provides parameterized, timeout-aware requests with retry logic and fallback res
 
 import json
 import logging
+import os
 import requests
 from typing import Dict, Any, Optional
 
@@ -22,7 +23,7 @@ class OllamaClient:
     """
 
     DEFAULT_BASE_URL: str = "http://localhost:11434"
-    DEFAULT_TIMEOUT_SECONDS: float = 30.0
+    DEFAULT_TIMEOUT_SECONDS: float = float(os.getenv('OLLAMA_TIMEOUT_SECONDS', '900.0'))
     MAX_RETRIES: int = 1
 
     def __init__(
@@ -35,11 +36,31 @@ class OllamaClient:
 
         Args:
             base_url: Ollama API base URL (default: http://localhost:11434)
-            timeout_seconds: Request timeout in seconds (default: 30.0)
+            timeout_seconds: Request timeout in seconds (default: 900.0, or OLLAMA_TIMEOUT_SECONDS env var)
         """
         self.base_url = base_url or self.DEFAULT_BASE_URL
         self.timeout_seconds = timeout_seconds
         logger.info(f"OllamaClient initialized: {self.base_url}, timeout={timeout_seconds}s")
+
+        if not self.is_healthy():
+            logger.warning(f"⚠️  Ollama at {self.base_url} is not responding. Check if it's running.")
+
+    def is_healthy(self) -> bool:
+        """
+        Check if Ollama API is responsive.
+
+        Returns:
+            True if Ollama responds to /api/tags, False otherwise
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/tags",
+                timeout=5.0,
+            )
+            return response.status_code == 200
+        except Exception as e:
+            logger.debug(f"Ollama health check failed: {e}")
+            return False
 
     def generate(
         self,
