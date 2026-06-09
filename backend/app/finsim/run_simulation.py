@@ -325,9 +325,8 @@ def main():
         )
 
         # MongoDB connection
-        mongo_uri = getattr(Config, 'MONGO_URI', 'mongodb://elisa:deepleey@127.0.0.1:27017/?authSource=admin')
         try:
-            client = MongoClient(mongo_uri)
+            client = MongoClient(Config.MONGO_URI)
             db = client["finsim_analytics"]
             collection = db["simulation_history"]
             logger.info("MongoDB connection established successfully.")
@@ -336,7 +335,7 @@ def main():
             return
 
         # Scenario list
-        scenarios = ['S1']
+        scenarios = ['S3']
         all_results = []
 
         for scenario_id in scenarios:

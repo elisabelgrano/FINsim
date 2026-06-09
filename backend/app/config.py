@@ -41,6 +41,9 @@ class Config:
     EMBEDDING_MODEL = os.environ.get('EMBEDDING_MODEL', 'nomic-embed-text')
     EMBEDDING_BASE_URL = os.environ.get('EMBEDDING_BASE_URL', 'http://localhost:11434')
 
+    # MongoDB configuration
+    MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://elisa:deepleey@127.0.0.1:27017/?authSource=admin')
+
     # File upload configuration
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
