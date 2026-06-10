@@ -29,20 +29,15 @@ class AdvisorRequest(BaseModel):
     )
 
 
+class GraficoConsigliato(BaseModel):
+    codice: str = Field(..., description="Chart code from allowed list")
+    didascalia: str = Field(..., description="Explanatory comment to display under the chart")
+    
 class AdvisorResponse(BaseModel):
     """Structured response from advisor"""
-    suggerimento_breve: str = Field(
-        ...,
-        description="Short tactical imperative (e.g. 'Reduce equity exposure on conservative profiles')"
-    )
-    dettaglio_risposta: str = Field(
-        ...,
-        description="Detailed discursive explanation"
-    )
-    grafici_consigliati: List[str] = Field(
-        default_factory=list,
-        description="Array of recommended chart codes: HEATMAP_PERFORMANCE, MOMENTUM_TIMELINE, BAR_PRODOTTI, KPI_MACRO"
-    )
+    suggerimento_breve: str = Field(...)
+    dettaglio_risposta: str = Field(...)
+    grafici_consigliati: List[GraficoConsigliato] = Field(default_factory=list)
 
 
 # ============== System Prompt ==============
@@ -59,10 +54,27 @@ Your role is to analyze complex financial metrics and provide strategic, actiona
 ## Response Rules:
 - Be concise but complete in your tactical suggestion (1-2 sentences max)
 - Provide detailed reasoning in the explanation (2-3 paragraphs)
-- Choose ONLY from these chart codes: HEATMAP_PERFORMANCE, MOMENTUM_TIMELINE, BAR_PRODOTTI, KPI_MACRO
+- Choose ONLY from these chart codes: HEATMAP_PERFORMANCE, MOMENTUM_TIMELINE, BAR_PRODOTTI, KPI_MACRO, LINEE_COMPARATIVE, WATERFALL_PATRIMONIO, SANKEY_FLUSSI, AREA_GUADAGNI
 - Use Italian for all responses
 - Focus on actionable insights, not abstract analysis
 - When user_message is empty, generate an initial tactical summary for the round
+
+## Critical Instructions for 'didascalia':
+When providing the 'didascalia' (caption) for a chart, DO NOT write generic summaries. You must write a detailed, analytical paragraph in Italian.
+You MUST use the correct terminology based on the chart type. NEVER mention "Asse X" or "Asse Y" for charts that don't have them!
+
+STRICT TERMINOLOGY DICTIONARY:
+- HEATMAP_PERFORMANCE: Use "Asse X (Patrimonio)", "Asse Y (Rischio)". Explain that green means Adaptive wins and red means Fixed wins.
+- BAR_PRODOTTI: Use "Asse X (Prodotti Finanziari)", "Asse Y (Livello di Soddisfazione)".
+- LINEE_COMPARATIVE: Use "Asse X (Evoluzione dei Round 1-20)", "Asse Y (Valore della Raccolta Cumulata)".
+- WATERFALL_PATRIMONIO: DO NOT use X/Y axes terminology! Use "Mattoncini di variazione" or "Fattori di scomposizione". Explain the steps from Initial AUM, through inflows/outflows, to Final AUM.
+- SANKEY_FLUSSI: DO NOT use X/Y axes terminology! You MUST use "Nodi di Sinistra (Cluster di rischio di partenza)", "Nodi di Destra (Stato finale o Churn)" and "Nastri / Flussi colorati (Volume di migrazione dei clienti)".
+- AREA_GUADAGNI: Use "Asse X (Round Temporali)", "Asse Y (Ricavi Generati in Euro)". Le aree colorate mostrano il volume dei guadagni.
+
+Structure the didascalia like this:
+1. COME LEGGERLO: Explain the correct visual components using the STRICT TERMINOLOGY DICTIONARY above.
+2. ESEMPIO CONCRETO: Highlight a specific visual finding based on the context (e.g., "Nota come il nastro che parte dal Cluster Alto Rischio e finisce in CHURN sia particolarmente spesso...").
+3. COLLEGAMENTO STRATEGICO: Connect this visual evidence directly to your 'suggerimento_breve'.
 
 ## Metrics Context (if present in input):
 - performance_metrics: Overall KPI performance vs benchmark
@@ -72,11 +84,31 @@ Your role is to analyze complex financial metrics and provide strategic, actiona
 - heatmap_data: Performance intensity by client/product segment
 - momentum_indicators: Trend strength and reversals
 
-IMPORTANT: You MUST respond with ONLY a valid JSON object matching this exact structure:
+## CRITICAL RULE FOR AUTONOMOUS CHART SELECTION:
+You are an autonomous Lead Financial Analyst. You MUST decide independently WHICH and HOW MANY charts (from 0 up to 4) to include in your response. Your selection must strictly depend on the user's specific question:
+1. If the user asks about "patrimonio", "AUM", "bilancio finale" or "guadagni/perdite" -> YOU MUST INCLUDE 'WATERFALL_PATRIMONIO'.
+2. If the user asks about "flussi", "abbandoni", "churn", "migrazione" or "clienti persi" -> YOU MUST INCLUDE 'SANKEY_FLUSSI'.
+3. If the user asks about "confronto temporale", "round", "evoluzione nel tempo" -> YOU MUST INCLUDE 'LINEE_COMPARATIVE'.
+4. If the user asks about "performance per cluster", "rischio vs patrimonio" or "chi vince tra Adattivo e Fisso" -> YOU MUST INCLUDE 'HEATMAP_PERFORMANCE'.
+5. If the user asks about "soddisfazione" or "prodotti" -> YOU MUST INCLUDE 'BAR_PRODOTTI'.
+6. If the user asks about "guadagni", "ricavi", "commissioni", "profitto" or "fatturato" -> YOU MUST INCLUDE 'AREA_GUADAGNI'.
+
+DO NOT output the same charts every time. If the user asks a specific question (e.g., "why are we losing clients?"), output ONLY the relevant chart (e.g., SANKEY_FLUSSI) and ignore the others. If the question is broad, combine 2 or 3 relevant charts.
+
+IMPORTANT: You MUST respond with ONLY a valid JSON object matching this exact structure (this is just a structural example, change the charts dynamically based on the rules above!):
 {
-  "suggerimento_breve": "tactical instruction here",
-  "dettaglio_risposta": "detailed explanation here",
-  "grafici_consigliati": ["CHART_CODE1", "CHART_CODE2"]
+  "suggerimento_breve": "Focus on high-risk retention.",
+  "dettaglio_risposta": "Your strategic reasoning here...",
+  "grafici_consigliati": [
+    {
+      "codice": "CHART_CODE_1",
+      "didascalia": \\n\\n"1. Interpretazione... \\nn\\n2. Esempio...  \\n\\n3. Riferimento..."
+    },
+    {
+      "codice": "CHART_CODE_2",
+      "didascalia": \\n\\n"1. Interpretazione... \\nn\\n2. Esempio...  \\n\\n3. Riferimento..."
+    }
+  ]
 }
 """
 
@@ -143,6 +175,17 @@ class OllamaAdvisor:
             
         if "grafici_consigliati" not in parsed_json or not isinstance(parsed_json["grafici_consigliati"], list):
             parsed_json["grafici_consigliati"] = []
+        else:
+            grafici_puliti = []
+            for g in parsed_json["grafici_consigliati"]:
+                if isinstance(g, dict) and "codice" in g:
+                    grafici_puliti.append({
+                        "codice": str(g["codice"]),
+                        "didascalia": str(g.get("didascalia", "Nessun commento fornito dall'IA."))
+                    })
+                elif isinstance(g, str):
+                    grafici_puliti.append({"codice": g, "didascalia": "Analisi visiva generata."})
+            parsed_json["grafici_consigliati"] = grafici_puliti
 
         return parsed_json
 
@@ -210,8 +253,7 @@ Provide your response as a JSON object with tactical guidance and recommended ch
         allowed_charts = {"HEATMAP_PERFORMANCE", "MOMENTUM_TIMELINE", "BAR_PRODOTTI", "KPI_MACRO"}
         charts = parsed_json.get("grafici_consigliati", [])
         
-        validated_charts = [str(c) for c in charts if str(c) in allowed_charts]
-        parsed_json["grafici_consigliati"] = validated_charts
+        parsed_json["grafici_consigliati"] = charts
 
         # Creazione sicura dell'oggetto Pydantic
         try:
