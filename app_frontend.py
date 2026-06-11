@@ -103,7 +103,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 if codice_grafico == "HEATMAP_PERFORMANCE":
                     fig = genera_heatmap_performance(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
@@ -111,7 +111,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 elif codice_grafico == "BAR_PRODOTTI":
                     fig = genera_bar_prodotti(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
@@ -119,7 +119,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 elif codice_grafico == "LINEE_COMPARATIVE":
                     fig = genera_linee_comparative(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
@@ -127,7 +127,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 elif codice_grafico == "WATERFALL_PATRIMONIO":
                     fig = genera_waterfall_patrimonio(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
@@ -135,7 +135,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 elif codice_grafico == "SANKEY_FLUSSI":
                     fig = genera_sankey_flussi(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
@@ -143,7 +143,7 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                 elif codice_grafico == "AREA_GUADAGNI":
                     fig = genera_andamento_guadagni(metrics)
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width="stretch")
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi IA:**\n\n{didascalia_pulita}")
