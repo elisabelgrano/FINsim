@@ -10,6 +10,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
+from collections import Counter
 
 from neo4j import GraphDatabase, Session as Neo4jSession
 from neo4j.exceptions import Neo4jError
@@ -17,6 +18,7 @@ from neo4j.exceptions import Neo4jError
 from backend.app.finsim.agents.promotore_agent import PromotoreAgent
 from backend.app.finsim.llm.ollama_client import OllamaClient
 from backend.app.finsim.search_finsim import FinsimSearcher
+from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
@@ -97,6 +99,9 @@ class SimulationEngine:
                 'total_clusters': int,
                 'decisions_created': int,
                 'clients_updated': int,
+                'compliance_rate': float,
+                'prodotto_dominante': str,
+                'dispersione_prodotti': int,
                 'errors': List[str],
                 'timestamp': str
             }
@@ -110,11 +115,28 @@ class SimulationEngine:
             'total_clusters': 0,
             'decisions_created': 0,
             'clients_updated': 0,
+            'compliance_rate': 0.0,
+            'prodotto_dominante': 'Altro',
+            'dispersione_prodotti': 0,
             'errors': [],
             'promoters_data': []
         }
 
+        # Tracking for metrics
+        prodotti_raw_list = []
+        prodotti_normalized_list = []
+        focus_prodotto = 'Altro'
+
         with self._driver.session() as session:
+            # Fetch directive to get focus_prodotto for compliance calculation
+            try:
+                direttiva_data = self.searcher.get_scenario_state(scenario_id, round_n=round_n)
+                direttiva = direttiva_data.get('direttiva_bancaria')
+                if direttiva:
+                    focus_prodotto = direttiva.get('focus_prodotto', 'Altro')
+                    logger.info(f"Focus prodotto from directive: {focus_prodotto}")
+            except Exception as e:
+                logger.warning(f"Could not fetch directive for compliance calculation: {e}")
             # Fetch all promoters
             promoters = self._get_all_promoters(session)
             logger.info(f"Found {len(promoters)} promoters")
@@ -160,11 +182,19 @@ class SimulationEngine:
                                 continue
 
                             # Extract strategy details
+                            prodotto_raw = strategy_result['prodotto_suggerito']
+                            prodotto_normalized = normalize_prodotto(prodotto_raw)
+
                             strategy_json = {
                                 'strategia': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
-                                'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                                'prodotto_suggerito_raw': prodotto_raw,
+                                'prodotto_suggerito': prodotto_normalized,
                             }
+
+                            # Track products for metrics
+                            prodotti_raw_list.append(prodotto_raw)
+                            prodotti_normalized_list.append(prodotto_normalized)
 
                             # Save decision to DB
                             decision_created = self.salva_decisione_db(
@@ -186,14 +216,13 @@ class SimulationEngine:
                                 )
                                 continue
 
-                            # Calculate client reactions
-                            prodotto_suggerito = strategy_result['prodotto_suggerito']
+                            # Calculate client reactions using normalized product
                             clients_updated = self.calcola_reazione_clienti(
                                 session=session,
                                 promotore_uuid=promotore_uuid,
                                 riga=riga,
                                 col=col,
-                                prodotto_suggerito=prodotto_suggerito,
+                                prodotto_suggerito=prodotto_normalized,
                             )
 
                             result['clients_updated'] += clients_updated
@@ -237,12 +266,32 @@ class SimulationEngine:
                     logger.error(error_msg, exc_info=True)
                     result['errors'].append(error_msg)
 
+        # Calculate round-level metrics
+        if prodotti_normalized_list:
+            # Compliance rate: share of decisions matching focus_prodotto
+            compliance_count = sum(
+                1 for p in prodotti_normalized_list if p == focus_prodotto
+            )
+            result['compliance_rate'] = round(
+                compliance_count / len(prodotti_normalized_list), 2
+            )
+
+            # Most frequent normalized product
+            counter = Counter(prodotti_normalized_list)
+            result['prodotto_dominante'] = counter.most_common(1)[0][0]
+
+            # Distinct products count
+            result['dispersione_prodotti'] = len(set(prodotti_normalized_list))
+
         logger.info(
             f"========== ROUND {round_n} COMPLETED ==========\n"
             f"Promoters: {result['promoters_processed']}\n"
             f"Clusters: {result['total_clusters']}\n"
             f"Decisions: {result['decisions_created']}\n"
             f"Clients Updated: {result['clients_updated']}\n"
+            f"Compliance Rate: {result['compliance_rate']}\n"
+            f"Prodotto Dominante: {result['prodotto_dominante']}\n"
+            f"Dispersione Prodotti: {result['dispersione_prodotti']}\n"
             f"Errors: {len(result['errors'])}"
         )
 
@@ -280,7 +329,8 @@ class SimulationEngine:
         # --- FIX ANTI-ALLUCINAZIONE ---
         # Forziamo la conversione in testo (str) per evitare crash su Neo4j
         sicuro_strategia = str(strategia_json.get('strategia', ''))
-        sicuro_prodotto = str(strategia_json.get('prodotto_suggerito', ''))
+        sicuro_prodotto_raw = str(strategia_json.get('prodotto_suggerito_raw', ''))
+        sicuro_prodotto_normalized = str(strategia_json.get('prodotto_suggerito', ''))
         sicuro_approccio = str(strategia_json.get('approccio_comunicativo', ''))
         # ------------------------------
         try:
@@ -293,6 +343,7 @@ class SimulationEngine:
                 round: $round_n,
                 strategia: $strategia,
                 approccio_comunicativo: $approccio_comunicativo,
+                prodotto_suggerito_raw: $prodotto_suggerito_raw,
                 prodotto_suggerito: $prodotto_suggerito,
                 cluster_riga: $riga,
                 cluster_col: $col,
@@ -309,7 +360,8 @@ class SimulationEngine:
                 round_n=round_n,
                 strategia=sicuro_strategia,
                 approccio_comunicativo=sicuro_approccio,
-                prodotto_suggerito=sicuro_prodotto,
+                prodotto_suggerito_raw=sicuro_prodotto_raw,
+                prodotto_suggerito=sicuro_prodotto_normalized,
                 riga=riga,
                 col=col,
             )
