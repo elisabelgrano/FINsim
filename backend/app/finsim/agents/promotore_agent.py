@@ -166,7 +166,29 @@ class PromotoreAgent:
 
                 result['strategia'] = strategy_json.get('strategia', '')
                 result['approccio_comunicativo'] = strategy_json.get('approccio_comunicativo', '')
-                result['prodotto_suggerito'] = strategy_json.get('prodotto_suggerito', '')
+                prodotto_suggerito = strategy_json.get('prodotto_suggerito', '')
+
+                # Sanitize prodotto_suggerito to ensure it's a valid non-empty string
+                if isinstance(prodotto_suggerito, list):
+                    for item in prodotto_suggerito:
+                        if isinstance(item, dict) and 'prodotto' in item:
+                            prodotto_suggerito = item['prodotto']
+                            break
+                    else:
+                        if prodotto_suggerito:
+                            prodotto_suggerito = str(prodotto_suggerito[0])
+                        else:
+                            prodotto_suggerito = ''
+                elif isinstance(prodotto_suggerito, dict):
+                    if 'prodotto' in prodotto_suggerito:
+                        prodotto_suggerito = prodotto_suggerito['prodotto']
+                    else:
+                        prodotto_suggerito = ''
+
+                if not isinstance(prodotto_suggerito, str) or not prodotto_suggerito.strip():
+                    prodotto_suggerito = 'Altro'
+
+                result['prodotto_suggerito'] = prodotto_suggerito
 
                 logger.info(
                     f"Strategy generated successfully: "
