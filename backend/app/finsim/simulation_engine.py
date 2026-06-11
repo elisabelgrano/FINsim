@@ -789,5 +789,73 @@ class SimulationEngine:
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4
             )
 
+        # Compute mismatch_rate: share of decisions where accettato == False
+        rifiutate = 0
+        totale_decisioni = 0
+        fiducia_values_per_round = {}
+
+        for round_data in scenario_data.get('rounds', []):
+            round_num = round_data.get('round')
+            if round_num not in fiducia_values_per_round:
+                fiducia_values_per_round[round_num] = []
+
+            for promoter_data in round_data.get('promoters_data', []):
+                for strat in promoter_data.get('strategies', []):
+                    totale_decisioni += 1
+
+                    accettato = strat.get('accettato', True)
+                    if not accettato:
+                        rifiutate += 1
+
+                    fiducia_media_post = strat.get('fiducia_media_post', 0.0)
+                    if fiducia_media_post is None:
+                        fiducia_media_post = 0.0
+                    fiducia_values_per_round[round_num].append(fiducia_media_post)
+
+        mismatch_rate = 0.0
+        if totale_decisioni > 0:
+            mismatch_rate = round(rifiutate / totale_decisioni, 2)
+
+        # Compute trend_fiducia: average fiducia per round across all clusters and promoters
+        trend_fiducia = []
+        for round_num in sorted(fiducia_values_per_round.keys()):
+            values = fiducia_values_per_round[round_num]
+            if values:
+                fiducia_media = round(sum(values) / len(values), 4)
+            else:
+                fiducia_media = 0.0
+            trend_fiducia.append({"round": round_num, "fiducia_media": fiducia_media})
+
+        # Compute pct_clienti_sotto_soglia_fiducia: percentage of clients with fiducia_attuale < 0.5
+        pct_clienti_sotto_soglia_fiducia = 0.0
+        try:
+            with self._driver.session() as neo_session:
+                # Query 1: count clients below threshold
+                query1 = """
+                MATCH (c:Cliente)
+                WHERE c.fiducia_attuale < 0.5
+                RETURN count(c) as sotto_soglia
+                """
+                result1 = neo_session.run(query1).single()
+                sotto_soglia = result1.get('sotto_soglia', 0) if result1 else 0
+
+                # Query 2: count all clients
+                query2 = """
+                MATCH (c:Cliente)
+                RETURN count(c) as totale
+                """
+                result2 = neo_session.run(query2).single()
+                totale = result2.get('totale', 0) if result2 else 0
+
+                # Compute percentage
+                if totale > 0:
+                    pct_clienti_sotto_soglia_fiducia = round(sotto_soglia / totale * 100, 2)
+        except Exception as e:
+            logger.warning(f"Could not calculate pct_clienti_sotto_soglia_fiducia: {e}")
+
+        metrics["mismatch_rate"] = mismatch_rate
+        metrics["trend_fiducia"] = trend_fiducia
+        metrics["pct_clienti_sotto_soglia_fiducia"] = pct_clienti_sotto_soglia_fiducia
+
         return metrics
 
