@@ -229,17 +229,19 @@ class SimulationEngine:
                             logger.info(f"    Updated {clients_updated} clients")
                             
                             metrics_query = """
-                            MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
+                            MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
                             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
                             RETURN
+                                count(c) as client_count,
                                 avg(c.fiducia_attuale - c.fiducia_iniziale) as avg_delta_fiducia,
                                 avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione
                             """
                             metrics_res = session.run(metrics_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
-                            
+
+                            client_count = metrics_res['client_count'] if metrics_res else 0
                             delta_fiducia = round(metrics_res['avg_delta_fiducia'], 4) if metrics_res and metrics_res['avg_delta_fiducia'] is not None else 0.0
                             delta_soddisfazione = round(metrics_res['avg_delta_soddisfazione'], 4) if metrics_res and metrics_res['avg_delta_soddisfazione'] is not None else 0.0
-                            
+
                             promoter_data_for_mongo['strategies'].append({
                                 'cluster_coords': [riga, col],
                                 'clients_in_cluster': clients_updated,
@@ -593,7 +595,7 @@ class SimulationEngine:
             fisso_data = next((p for p in round_data.get('promoters_data', [])
                                if p['promotore_id'] == 'PROM-FISSO-1'), None)
             adapt_data = next((p for p in round_data.get('promoters_data', [])
-                               if p['promotore_id'] == 'PROM-ADATTIVO-1'), None)
+                               if p['promotore_id'] == 'PROM-ADAPT-1'), None)
 
             sodd_fisso_round = 0.0
             sodd_adapt_round = 0.0
@@ -619,6 +621,7 @@ class SimulationEngine:
                         prod = prod_raw[0].get('nome_prodotto', 'Misto')
                     else:
                         prod = str(prod_raw)
+                    prod = normalize_prodotto(prod)
 
                     if prod not in metrics["efficacia_strategica_prodotti"]:
                         metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
@@ -647,6 +650,7 @@ class SimulationEngine:
                         prod = prod_raw[0].get('nome_prodotto', 'Misto')
                     else:
                         prod = str(prod_raw)
+                    prod = normalize_prodotto(prod)
 
                     if prod not in metrics["efficacia_strategica_prodotti"]:
                         metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
