@@ -12,6 +12,7 @@ from typing import Dict, Any
 
 from backend.app.finsim.llm.ollama_client import OllamaClient
 from backend.app.finsim.search_finsim import FinsimSearcher
+from backend.app.finsim.metrics.normalizzatore import normalize_prodotto
 
 logger = logging.getLogger('finsim.agents.promotore')
 
@@ -187,9 +188,10 @@ class PromotoreAgent:
 
                 if not isinstance(prodotto_suggerito, str) or not prodotto_suggerito.strip():
                     prodotto_suggerito = 'Altro'
-
-                result['prodotto_suggerito'] = prodotto_suggerito
-
+                
+                prodotto_pulito_standard = normalize_prodotto(prodotto_suggerito)
+                result['prodotto_suggerito'] = prodotto_pulito_standard
+                
                 logger.info(
                     f"Strategy generated successfully: "
                     f"scenario={scenario_id}, promotore={promotore_id}, cluster=({riga},{col})"

@@ -22,6 +22,14 @@ from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
+# ADEQUACY MATRIX: Maps client risk profile to product suitability scores
+ADEGUATEZZA_MATRIX = {
+    "Conservative": {"Cash_Equivalents": 1.0, "Bond_Sovereign": 0.9, "Bond_Corporate": 0.5, "Mixed_Funds": 0.1, "Altro": 0.2},
+    "Balanced": {"Bond_Sovereign": 1.0, "Bond_Corporate": 0.8, "Cash_Equivalents": 0.6, "Mixed_Funds": 0.5, "Altro": 0.3},
+    "Growth": {"Bond_Corporate": 1.0, "Mixed_Funds": 0.8, "Bond_Sovereign": 0.5, "Cash_Equivalents": 0.3, "Altro": 0.3},
+    "Aggressive": {"Mixed_Funds": 1.0, "Bond_Corporate": 0.7, "Bond_Sovereign": 0.3, "Cash_Equivalents": 0.2, "Altro": 0.2}
+}
+
 
 class SimulationEngine:
     """
@@ -126,6 +134,7 @@ class SimulationEngine:
         prodotti_raw_list = []
         prodotti_normalized_list = []
         focus_prodotto = 'Altro'
+        prodotti_per_promotore = {}  # {promotore_id: [list of normalized products]}
 
         with self._driver.session() as session:
             # Fetch directive to get focus_prodotto for compliance calculation
@@ -195,6 +204,9 @@ class SimulationEngine:
                             # Track products for metrics
                             prodotti_raw_list.append(prodotto_raw)
                             prodotti_normalized_list.append(prodotto_normalized)
+                            if promotore_id not in prodotti_per_promotore:
+                                prodotti_per_promotore[promotore_id] = []
+                            prodotti_per_promotore[promotore_id].append(prodotto_normalized)
 
                             # Save decision to DB
                             decision_created = self.salva_decisione_db(
@@ -216,6 +228,15 @@ class SimulationEngine:
                                 )
                                 continue
 
+                            # Get trust snapshot before client reactions
+                            pre_trust_query = """
+                            MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
+                            WHERE c.cluster_riga = $riga AND c.cluster_col = $col
+                            RETURN avg(c.fiducia_attuale) as fiducia_media_pre
+                            """
+                            pre_trust_res = session.run(pre_trust_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
+                            fiducia_media_pre = float(pre_trust_res['fiducia_media_pre']) if pre_trust_res and pre_trust_res['fiducia_media_pre'] is not None else 0.0
+
                             # Calculate client reactions using normalized product
                             clients_updated = self.calcola_reazione_clienti(
                                 session=session,
@@ -234,23 +255,53 @@ class SimulationEngine:
                             RETURN
                                 count(c) as client_count,
                                 avg(c.fiducia_attuale - c.fiducia_iniziale) as avg_delta_fiducia,
-                                avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione
+                                avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione,
+                                avg(c.fiducia_attuale) as fiducia_media_post,
+                                collect(c.profilo_rischio) as profili_rischio
                             """
                             metrics_res = session.run(metrics_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
 
                             client_count = metrics_res['client_count'] if metrics_res else 0
                             delta_fiducia = round(metrics_res['avg_delta_fiducia'], 4) if metrics_res and metrics_res['avg_delta_fiducia'] is not None else 0.0
                             delta_soddisfazione = round(metrics_res['avg_delta_soddisfazione'], 4) if metrics_res and metrics_res['avg_delta_soddisfazione'] is not None else 0.0
+                            fiducia_media_post = float(metrics_res['fiducia_media_post']) if metrics_res and metrics_res['fiducia_media_post'] is not None else 0.0
+
+                            # Compute dominant risk profile
+                            profili_rischio = metrics_res['profili_rischio'] if metrics_res and metrics_res['profili_rischio'] else []
+                            profilo_rischio_prevalente = Counter(profili_rischio).most_common(1)[0][0] if profili_rischio else 'Altro'
+
+                            # Compute adequacy score and acceptance
+                            adeguatezza_score = ADEGUATEZZA_MATRIX.get(profilo_rischio_prevalente, {}).get(prodotto_normalized, 0.2)
+                            accettato = bool(adeguatezza_score >= 0.5)
+
+                            # Compute snapshot delta
+                            delta_fiducia_medio_snapshot = round(fiducia_media_post - fiducia_media_pre, 4)
+
+                            # Apply deterministic override if strategy rejected
+                            if not accettato:
+                                delta_fiducia_medio_snapshot = -0.15
 
                             promoter_data_for_mongo['strategies'].append({
                                 'cluster_coords': [riga, col],
                                 'clients_in_cluster': clients_updated,
                                 'llm_strategy': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
-                                'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                                'prodotto_suggerito': prodotto_normalized,
+                                'fiducia_media_pre': float(fiducia_media_pre),
+                                'fiducia_media_post': float(fiducia_media_post),
+                                'delta_fiducia_medio_snapshot': delta_fiducia_medio_snapshot,
+                                'profilo_rischio_prevalente': profilo_rischio_prevalente,
+                                'adeguatezza_score': float(adeguatezza_score),
+                                'accettato': accettato,
                                 'performance_metrics': {
                                     'delta_fiducia_medio': delta_fiducia,
-                                    'delta_soddisfazione_medio': delta_soddisfazione
+                                    'delta_soddisfazione_medio': delta_soddisfazione,
+                                    'fiducia_media_pre': float(fiducia_media_pre),
+                                    'fiducia_media_post': float(fiducia_media_post),
+                                    'delta_fiducia_medio_snapshot': delta_fiducia_medio_snapshot,
+                                    'profilo_rischio_prevalente': profilo_rischio_prevalente,
+                                    'adeguatezza_score': float(adeguatezza_score),
+                                    'accettato': accettato
                                 }
                             })
 
@@ -269,6 +320,7 @@ class SimulationEngine:
                     result['errors'].append(error_msg)
 
         # Calculate round-level metrics
+        compliance_per_promotore = {}
         if prodotti_normalized_list:
             # Compliance rate: share of decisions matching focus_prodotto
             compliance_count = sum(
@@ -284,6 +336,18 @@ class SimulationEngine:
 
             # Distinct products count
             result['dispersione_prodotti'] = len(set(prodotti_normalized_list))
+
+            # Calculate compliance rate per promoter
+            for promotore_id, prodotti in prodotti_per_promotore.items():
+                if prodotti:
+                    promotore_compliance_count = sum(
+                        1 for p in prodotti if p == focus_prodotto
+                    )
+                    compliance_per_promotore[promotore_id] = round(
+                        promotore_compliance_count / len(prodotti), 2
+                    )
+
+        result['compliance_per_promotore'] = compliance_per_promotore
 
         logger.info(
             f"========== ROUND {round_n} COMPLETED ==========\n"

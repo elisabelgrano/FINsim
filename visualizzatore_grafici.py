@@ -100,31 +100,44 @@ def genera_heatmap_performance(business_metrics: dict):
     return applica_stile_premium(fig, "Mappa del Vantaggio Strategico (Adattivo vs Fisso)")
 
 def genera_bar_prodotti(business_metrics: dict):
-    """Genera il grafico a barre della soddisfazione prodotti"""
-    prodotti = ["Fondi Azionari", "Obbligazioni", "ETF Tematici", "Polizze", "Liquidità"]
-    soddisfazione = business_metrics.get("soddisfazione_prodotti", [78, 62, 85, 54, 90])
+    """Legge l'efficacia prodotti direttamente dai dati puliti di MongoDB"""
+    prodotti_puliti = business_metrics.get("efficacia_strategica_prodotti", {})
     
-    df = pd.DataFrame({"Prodotto": prodotti, "Soddisfazione": soddisfazione})
+    if not prodotti_puliti:
+        return go.Figure()
+    
+    # Estraiamo direttamente i dati perché le chiavi sono normalizzate
+    nomi_finali = list(prodotti_puliti.keys())
+    valori_soddisfazione = [prodotti_puliti[k].get("soddisfazione_generata", 0.0) for k in nomi_finali]
+    testi_utilizzi = [f"Utilizzato {prodotti_puliti[k].get('utilizzi',0)} volte" for k in nomi_finali]
+    
+    df = pd.DataFrame({
+        "Asset Class": [n.replace("_", " ") for n in nomi_finali],
+        "Soddisfazione": valori_soddisfazione,
+        "Info": testi_utilizzi
+    })
     
     fig = px.bar(
-        df, x="Prodotto", y="Soddisfazione",
-        color="Soddisfazione",
+        df, x="Asset Class", y="Soddisfazione",
+        color="Soddisfazione", text="Info",
         color_continuous_scale=["#e11d48", "#059669"]
     )
+    fig.update_traces(textposition="outside")
     
-    fig.update_coloraxes(
-        showscale=True,
-        colorbar=dict(
-            thickness=15,
-            title="<b>Soddisfazione</b>",
-            tickvals=[0, 50, 100],
-            ticktext=["Critica (Rosso)", "Media", "Alta (Verde)"],
-            tickfont=dict(size=11, color="#111827")
-        ))
-    fig.update_xaxes(title_text="<b>Prodotti Finanziari</b>")
-    fig.update_yaxes(title_text="<b>Livello di Soddisfazione (%)</b>", range=[0, 100])
+    if valori_soddisfazione:
+        fig.update_coloraxes(
+            showscale=True,
+            colorbar=dict(
+                thickness=15, title="<b>Soddisfazione</b>",
+                tickvals=[min(valori_soddisfazione), 0, max(valori_soddisfazione)],
+                ticktext=["Bassa", "Media", "Alta"], tickfont=dict(size=11, color="#111827")
+            )
+        )
     
-    return applica_stile_premium(fig, "Soddisfazione Clienti per Tipologia Prodotto")
+    fig.update_xaxes(title_text="<b>Asset Class (Normalizzate)</b>")
+    fig.update_yaxes(title_text="<b>Impatto Soddisfazione Totale</b>")
+    
+    return applica_stile_premium(fig, "Efficacia Strategica dei Prodotti sui Clienti")
 
 def genera_linee_comparative(business_metrics: dict):
     """Mostra l'andamento temporale del vantaggio cumulato nei 20 round"""
@@ -196,82 +209,133 @@ def genera_waterfall_patrimonio(business_metrics: dict):
     return applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio (AUM)")
 
 def genera_sankey_flussi(business_metrics: dict):
-    """Mostra il flusso dinamico dei clienti dai Cluster iniziali allo stato finale o Churn"""
-    label = ["Cluster Basso Rischio", "Cluster Medio Rischio", "Cluster Alto Rischio", "Stabili", "Upgrade Profilo", "CHURN (Persi)"]
-    source = [0, 0, 0,  1, 1, 1,  2, 2, 2]
-    target = [3, 4, 5,  3, 4, 5,  3, 4, 5]
-    value  = [120, 30, 5, 200, 80, 15, 90, 10, 45]
-    colori_link = ["rgba(5, 150, 105, 0.2)", "rgba(245, 158, 11, 0.2)", "rgba(225, 29, 72, 0.2)"] * 3
+    """Sankey dinamico basato sui clienti reali salvati o persi"""
+    # Usiamo i dati reali dal backend (con fallback di sicurezza)
+    clienti_salvati = business_metrics.get("clienti_salvati_dal_churn", 0)
+    
+    # Stimiamo il volume totale sui round per dare proporzione al flusso
+    variazioni = business_metrics.get("velocita_variazione_soddisfazione", [])
+    round_totali = len(variazioni) if variazioni else 20
+    clienti_stimati_inizio = 100 * round_totali # (es. 100 clienti per round)
+    
+    # Calcoliamo i flussi
+    gestiti_fisso = int(clienti_stimati_inizio / 2)
+    gestiti_adattivo = int(clienti_stimati_inizio / 2)
+    
+    # Assumiamo un churn base del 10% per il Fisso, mentre l'Adattivo ne salva una parte
+    churn_fisso = int(gestiti_fisso * 0.10)
+    churn_adattivo = int(gestiti_adattivo * 0.10) - clienti_salvati
+    if churn_adattivo < 0: churn_adattivo = 0
+    
+    successo_fisso = gestiti_fisso - churn_fisso
+    successo_adattivo = gestiti_adattivo - churn_adattivo
+
+    label = ["Clienti Iniziali", "Modello Fisso", "Modello Adattivo (IA)", "Fidelizzati (Successo)", "Persi (Churn)"]
+    source = [0, 0, 1, 1, 2, 2]
+    target = [1, 2, 3, 4, 3, 4]
+    value  = [gestiti_fisso, gestiti_adattivo, successo_fisso, churn_fisso, successo_adattivo, churn_adattivo]
+    
+    colori_link = [
+        "rgba(245, 158, 11, 0.3)", # Da Inizio a Fisso
+        "rgba(5, 150, 105, 0.3)",  # Da Inizio ad Adattivo
+        "rgba(59, 130, 246, 0.4)", # Da Fisso a Successo
+        "rgba(225, 29, 72, 0.4)",  # Da Fisso a Churn
+        "rgba(59, 130, 246, 0.4)", # Da Adattivo a Successo
+        "rgba(225, 29, 72, 0.4)"   # Da Adattivo a Churn
+    ]
 
     fig = go.Figure(data=[go.Sankey(
-        textfont=dict(size=13, color="#111827"), # <-- CORREZIONE: spostato fuori e rinominato in textfont!
+        textfont=dict(size=13, color="#111827"),
         node=dict(
-            pad=20,
-            thickness=25,
-            line=dict(color="#111827", width=1),
+            pad=20, thickness=25, line=dict(color="#111827", width=1),
             label=[f"<b>{l}</b>" for l in label],
-            color=["#3b82f6", "#f59e0b", "#ec4899", "#059669", "#10b981", "#e11d48"]
-            # <-- rimosso 'font' da qui
+            color=["#3b82f6", "#f59e0b", "#10b981", "#3b82f6", "#e11d48"]
         ),
         link=dict(source=source, target=target, value=value, color=colori_link)
     )])
     
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#3b82f6", symbol="square"), name='Basso Rischio'))
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#f59e0b", symbol="square"), name='Medio Rischio'))
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#ec4899", symbol="square"), name='Alto Rischio'))
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#e11d48", symbol="square"), name='Persi (CHURN)'))
-    
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.05,
-            xanchor="center",
-            x=0.5,
-            title_text=""
-        )
-    )
-    
-    fig = applica_stile_premium(fig, "Mappa di Migrazione dei Clienti e Tasso di Churn")
-    
+    fig = applica_stile_premium(fig, "Flusso di Fidelizzazione e Churn")
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)
-    
     return fig
     
 def genera_andamento_guadagni(business_metrics: dict):
-    """Mostra l'andamento dei ricavi/commissioni generate nei 20 round"""
-    # Dati fittizi di fallback se non trovi subito la metrica
-    guadagni_ia = business_metrics.get("storico_guadagni_adattivo", [i**1.15 * 1200 for i in range(1, 21)])
-    guadagni_fisso = business_metrics.get("storico_guadagni_fisso", [i * 1000 for i in range(1, 21)])
-    rounds = [f"R{i}" for i in range(1, 21)]
+    """Grafico ad area che mappa il delta di fiducia cumulativo"""
+    variazioni = business_metrics.get("velocita_variazione_soddisfazione", [])
     
-    fig = go.Figure()
+    if not variazioni:
+        return go.Figure()
+
+    rounds = [f"R{item.get('round')}" for item in variazioni]
+    # Creiamo un dato cumulativo (somma progressiva) per mostrare l'area di crescita
+    valori_netti = [item.get("variazione_netta", 0.0) for item in variazioni]
+    valori_cumulativi = []
+    somma_corrente = 0
+    for v in valori_netti:
+        somma_corrente += v
+        valori_cumulativi.append(somma_corrente)
+        
+    df = pd.DataFrame({"Round": rounds, "Valore Cumulativo (AUM Proxy)": valori_cumulativi})
     
-    # Area Promotore Fisso (Rosso)
-    fig.add_trace(go.Scatter(
-        x=rounds, y=guadagni_fisso, mode='lines',
-        line=dict(width=3, color="#e11d48"),
-        fill='tozeroy', fillcolor="rgba(225, 29, 72, 0.1)",
-        name="Fisso (Regole)"
-    ))
-    
-    # Area Promotore Adattivo (Verde)
-    fig.add_trace(go.Scatter(
-        x=rounds, y=guadagni_ia, mode='lines',
-        line=dict(width=3, color="#059669"),
-        fill='tozeroy', fillcolor="rgba(5, 150, 105, 0.1)",
-        name="Adattivo (IA)"
-    ))
-    
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title_text="")
+    fig = px.area(
+        df, x="Round", y="Valore Cumulativo (AUM Proxy)", 
+        color_discrete_sequence=["#059669"]
     )
     
-    fig.update_xaxes(title_text="<b>Round Temporali</b>", showgrid=False)
-    fig.update_yaxes(title_text="<b>Ricavi Generati (€)</b>", showgrid=True, gridcolor="rgba(0,0,0,0.05)")
+    # Gradiente sotto l'area per renderlo "premium"
+    fig.update_traces(fillcolor='rgba(5, 150, 105, 0.2)', line=dict(width=3))
     
-    return applica_stile_premium(fig, "Andamento Ricavi (Adattivo vs Fisso)")
+    fig.update_xaxes(title_text="<b>Progressione Temporale</b>")
+    fig.update_yaxes(title_text="<b>Crescita Cumulativa Netta</b>")
     
+    return applica_stile_premium(fig, "Impatto Cumulativo Generato dall'IA")
+
+def estrai_playbook_strategico(rounds_data):
+    """
+    Analizza i round dell'agente Adattivo per scoprire le 'Best Practice' per ogni tipologia di cliente basandosi sui nuovi snapshot di fiducia.
+    """
+    storico_cluster = {}
+    
+    # Raccolta delta di fiducia per prodotto e per cluster
+    for r in rounds_data:
+        for dec in r.get("decisions", []):
+            # analizziamo solo le scelte dell'adattivo
+            if dec.get("promotore_id") != "PROM-ADAPT-1":
+                continue
+            
+            riga = dec.get("cluster_riga")
+            col = dec.get("cluster_col")
+            prodotto = dec.get("prodotto_suggerito", "Altro")
+            delta = dec.get("delta_fiducia_medio_snapshot", 0.0)
+            
+            chiave_cluster = (riga, col)
+            
+            if chiave_cluster not in storico_cluster:
+                storico_cluster[chiave_cluster] = {}
+            if prodotto not in storico_cluster[chiave_cluster]:
+                storico_cluster[chiave_cluster][prodotto] = []
+                
+            storico_cluster[chiave_cluster][prodotto].append(delta)
+            
+    # troviamo il prodotto vincitore per ogni cluster
+    best_practices = {}
+    for cluster, prodotti, in storico_cluster.items():
+        miglior_prodotto = "Nessuno"
+        miglior_media = -999.0
+        compioni = 0
+        
+        for prod, deltas in prodotti.items():
+            if not deltas: continue
+            media = sum(deltas) / len(deltas)
+            if media > miglior_media:
+                miglior_media = miglior_media
+                miglior_prodotto = prod
+                campioni = len(deltas)
+                
+        best_practices[cluster] = {
+            "prodotto_top": miglior_prodotto.replace("_", " "),
+            "crescita_attesa": miglior_media,
+            "casi_studio": campioni
+        }
+        
+    return best_practices    

@@ -3,7 +3,8 @@ import pymongo
 import requests
 from visualizzatore_grafici import (
     genera_heatmap_performance, genera_bar_prodotti,
-    genera_linee_comparative, genera_waterfall_patrimonio, genera_sankey_flussi, genera_andamento_guadagni
+    genera_linee_comparative, genera_waterfall_patrimonio, genera_sankey_flussi, 
+    genera_andamento_guadagni, estrai_playbook_strategico
 )
 
 # --- Inizializzazione stato di sessione ---
@@ -147,6 +148,43 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi IA:**\n\n{didascalia_pulita}")
+                            
+            if "scenario" in st.session_state and "rounds" in st.session_state["scenario"]:
+                st.write("---")
+                st.markdown("### 🎯 Playbook Strategico del Promotore")
+                st.caption("Seleziona l'identikit del cliente per estrarre la strategia d'azione ottimale emersa dalla simulazione:")
+                
+                rounds_data = st.session_state["scenario"]["rounds"]
+                playbook = estrai_playbook_strategico(rounds_data)
+                
+                col_r, col_p = st.columns(2)
+                with col_r:
+                    rischio_sel = st.selectbox(
+                        "Propensiona al Rischio",
+                        options=[0, 1, 2, 3],
+                        format_func=lambda x: f"Livello {x} (0=Basso, 3=Alto)",
+                        key="playbook_rischio_widget"
+                    )
+                with col_p:
+                    patrimonio_sel = st.selectbox(
+                        "Fascia Patrimoniale",
+                        options=[0, 1, 2, 3, 4],
+                        format_func=lambda x: f"Fascia{x}",
+                        key="playbook_patrimonio_widget"
+                    )
+                    
+                chiave_ricerca = (rischio_sel, patrimonio_sel)
+                
+                if chiave_ricerca in playbook:
+                    strategia = playbook[chiave_ricerca]
+                    st.success(f"🏆 **Prodotto Raccomandato:** {strategia['prodotto_top']}")
+                    
+                    m1, m2 = st.columns(2)
+                    segno = "+" if strategia['crescita_attesa'] > 0 else ""
+                    m1.metric("Delta Fiducia Medio Atteso", f"{segno}{strategia['crescita_attesa']:.4f} pts")
+                    m2.metric("Affidabilità Statistica", f"Validato su {strategia['casi_studio']} decisioni")
+                else:
+                    st.info("Nessun dato sufficiente per questa combinazione. L'agente adattivo non ha esplorato questo cluster.")
 
         st.write("---")
         st.markdown("### 📝 Valuta l'analisi di Gemma")
