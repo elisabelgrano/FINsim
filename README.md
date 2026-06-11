@@ -375,9 +375,69 @@ NEO4J_PASSWORD=mirofish
 - `backend/app/storage/neo4j_storage.py` — Neo4j interface
 - `docker-compose.yml` — container orchestration
 
+### FINsim Frontend — Promoter Dashboard
+
+The frontend (`app_frontend.py` + `visualizzatore_grafici.py`) provides a real-time advisor interface for analyzing simulation results:
+
+#### KPI Emergency Cards (Real-Time Alerts)
+
+Three critical portfolio metrics displayed as Streamlit metric cards:
+
+1. **Capitale a Rischio Churn** — Percentage of clients with trust < 0.5
+   - Red alert if > 10% (immediate intervention needed)
+   - Yellow if 5–10% (monitor closely)
+   - Green if < 5% (healthy)
+
+2. **Win Rate Globale** — Percentage of accepted product offers
+   - High win rate (>80%) = effective strategy
+   - Low win rate (<60%) = products mismatched to clients
+
+3. **Compliance Score** — MIFID regulatory compliance (100 - mismatch_rate)
+   - Green if > 80% (compliant)
+   - Red if < 80% (regulatory risk)
+
+#### Available Dashboard Charts (9 Total)
+
+The advisor LLM recommends charts based on the user's question. All charts auto-render if the advisor suggests them:
+
+| Chart | Type | Purpose |
+|-------|------|---------|
+| `HEATMAP_PERFORMANCE` | Heatmap (4×5 grid) | Compare adaptive vs fixed strategy by risk/wealth segment |
+| `BAR_PRODOTTI` | Vertical bars | Product satisfaction impact and usage frequency |
+| `LINEE_COMPARATIVE` | Time-series lines | Cumulative wealth evolution (Adaptive vs Fixed) over 20 rounds |
+| `WATERFALL_PATRIMONIO` | Waterfall | AUM decomposition: inflows, market effects, churn |
+| `SANKEY_FLUSSI` | Sankey diagram | Client journey: success paths vs churn paths |
+| `AREA_GUADAGNI` | Area chart | Cumulative satisfaction growth trajectory |
+| `DONUT_ASSET` | Donut chart | Product mix composition and concentration risk |
+| `BUBBLE_CLIENTI` | Bubble scatter | Client segmentation by risk profile × wealth with trust overlay |
+| `BAR_WIN_RATE` | Horizontal bars | Product conversion rates ranked by performance |
+
+#### Interactive Playbook Section
+
+After dashboard charts, an interactive section allows users to query best practices by client profile:
+
+- **Risk Level:** 0 (Conservative) → 3 (Aggressive)
+- **Wealth Tier:** 0 (Low) → 4 (Very High)
+- **Output:** Recommended product, expected trust delta, case count
+
+Example: "For Conservative clients in Tier 2, the Adaptive strategy recommends Bond_Sovereign with +0.08 trust delta (validated on 12 decisions)"
+
+#### Metrics Flow
+
+```
+SimulationEngine._calcola_metriche_business()
+├─ mismatch_rate: (rejected decisions) / (total decisions)
+├─ trend_fiducia: [{"round": 1, "fiducia_media": 0.68}, ...]
+└─ pct_clienti_sotto_soglia_fiducia: percentage with trust < 0.5
+        ↓
+render_risposta()
+├─ KPI Emergency Cards (3 cards with color-coded alerts)
+├─ Graph Rendering Loop (9 chart types)
+└─ Playbook Selector (risk/wealth interactive filter)
+```
+
 ### Next Steps
 
-- **Phase 5:** Dashboard for real-time round metrics & trust evolution charts
 - **Phase 6:** Multi-scenario comparison report generation
 - **Phase 7:** Security audit & CVE remediation
 - **Phase 8:** Deploy to production with monitoring

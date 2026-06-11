@@ -290,40 +290,120 @@ def genera_andamento_guadagni(business_metrics: dict):
     
     return applica_stile_premium(fig, "Impatto Cumulativo Generato dall'IA")
 
+def genera_donut_asset_allocation(business_metrics: dict):
+    """Genera donut chart dei prodotti utilizzati (asset allocation)"""
+    prodotti = business_metrics.get("efficacia_strategica_prodotti", {})
+    if not prodotti:
+        return go.Figure()
+
+    nomi = list(prodotti.keys())
+    utilizzi = [prodotti[k].get("utilizzi", 0) for k in nomi]
+
+    if sum(utilizzi) == 0:
+        return go.Figure()
+
+    fig = go.Figure(data=[go.Pie(
+        labels=[n.replace("_", " ") for n in nomi],
+        values=utilizzi,
+        hole=.5,
+        marker=dict(colors=["#059669", "#3b82f6", "#f59e0b", "#e11d48", "#8b5cf6"]),
+        textinfo='label+percent',
+        textposition='outside'
+    )])
+
+    fig.add_annotation(
+        text=f"<b>{sum(utilizzi)}</b><br>Vendite",
+        x=0.5, y=0.5,
+        font_size=16,
+        showarrow=False
+    )
+
+    fig.update_layout(showlegend=False, margin=dict(t=30, b=30, l=30, r=30))
+    return applica_stile_premium(fig, "Asset Allocation (Accettata)")
+
+def genera_bubble_clientela(rounds_data: list):
+    """Genera bubble chart di segmentazione clientela per rischio/fiducia"""
+    if not rounds_data:
+        return go.Figure()
+
+    ultime_decisioni = rounds_data[-1].get("decisions", []) if rounds_data else []
+    x_val, y_val, size_val, color_val, text_val = [], [], [], [], []
+
+    for d in ultime_decisioni:
+        if d.get("promotore_id") == "PROM-ADAPT-1":
+            x_val.append(d.get("profilo_rischio_prevalente", "Altro"))
+            y_val.append(f"Fascia {d.get('cluster_col', 0)}")
+            size_val.append(25)
+            color_val.append(d.get("fiducia_media_post", 0.5))
+            text_val.append(d.get("prodotto_suggerito", ""))
+
+    fig = px.scatter(
+        x=x_val, y=y_val,
+        size=size_val,
+        color=color_val,
+        color_continuous_scale="RdYlGn",
+        title="Mappa Rischio/Fiducia",
+        hover_name=text_val
+    )
+
+    return applica_stile_premium(fig, "Segmentazione Clientela")
+
+def genera_win_rate_prodotti(business_metrics: dict):
+    """Genera bar chart orizzontale con win rate per prodotto"""
+    prodotti = business_metrics.get("efficacia_strategica_prodotti", {})
+    if not prodotti:
+        return go.Figure()
+
+    nomi, win_rates = [], []
+    for nome, dati in prodotti.items():
+        if dati.get("utilizzi", 0) > 0:
+            nomi.append(nome.replace("_", " "))
+            win_rates.append(dati.get("win_rate", 1.0) * 100)
+
+    fig = px.bar(
+        x=win_rates, y=nomi,
+        orientation='h',
+        color=win_rates,
+        color_continuous_scale="Greens"
+    )
+    fig.update_layout(xaxis_title="Win Rate (%)", yaxis_title="")
+
+    return applica_stile_premium(fig, "Tasso di Conversione Prodotti")
+
 def estrai_playbook_strategico(rounds_data):
     """
     Analizza i round dell'agente Adattivo per scoprire le 'Best Practice' per ogni tipologia di cliente basandosi sui nuovi snapshot di fiducia.
     """
     storico_cluster = {}
-    
+
     # Raccolta delta di fiducia per prodotto e per cluster
     for r in rounds_data:
         for dec in r.get("decisions", []):
             # analizziamo solo le scelte dell'adattivo
             if dec.get("promotore_id") != "PROM-ADAPT-1":
                 continue
-            
+
             riga = dec.get("cluster_riga")
             col = dec.get("cluster_col")
             prodotto = dec.get("prodotto_suggerito", "Altro")
             delta = dec.get("delta_fiducia_medio_snapshot", 0.0)
-            
+
             chiave_cluster = (riga, col)
-            
+
             if chiave_cluster not in storico_cluster:
                 storico_cluster[chiave_cluster] = {}
             if prodotto not in storico_cluster[chiave_cluster]:
                 storico_cluster[chiave_cluster][prodotto] = []
-                
+
             storico_cluster[chiave_cluster][prodotto].append(delta)
-            
+
     # troviamo il prodotto vincitore per ogni cluster
     best_practices = {}
     for cluster, prodotti, in storico_cluster.items():
         miglior_prodotto = "Nessuno"
         miglior_media = -999.0
         compioni = 0
-        
+
         for prod, deltas in prodotti.items():
             if not deltas: continue
             media = sum(deltas) / len(deltas)
@@ -331,11 +411,11 @@ def estrai_playbook_strategico(rounds_data):
                 miglior_media = miglior_media
                 miglior_prodotto = prod
                 campioni = len(deltas)
-                
+
         best_practices[cluster] = {
             "prodotto_top": miglior_prodotto.replace("_", " "),
             "crescita_attesa": miglior_media,
             "casi_studio": campioni
         }
-        
+
     return best_practices    

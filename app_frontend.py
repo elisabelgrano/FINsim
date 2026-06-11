@@ -3,8 +3,9 @@ import pymongo
 import requests
 from visualizzatore_grafici import (
     genera_heatmap_performance, genera_bar_prodotti,
-    genera_linee_comparative, genera_waterfall_patrimonio, genera_sankey_flussi, 
-    genera_andamento_guadagni, estrai_playbook_strategico
+    genera_linee_comparative, genera_waterfall_patrimonio, genera_sankey_flussi,
+    genera_andamento_guadagni, estrai_playbook_strategico,
+    genera_donut_asset_allocation, genera_bubble_clientela, genera_win_rate_prodotti
 )
 
 # --- Inizializzazione stato di sessione ---
@@ -84,6 +85,15 @@ def render_risposta(dati_ai, metrics, domanda_utente):
     with col2:
         st.write(f"**Analisi Dettagliata:**\n{dati_ai.get('dettaglio_risposta')}")
 
+    st.write("---")
+    st.markdown("### 🚨 KPI di Portafoglio")
+    kpi1, kpi2, kpi3 = st.columns(3)
+    pct_churn = metrics.get('pct_clienti_sotto_soglia_fiducia', 0.0)
+    mismatch = metrics.get('mismatch_rate', 0.0) * 100
+    kpi1.metric("Capitale a Rischio Churn", f"{pct_churn:.1f}%", "- Pericolo Fuga" if pct_churn > 10 else "Sicuro", delta_color="inverse")
+    kpi2.metric("Win Rate Globale", f"{100 - mismatch:.1f}%", "Efficacia Commerciale")
+    kpi3.metric("Compliance Score", f"{100 - mismatch:.1f}/100", "MIFID OK" if mismatch < 20 else "Rischio Legale", delta_color="inverse")
+
     grafici_richiesti = dati_ai.get("grafici_consigliati", [])
 
     if grafici_richiesti:
@@ -148,7 +158,31 @@ def render_risposta(dati_ai, metrics, domanda_utente):
                         if didascalia:
                             didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
                             st.info(f"💡 **Analisi IA:**\n\n{didascalia_pulita}")
-                            
+
+                elif codice_grafico == "DONUT_ASSET":
+                    fig = genera_donut_asset_allocation(metrics)
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        if didascalia:
+                            didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
+                            st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
+
+                elif codice_grafico == "BUBBLE_CLIENTI":
+                    fig = genera_bubble_clientela(st.session_state['scenario'].get('rounds', []))
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        if didascalia:
+                            didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
+                            st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
+
+                elif codice_grafico == "BAR_WIN_RATE":
+                    fig = genera_win_rate_prodotti(metrics)
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+                        if didascalia:
+                            didascalia_pulita = didascalia.replace("\\n", "\n").replace("\n", "\n\n")
+                            st.info(f"💡 **Analisi:** \n\n{didascalia_pulita}")
+
             if "scenario" in st.session_state and "rounds" in st.session_state["scenario"]:
                 st.write("---")
                 st.markdown("### 🎯 Playbook Strategico del Promotore")

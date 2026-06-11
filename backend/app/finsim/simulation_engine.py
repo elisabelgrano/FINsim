@@ -830,26 +830,15 @@ class SimulationEngine:
         pct_clienti_sotto_soglia_fiducia = 0.0
         try:
             with self._driver.session() as neo_session:
-                # Query 1: count clients below threshold
-                query1 = """
+                # Parameterized single query to calculate percentage safely
+                query = """
                 MATCH (c:Cliente)
-                WHERE c.fiducia_attuale < 0.5
-                RETURN count(c) as sotto_soglia
+                WITH count(c) as total, sum(CASE WHEN c.fiducia_attuale < 0.5 THEN 1.0 ELSE 0.0 END) as sotto_soglia
+                RETURN case when total > 0 then sotto_soglia / total else 0.0 end as pct
                 """
-                result1 = neo_session.run(query1).single()
-                sotto_soglia = result1.get('sotto_soglia', 0) if result1 else 0
-
-                # Query 2: count all clients
-                query2 = """
-                MATCH (c:Cliente)
-                RETURN count(c) as totale
-                """
-                result2 = neo_session.run(query2).single()
-                totale = result2.get('totale', 0) if result2 else 0
-
-                # Compute percentage
-                if totale > 0:
-                    pct_clienti_sotto_soglia_fiducia = round(sotto_soglia / totale * 100, 2)
+                result = neo_session.run(query).single()
+                if result and result['pct'] is not None:
+                    pct_clienti_sotto_soglia_fiducia = round(float(result['pct']) * 100, 2)
         except Exception as e:
             logger.warning(f"Could not calculate pct_clienti_sotto_soglia_fiducia: {e}")
 

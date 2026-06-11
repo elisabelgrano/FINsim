@@ -81,19 +81,39 @@ List available chart codes the advisor can recommend.
   "available_charts": [
     {
       "code": "HEATMAP_PERFORMANCE",
-      "description": "Performance intensity by client/product segment"
-    },
-    {
-      "code": "MOMENTUM_TIMELINE",
-      "description": "Trend strength and reversals over time"
+      "description": "Performance intensity by risk profile × wealth tier (4×5 grid)"
     },
     {
       "code": "BAR_PRODOTTI",
-      "description": "Product distribution and mix analysis"
+      "description": "Product satisfaction impact and usage frequency"
     },
     {
-      "code": "KPI_MACRO",
-      "description": "Macro KPI indicators and benchmarks"
+      "code": "LINEE_COMPARATIVE",
+      "description": "Cumulative wealth evolution: Adaptive vs Fixed strategy (20 rounds)"
+    },
+    {
+      "code": "WATERFALL_PATRIMONIO",
+      "description": "AUM decomposition: inflows, market effects, churn impact"
+    },
+    {
+      "code": "SANKEY_FLUSSI",
+      "description": "Client journey: success vs churn; fixed vs adaptive flows"
+    },
+    {
+      "code": "AREA_GUADAGNI",
+      "description": "Cumulative satisfaction growth trajectory (area chart)"
+    },
+    {
+      "code": "DONUT_ASSET",
+      "description": "Asset allocation composition by product (donut chart)"
+    },
+    {
+      "code": "BUBBLE_CLIENTI",
+      "description": "Client segmentation by risk profile × wealth with trust overlay"
+    },
+    {
+      "code": "BAR_WIN_RATE",
+      "description": "Product conversion rates and performance ranking (horizontal bars)"
     }
   ]
 }

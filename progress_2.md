@@ -237,19 +237,303 @@ Round result now includes:
 
 ---
 
+---
+
+## PHASE 5: Promoter Dashboard UI & Backend KPI Metrics
+
+**Date:** 2026-06-11 (continued)  
+**Objective:** Implement final Promoter Dashboard with business metrics visualization and KPI cards
+
+### Changes Made
+
+#### 1. Enhanced Business Metrics Calculation
+
+**File:** `backend/app/finsim/simulation_engine.py` → `_calcola_metriche_business()`
+
+Added 3 critical business metrics to the returned `metrics` dictionary:
+
+**a) `mismatch_rate` (float, 0.0–1.0)**
+- **Definition:** Ratio of rejected product decisions to total decisions
+- **Calculation:** 
+  ```python
+  rejected_count = sum(1 for strat in all_strategies if strat['accettato'] == False)
+  mismatch_rate = rejected_count / total_decisions
+  ```
+- **Purpose:** Measures commercial effectiveness and compliance violations
+- **Interpretation:** 
+  - 0.0 = All products accepted (100% match)
+  - 1.0 = All products rejected (0% match)
+  - Typically 0.2–0.3 = 20–30% of offers rejected by clients
+
+**b) `trend_fiducia` (list of dicts)**
+- **Definition:** Time-series of average client trust across all rounds
+- **Structure:** `[{"round": 1, "fiducia_media": 0.68}, {"round": 2, "fiducia_media": 0.71}, ...]`
+- **Calculation:** Average of `fiducia_media_post` for each round across all clusters
+- **Purpose:** Visualize trust evolution; detect declining or improving client relationships
+- **Interpretation:**
+  - Rising trend = Adaptive strategy gaining client confidence
+  - Declining trend = Risk of churn; corrective action needed
+  - Plateau = Stable, mature relationship
+
+**c) `pct_clienti_sotto_soglia_fiducia` (float, percentage)**
+- **Definition:** Percentage of clients with current trust below critical threshold (0.5)
+- **Neo4j Query (Parameterized Single Query):**
+  ```cypher
+  MATCH (c:Cliente)
+  WITH count(c) as total, sum(CASE WHEN c.fiducia_attuale < 0.5 THEN 1.0 ELSE 0.0 END) as sotto_soglia
+  RETURN case when total > 0 then sotto_soglia / total else 0.0 end as pct
+  ```
+- **Purpose:** Early warning system for portfolio churn risk
+- **Interpretation:**
+  - < 5% = Healthy portfolio
+  - 5–10% = Monitor closely
+  - > 10% = Critical: immediate intervention needed
+
+#### 2. Created 3 New Plotly Visualization Functions
+
+**File:** `visualizzatore_grafici.py`
+
+**a) `genera_donut_asset_allocation(business_metrics)`**
+- **Graph Type:** Donut chart (pie with center cutout)
+- **Data Source:** `business_metrics['efficacia_strategica_prodotti']`
+- **Visualization:**
+  - Donut segments = Each product category (Bond_Corporate, Cash_Equivalents, etc.)
+  - Segment size = Number of times product was offered
+  - Center text = Total transaction count
+  - Colors: 5-color palette (#059669 green → #8b5cf6 purple)
+- **Business Use:** Identify which products are most frequently recommended; spot over-concentration
+- **Example:** If "Bond_Corporate" dominates 60% of the donut, the strategy favors conservative investments
+
+**b) `genera_bubble_clientela(rounds_data)`**
+- **Graph Type:** Scatter bubble chart (with color scale)
+- **Data Source:** Last round's decisions (only for PROM-ADAPT-1)
+- **Axes:**
+  - X-axis: Client risk profile (Conservative, Balanced, Growth, Aggressive)
+  - Y-axis: Wealth tier (Fascia 0–4, representing asset ranges)
+  - Bubble size: Fixed at 25 (constant visibility)
+  - Bubble color: Client trust level (red=low 0.0, yellow=medium 0.5, green=high 1.0)
+- **Business Use:** Segment client base by risk/wealth; identify trust patterns
+- **Example:** Green bubbles in "Aggressive" quadrant = Risk-appropriate clients with high trust
+
+**c) `genera_win_rate_prodotti(business_metrics)`**
+- **Graph Type:** Horizontal bar chart (with color gradient)
+- **Data Source:** `business_metrics['efficacia_strategica_prodotti']` (requires win_rate field)
+- **Visualization:**
+  - Bars = Each product
+  - Bar length = Conversion rate (0–100%)
+  - Color gradient: Red (low) → Green (high)
+- **Business Use:** Identify which products convert best; de-emphasize low-performing offerings
+- **Example:** If "Mixed_Funds" = 45% and "Bond_Sovereign" = 75%, prefer sovereign bonds
+
+#### 3. Updated Frontend with KPI Cards
+
+**File:** `app_frontend.py` → `render_risposta()` function
+
+**KPI Emergency Cards Section** (inserted after "Analisi Dettagliata" in render_risposta):
+```python
+st.markdown("### 🚨 KPI di Portafoglio")
+kpi1, kpi2, kpi3 = st.columns(3)
+
+# Card 1: Churn Risk
+pct_churn = metrics.get('pct_clienti_sotto_soglia_fiducia', 0.0)
+kpi1.metric(
+    "Capitale a Rischio Churn",
+    f"{pct_churn:.1f}%",
+    "- Pericolo Fuga" if pct_churn > 10 else "Sicuro",
+    delta_color="inverse"
+)
+
+# Card 2: Win Rate
+mismatch = metrics.get('mismatch_rate', 0.0) * 100
+kpi2.metric(
+    "Win Rate Globale",
+    f"{100 - mismatch:.1f}%",
+    "Efficacia Commerciale"
+)
+
+# Card 3: Compliance
+kpi3.metric(
+    "Compliance Score",
+    f"{100 - mismatch:.1f}/100",
+    "MIFID OK" if mismatch < 20 else "Rischio Legale",
+    delta_color="inverse"
+)
+```
+
+**KPI Card Interpretations:**
+- **Card 1 - Churn Risk:** Red alert if > 10%; yellow caution if 5–10%; green if < 5%
+- **Card 2 - Win Rate:** Percentage of accepted offers; higher is better
+- **Card 3 - Compliance:** MIFID compliance score; below 80 triggers risk warning
+
+#### 4. Integrated New Graphs into Frontend Rendering Loop
+
+Added 3 new `elif` branches in the graph rendering section:
+
+```python
+elif codice_grafico == "DONUT_ASSET":
+    fig = genera_donut_asset_allocation(metrics)
+elif codice_grafico == "BUBBLE_CLIENTI":
+    fig = genera_bubble_clientela(st.session_state['scenario'].get('rounds', []))
+elif codice_grafico == "BAR_WIN_RATE":
+    fig = genera_win_rate_prodotti(metrics)
+```
+
+---
+
+## Complete Frontend Graph Catalog
+
+### All Available Graphs (9 Total)
+
+| Graph Code | Function | Data Source | Purpose | Key Insight |
+|------------|----------|-------------|---------|------------|
+| `HEATMAP_PERFORMANCE` | `genera_heatmap_performance()` | Aggregated round results | Compare adaptive vs fixed strategy by risk/wealth tier | Shows where IA wins/loses |
+| `BAR_PRODOTTI` | `genera_bar_prodotti()` | `efficacia_strategica_prodotti` | Product satisfaction impact; usage frequency | Which products drive satisfaction |
+| `LINEE_COMPARATIVE` | `genera_linee_comparative()` | Round history (AUM proxy) | Cumulative wealth evolution over 20 rounds | Compound effect of strategy |
+| `WATERFALL_PATRIMONIO` | `genera_waterfall_patrimonio()` | AUM decomposition | Asset under management flow: inflows, outflows, market effects | Net wealth impact |
+| `SANKEY_FLUSSI` | `genera_sankey_flussi()` | Client retention model | Client journey: success vs churn; fixed vs adaptive | Where churn happens; who is saved |
+| `AREA_GUADAGNI` | `genera_andamento_guadagni()` | Satisfaction velocity | Cumulative satisfaction deltas; growth trajectory | Rate of relationship improvement |
+| `DONUT_ASSET` | `genera_donut_asset_allocation()` | `efficacia_strategica_prodotti` | Product mix composition | Concentration risk; diversification |
+| `BUBBLE_CLIENTI` | `genera_bubble_clientela()` | Last round decisions | Client segmentation by risk & wealth with trust overlay | Demographic-trust correlation |
+| `BAR_WIN_RATE` | `genera_win_rate_prodotti()` | `efficacia_strategica_prodotti` | Product conversion rates | Which products close best |
+
+### Graph Description Details
+
+**1. Heatmap Performance (Risk × Wealth)**
+- Grid: 4 rows (risk profiles) × 5 columns (wealth tiers)
+- Heat color: Red (fixed strategy wins) → Yellow (tie) → Green (adaptive wins)
+- Red values indicate scenarios where rule-based approach outperforms AI
+- Green values validate AI advantage in complex clientele mixes
+
+**2. Bar Prodotti (Product Satisfaction Impact)**
+- Each bar = one product category
+- Height = Total satisfaction generated across all 20 rounds
+- Color gradient: Red (negative/detrimental) → Green (positive/beneficial)
+- Example: Bond_Corporate bar is tall and green = clients love this product
+
+**3. Linee Comparative (Wealth Accumulation Over Time)**
+- Two lines: Adaptive (green) vs Fixed (orange)
+- Y-axis: AUM or proxy wealth metric
+- X-axis: 20 rounds
+- Divergence between lines = IA advantage magnitude
+
+**4. Waterfall Patrimonio (AUM Decomposition)**
+- Starting value (AUM Initial) → increases/decreases by:
+  - New inflows (green bars, up)
+  - Market effects (gray bars, various)
+  - Churn losses (red bars, down)
+- Final value (AUM Final) at end
+- Shows which factor dominates portfolio change
+
+**5. Sankey Flussi (Client Journey & Retention)**
+- Source: Clients at start
+- Split: Fixed strategy branch vs Adaptive strategy branch
+- Outcomes: Success (blue) vs Churn (red)
+- Line thickness = number of clients
+- Shows if adaptive strategy saves more clients from churn
+
+**6. Area Guadagni (Cumulative Satisfaction Growth)**
+- X-axis: 20 rounds (R1–R20)
+- Y-axis: Cumulative satisfaction delta (sum of all round changes)
+- Area under curve = Total satisfaction accumulation
+- Rising curve = accelerating positive client response
+- Flat/declining = strategy stagnation
+
+**7. Donut Asset Allocation (NEW)**
+- Center: Total offer count
+- Segments: Product categories
+- Size: Percentage of total offers
+- Color coding: Distinct color per product
+- Hover: Exact counts and percentages
+
+**8. Bubble Segmentazione Clientela (NEW)**
+- X-axis: Risk profile (Conservative → Aggressive)
+- Y-axis: Wealth tier (Fascia 0–4)
+- Bubble position: Client classification
+- Bubble color: Trust level (red=low, green=high)
+- Bubble size: Fixed for visibility
+- Reveals if high-wealth, high-risk clients are being well-served
+
+**9. Bar Win Rate Prodotti (NEW)**
+- X-axis: Win rate percentage (0–100%)
+- Y-axis: Product names
+- Bar color: Gradient from light green (low) to dark green (high)
+- Identifies your top performers (highest bars)
+- Guides product prioritization in training
+
+---
+
+## Data Flow Diagram (Complete)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    SimulationEngine.esegui_round()              │
+│  (Executes 1 round for 2 promoters × 20 clusters)              │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                 PromotoreAgent.genera_strategia()               │
+│  Outputs: prodotto_suggerito (raw), strategia, approach        │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              normalize_prodotto(raw) → normalized               │
+│  Standardizes naming: "Bond Corporate" → "Bond_Corporate"      │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                calcola_reazione_clienti()                       │
+│  Updates trust/satisfaction using normalized product            │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              salva_decisione_db() + Neo4j Update                │
+│  Persists: raw + normalized product, decisions, metrics         │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│        _calcola_metriche_business() — Aggregate Metrics         │
+│  ├─ mismatch_rate: acceptance ratio                            │
+│  ├─ trend_fiducia: trust evolution per round                   │
+│  └─ pct_clienti_sotto_soglia: churn risk percentage            │
+└─────────────────────────────────────────────────────────────────┘
+                                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│            render_risposta() — Frontend Rendering               │
+│  ├─ KPI Emergency Cards (3 metrics)                            │
+│  ├─ 9 Plotly graphs (selected by Advisor LLM)                  │
+│  └─ Interactive Playbook section                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Files Modified/Created (Updated)
+
+| File | Status | Changes |
+|------|--------|---------|
+| `backend/app/finsim/metrics/normalizzatore.py` | **Created** | Product normalization logic (Phase 4) |
+| `backend/app/finsim/metrics/__init__.py` | **Created** | Module interface (Phase 4) |
+| `backend/app/finsim/simulation_engine.py` | **Modified** | Normalizer integration (Phase 4) + business metrics (Phase 5) |
+| `visualizzatore_grafici.py` | **Modified** | Added 3 new functions: donut, bubble, bar_win_rate |
+| `app_frontend.py` | **Modified** | KPI cards + 3 new graph cases; imports updated |
+
+---
+
 ## Next Steps (Optional)
 
-1. Monitor compliance_rate across scenarios to evaluate directive adherence
-2. Use dispersione_prodotti to analyze product recommendation diversity
-3. Compare prodotto_dominante across S0-S4 to understand scenario-specific patterns
-4. Audit prodotto_suggerito_raw in DecisioneCommerciale for LLM variant analysis
+1. **Monitor KPI Trends:** Track mismatch_rate and pct_clienti_sotto_soglia across scenarios
+2. **Product Performance Analysis:** Use Bar Win Rate to identify underperforming products
+3. **Churn Risk Alerts:** Trigger alerts when pct_clienti_sotto_soglia exceeds 15%
+4. **Scenario Comparison:** Compare all 9 graphs across S0–S4 to identify scenario-specific patterns
+5. **Trust Trajectory:** Use trend_fiducia to forecast client retention by round 15
 
 ---
 
 ## Notes
 
-- Substring matching approach ensures resilience to future LLM naming variations
-- Italian language support built-in (obbligazioni, titoli di stato, etc.)
-- No external dependencies added
-- Metrics computed in-memory, no additional database queries needed
+- All metrics calculated in-memory; no additional database queries beyond the single Neo4j query
+- Donut, bubble, and bar functions gracefully handle empty data (return empty Figure)
+- KPI cards use Streamlit's built-in `delta_color="inverse"` to flag risks in red
+- All 9 graphs follow the same styling: `applica_stile_premium()` for consistent branding
+- Playbook section (interactive risk/wealth selector) remains unchanged and fully functional
 - All changes comply with CLAUDE.md security and coding standards

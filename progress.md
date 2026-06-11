@@ -239,12 +239,47 @@ backend/app/finsim/
 
 ## Known Issues & Roadmap
 
-### Fase 7 (In Progress) — Security Hardening
+### Fase 7: Promoter Dashboard & Frontend KPI Metrics (Commit: tbd)
+
+**Cosa è stato fatto:**
+- ✅ **Enhanced Business Metrics (simulation_engine.py):**
+  - Optimized Neo4j query per `pct_clienti_sotto_soglia_fiducia` (single parameterized query)
+  - Calcolo `mismatch_rate`: (rejected decisions) / (total decisions)
+  - Calcolo `trend_fiducia`: time-series fiducia per round
+  - Calcolo `pct_clienti_sotto_soglia_fiducia`: percentage clients with trust < 0.5
+  
+- ✅ **3 New Plotly Visualization Functions (visualizzatore_grafici.py):**
+  - `genera_donut_asset_allocation()`: Donut chart asset mix
+  - `genera_bubble_clientela()`: Bubble chart client segmentation (risk × wealth × trust)
+  - `genera_win_rate_prodotti()`: Horizontal bar chart product conversion rates
+  
+- ✅ **Frontend KPI Cards (app_frontend.py):**
+  - "Capitale a Rischio Churn" — Real-time churn risk percentage
+  - "Win Rate Globale" — Overall product acceptance rate
+  - "Compliance Score" — MIFID regulatory compliance
+  - 3 new graph rendering cases (DONUT_ASSET, BUBBLE_CLIENTI, BAR_WIN_RATE)
+
+**Total Available Graphs: 9**
+| Graph | Tipo | Scopo |
+|-------|------|-------|
+| HEATMAP_PERFORMANCE | Heatmap | Adattivo vs Fisso per segmento |
+| BAR_PRODOTTI | Vertical bar | Soddisfazione prodotto |
+| LINEE_COMPARATIVE | Time-series | Wealth evolution 20 rounds |
+| WATERFALL_PATRIMONIO | Waterfall | AUM decomposizione |
+| SANKEY_FLUSSI | Sankey | Client journey success/churn |
+| AREA_GUADAGNI | Area | Cumulative satisfaction growth |
+| DONUT_ASSET | Donut | Product mix concentration |
+| BUBBLE_CLIENTI | Bubble scatter | Risk/Wealth/Trust segmentation |
+| BAR_WIN_RATE | Horizontal bar | Product ranking by conversion |
+
+---
+
+### Fase 8 (In Progress) — Security Hardening
 - [ ] CVE-2026-7059: Path traversal in simulation.py (Platform param non-sanitizzato)
 - [ ] CVE-2026-7058: Command injection in services/send_command
 - [ ] Parametrizzazione completa tutte query dinamiche
 
-### Fase 8 — Integration Testing
+### Fase 9 — Integration Testing
 - [ ] Full round 1-20 execution su S0
 - [ ] Cross-scenario comparison metrics
 - [ ] A/B significance testing
