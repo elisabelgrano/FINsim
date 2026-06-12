@@ -17,6 +17,7 @@ from neo4j.exceptions import Neo4jError
 from backend.app.finsim.agents.promotore_agent import PromotoreAgent
 from backend.app.finsim.llm.ollama_client import OllamaClient
 from backend.app.finsim.search_finsim import FinsimSearcher
+from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
@@ -135,6 +136,11 @@ class SimulationEngine:
                     logger.info(f"  → {len(active_clusters)} active clusters")
                     result['total_clusters'] += len(active_clusters)
 
+                    # Track metrics for this promoter across all clusters
+                    cluster_products_raw = []
+                    cluster_products_normalized = []
+                    cluster_focus_prodotto = None
+
                     for cluster in active_clusters:
                         riga = cluster['riga']
                         col = cluster['col']
@@ -159,11 +165,20 @@ class SimulationEngine:
                                 )
                                 continue
 
+                            # Extract raw product suggestion
+                            prodotto_raw = strategy_result['prodotto_suggerito']
+                            prodotto_normalized = normalize_prodotto(prodotto_raw)
+
+                            # Track products for metrics calculation
+                            cluster_products_raw.append(prodotto_raw)
+                            cluster_products_normalized.append(prodotto_normalized)
+
                             # Extract strategy details
                             strategy_json = {
                                 'strategia': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
-                                'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                                'prodotto_suggerito_raw': prodotto_raw,
+                                'prodotto_suggerito': prodotto_normalized,
                             }
 
                             # Save decision to DB
@@ -228,8 +243,38 @@ class SimulationEngine:
                             logger.error(error_msg, exc_info=True)
                             result['errors'].append(error_msg)
 
+                    # Compute metrics for this promoter
+                    compliance_rate = 0.0
+                    prodotto_dominante = "Altro"
+                    dispersione_prodotti = 0
+
+                    if cluster_products_normalized:
+                        dispersione_prodotti = len(set(cluster_products_normalized))
+                        product_counts = {}
+                        for prod in cluster_products_normalized:
+                            product_counts[prod] = product_counts.get(prod, 0) + 1
+                        prodotto_dominante = max(product_counts, key=product_counts.get)
+
+                    # Try to get focus_prodotto from directive for compliance calculation
+                    try:
+                        scenario_state = self.searcher.get_scenario_state(scenario_id, round_n=round_n)
+                        if scenario_state and scenario_state.get('direttiva_bancaria'):
+                            focus_prodotto = scenario_state['direttiva_bancaria'].get('focus_prodotto')
+                            if focus_prodotto:
+                                focus_norm = normalize_prodotto(focus_prodotto)
+                                matches = sum(1 for p in cluster_products_normalized if p == focus_norm)
+                                compliance_rate = round(matches / len(cluster_products_normalized), 2) if cluster_products_normalized else 0.0
+                    except Exception as e:
+                        logger.debug(f"Could not calculate compliance rate for {promotore_id}: {e}")
+
+                    promoter_data_for_mongo['compliance_metrics'] = {
+                        'compliance_rate': compliance_rate,
+                        'prodotto_dominante': prodotto_dominante,
+                        'dispersione_prodotti': dispersione_prodotti
+                    }
+
                     result['promoters_processed'] += 1
-                    
+
                     result['promoters_data'].append(promoter_data_for_mongo)
 
                 except Exception as e:
@@ -563,10 +608,7 @@ class SimulationEngine:
                         mappa_accumulazione[coords]["soddisfazione_accumulata_fisso"] += delta_sodd
 
                     prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
-                    if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
-                        prod = prod_raw[0].get('nome_prodotto', 'Misto')
-                    else:
-                        prod = str(prod_raw)
+                    prod = normalize_prodotto(prod_raw)
 
                     if prod not in metrics["efficacia_strategica_prodotti"]:
                         metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
@@ -591,10 +633,7 @@ class SimulationEngine:
                             metrics["clienti_salvati_dal_churn"] += 1
 
                     prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
-                    if isinstance(prod_raw, list) and len(prod_raw) > 0 and isinstance(prod_raw[0], dict):
-                        prod = prod_raw[0].get('nome_prodotto', 'Misto')
-                    else:
-                        prod = str(prod_raw)
+                    prod = normalize_prodotto(prod_raw)
 
                     if prod not in metrics["efficacia_strategica_prodotti"]:
                         metrics["efficacia_strategica_prodotti"][prod] = {"utilizzi": 0, "soddisfazione_generata": 0.0}
