@@ -22,6 +22,40 @@ from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
+ADEGUATEZZA_MATRIX = {
+    "Conservative": {
+        "Cash_Equivalents": 1.0,
+        "Bond_Sovereign":   0.9,
+        "Bond_Corporate":   0.5,
+        "Mixed_Funds":      0.1,
+        "Altro":            0.2
+    },
+    "Balanced": {
+        "Bond_Sovereign":   1.0,
+        "Bond_Corporate":   0.8,
+        "Cash_Equivalents": 0.6,
+        "Mixed_Funds":      0.5,
+        "Altro":            0.3
+    },
+    "Growth": {
+        "Bond_Corporate":   1.0,
+        "Mixed_Funds":      0.8,
+        "Bond_Sovereign":   0.5,
+        "Cash_Equivalents": 0.3,
+        "Altro":            0.3
+    },
+    "Aggressive": {
+        "Mixed_Funds":      1.0,
+        "Bond_Corporate":   0.7,
+        "Bond_Sovereign":   0.3,
+        "Cash_Equivalents": 0.2,
+        "Altro":            0.2
+    }
+}
+
+SOGLIA_ACCETTAZIONE = 0.5
+MALUS_FIDUCIA_RIFIUTO = -0.15
+
 
 class SimulationEngine:
     """
@@ -113,7 +147,8 @@ class SimulationEngine:
             'decisions_created': 0,
             'clients_updated': 0,
             'errors': [],
-            'promoters_data': []
+            'promoters_data': [],
+            'compliance_per_promotore': {}
         }
 
         with self._driver.session() as session:
@@ -128,6 +163,8 @@ class SimulationEngine:
                 promoter_data_for_mongo = {
                     'promotore_id': promotore_id,
                     'strategies': []}
+
+                prodotti_per_promotore = []
 
                 try:
                     logger.info(f"Processing promoter: {promotore_id} (uuid={promotore_uuid})")
@@ -225,6 +262,18 @@ class SimulationEngine:
                             else:
                                 profilo_rischio_prevalente = 'Balanced'
 
+                            # Compute adequacy score
+                            adeguatezza_score = round(
+                                ADEGUATEZZA_MATRIX
+                                .get(profilo_rischio_prevalente, {})
+                                .get(prodotto_normalized, 0.0),
+                                2
+                            )
+                            accettato = adeguatezza_score >= SOGLIA_ACCETTAZIONE
+
+                            # Track product for compliance calculation
+                            prodotti_per_promotore.append(prodotto_normalized)
+
                             # Calculate client reactions
                             prodotto_suggerito = strategy_result['prodotto_suggerito']
                             clients_updated = self.calcola_reazione_clienti(
@@ -237,6 +286,25 @@ class SimulationEngine:
 
                             result['clients_updated'] += clients_updated
                             logger.info(f"    Updated {clients_updated} clients")
+
+                            # Apply trust malus if product not adequate
+                            if not accettato:
+                                malus_query = """
+                                MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
+                                WHERE c.cluster_riga = $riga AND c.cluster_col = $col
+                                SET c.fiducia_attuale = CASE
+                                  WHEN c.fiducia_attuale + $malus < 0.0 THEN 0.0
+                                  ELSE c.fiducia_attuale + $malus
+                                END
+                                """
+                                session.run(
+                                    malus_query,
+                                    promotore_uuid=promotore_uuid,
+                                    riga=riga,
+                                    col=col,
+                                    malus=MALUS_FIDUCIA_RIFIUTO
+                                )
+                                logger.info(f"    Applied adequacy malus (score={adeguatezza_score})")
 
                             metrics_query = """
                             MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
@@ -262,6 +330,8 @@ class SimulationEngine:
                                 'fiducia_media_post': fiducia_media_post,
                                 'delta_fiducia_medio': round(fiducia_media_post - fiducia_media_pre, 4),
                                 'profilo_rischio_prevalente': profilo_rischio_prevalente,
+                                'adeguatezza_score': adeguatezza_score,
+                                'accettato': accettato,
                                 'performance_metrics': {
                                     'delta_fiducia_medio': delta_fiducia,
                                     'delta_soddisfazione_medio': delta_soddisfazione
@@ -297,6 +367,12 @@ class SimulationEngine:
                     except Exception as e:
                         logger.debug(f"Could not calculate compliance rate for {promotore_id}: {e}")
 
+                    # Compute compliance_per_promotore
+                    conformi = sum(1 for p in prodotti_per_promotore if p == prodotto_dominante)
+                    compliance_per_promotore = round(
+                        conformi / len(prodotti_per_promotore), 2
+                    ) if prodotti_per_promotore else 0.0
+
                     promoter_data_for_mongo['compliance_metrics'] = {
                         'compliance_rate': compliance_rate,
                         'prodotto_dominante': prodotto_dominante,
@@ -304,6 +380,7 @@ class SimulationEngine:
                     }
 
                     result['promoters_processed'] += 1
+                    result['compliance_per_promotore'][promotore_id] = compliance_per_promotore
 
                     result['promoters_data'].append(promoter_data_for_mongo)
 
@@ -737,6 +814,95 @@ class SimulationEngine:
             metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4
             )
+
+        # Metric 1: mismatch_rate
+        rifiutate = 0
+        totale = 0
+        for round_data in scenario_data.get('rounds', []):
+            for promoter_data in round_data.get('promoters_data', []):
+                for strategy in promoter_data.get('strategies', []):
+                    totale += 1
+                    if not strategy.get('accettato', False):
+                        rifiutate += 1
+        mismatch_rate = round(rifiutate / totale, 2) if totale > 0 else 0.0
+        metrics["mismatch_rate"] = mismatch_rate
+
+        # Metric 2: trend_fiducia
+        trend_fiducia = []
+        for round_data in scenario_data.get('rounds', []):
+            round_num = round_data.get('round')
+            fiducia_values = []
+            for promoter_data in round_data.get('promoters_data', []):
+                for strategy in promoter_data.get('strategies', []):
+                    fiducia_media_post = strategy.get('fiducia_media_post', 0.0)
+                    fiducia_values.append(fiducia_media_post)
+
+            if fiducia_values:
+                fiducia_media = round(sum(fiducia_values) / len(fiducia_values), 4)
+            else:
+                fiducia_media = 0.0
+
+            trend_fiducia.append({'round': round_num, 'fiducia_media': fiducia_media})
+        metrics["trend_fiducia"] = trend_fiducia
+
+        # Metric 3: pct_clienti_sotto_soglia_fiducia
+        try:
+            with self._driver.session() as session:
+                query_sotto_soglia = "MATCH (c:Cliente) WHERE c.fiducia_attuale < 0.5 RETURN count(c) as sotto_soglia"
+                query_totale = "MATCH (c:Cliente) RETURN count(c) as totale"
+
+                result_sotto = session.run(query_sotto_soglia).single()
+                result_totale = session.run(query_totale).single()
+
+                sotto_soglia = result_sotto['sotto_soglia'] if result_sotto else 0
+                totale_clienti = result_totale['totale'] if result_totale else 0
+
+                pct_clienti_sotto_soglia_fiducia = round(sotto_soglia / totale_clienti * 100, 2) if totale_clienti > 0 else 0.0
+        except Exception as e:
+            logger.warning(f"Error calculating pct_clienti_sotto_soglia_fiducia: {e}")
+            pct_clienti_sotto_soglia_fiducia = 0.0
+
+        metrics["pct_clienti_sotto_soglia_fiducia"] = pct_clienti_sotto_soglia_fiducia
+
+        # Metric 4: matrice_strategica
+        matrice_data = {}
+        for round_data in scenario_data.get('rounds', []):
+            for promoter_data in round_data.get('promoters_data', []):
+                for strategy in promoter_data.get('strategies', []):
+                    profilo = strategy.get('profilo_rischio_prevalente', 'Balanced')
+                    prodotto = strategy.get('prodotto_suggerito', 'Altro')
+                    key = (profilo, prodotto)
+
+                    if key not in matrice_data:
+                        matrice_data[key] = {
+                            'num_decisioni': 0,
+                            'adeguatezza_scores': [],
+                            'accettati': [],
+                            'delta_fiducia_values': []
+                        }
+
+                    matrice_data[key]['num_decisioni'] += 1
+                    matrice_data[key]['adeguatezza_scores'].append(strategy.get('adeguatezza_score', 0.0))
+                    matrice_data[key]['accettati'].append(1 if strategy.get('accettato', False) else 0)
+                    matrice_data[key]['delta_fiducia_values'].append(strategy.get('delta_fiducia_medio', 0.0))
+
+        matrice_strategica = []
+        for (profilo, prodotto), data in matrice_data.items():
+            adeguatezza_media = round(sum(data['adeguatezza_scores']) / len(data['adeguatezza_scores']), 2) if data['adeguatezza_scores'] else 0.0
+            acceptance_rate = round(sum(data['accettati']) / len(data['accettati']), 2) if data['accettati'] else 0.0
+            delta_fiducia_medio = round(sum(data['delta_fiducia_values']) / len(data['delta_fiducia_values']), 4) if data['delta_fiducia_values'] else 0.0
+
+            matrice_strategica.append({
+                'profilo': profilo,
+                'prodotto': prodotto,
+                'num_decisioni': data['num_decisioni'],
+                'adeguatezza_media': adeguatezza_media,
+                'acceptance_rate': acceptance_rate,
+                'delta_fiducia_medio': delta_fiducia_medio
+            })
+
+        matrice_strategica.sort(key=lambda x: x['adeguatezza_media'], reverse=True)
+        metrics["matrice_strategica"] = matrice_strategica
 
         return metrics
 
