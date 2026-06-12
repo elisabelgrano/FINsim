@@ -231,65 +231,6 @@ def enrich_decision(
     return decision
 
 
-def enrich_round(round_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Add summary metrics to a round.
-
-    Args:
-        round_dict: Round dict with enriched decisions
-
-    Returns:
-        Round dict with summary metrics added
-    """
-    decisions = round_dict.get('decisions', [])
-
-    if not decisions:
-        return round_dict
-
-    # Compliance rate
-    compliance_count = sum(1 for d in decisions if d.get('conforme_direttiva', False))
-    compliance_rate = round(compliance_count / len(decisions), 2)
-
-    # Most frequent product
-    prodotti = [d.get('prodotto_suggerito', 'Altro') for d in decisions]
-    prodotto_counter = Counter(prodotti)
-    prodotto_dominante = prodotto_counter.most_common(1)[0][0] if prodotto_counter else 'Altro'
-
-    # Product dispersion
-    dispersione_prodotti = len(set(prodotti))
-
-    # Mismatch rate (products not accepted)
-    mismatch_count = sum(1 for d in decisions if not d.get('accettato', False))
-    mismatch_rate = round(mismatch_count / len(decisions), 2)
-
-    # Compliance per promoter
-    compliance_per_promotore = {}
-    promoters = {}
-
-    for decision in decisions:
-        promotore = decision.get('promotore', 'Unknown')
-        if promotore not in promoters:
-            promoters[promotore] = {'conforme': 0, 'total': 0}
-
-        promoters[promotore]['total'] += 1
-        if decision.get('conforme_direttiva', False):
-            promoters[promotore]['conforme'] += 1
-
-    for promotore, counts in promoters.items():
-        compliance_per_promotore[promotore] = round(
-            counts['conforme'] / counts['total'], 2
-        ) if counts['total'] > 0 else 0.0
-
-    # Add summary to round
-    round_dict['compliance_rate'] = compliance_rate
-    round_dict['prodotto_dominante'] = prodotto_dominante
-    round_dict['dispersione_prodotti'] = dispersione_prodotti
-    round_dict['mismatch_rate'] = mismatch_rate
-    round_dict['compliance_per_promotore'] = compliance_per_promotore
-
-    return round_dict
-
-
 def enrich_scenario(scenario_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Add scenario-level summary metrics.
@@ -406,26 +347,133 @@ def migrate_scenario(
 
     focus_prodotto = FOCUS_PRODOTTO.get(scenario_id, 'Altro')
 
-    # Enrich all rounds
+    # Process each round in exact order: enrich → compute metrics
     total_decisions_enriched = 0
     rounds = scenario_dict.get('rounds', [])
 
     for round_dict in rounds:
-        # Enrich all decisions in this round
-        decisions = round_dict.get('decisions', [])
+        # Step 1: Get the decisions list
+        decisions = round_dict['decisions']
+
+        # Step 2: Enrich all decisions IN PLACE with computed fields
         for decision in decisions:
             enrich_decision(decision, cluster_profili, focus_prodotto)
             total_decisions_enriched += 1
 
-        # Add round summary
-        enrich_round(round_dict)
+        # Verify: print sample decision after enrichment
+        if decisions:
+            sample = decisions[0]
+            logger.info(
+                f"Sample enriched decision (first of {len(decisions)}): "
+                f"conforme_direttiva={sample.get('conforme_direttiva')}, "
+                f"accettato={sample.get('accettato')}, "
+                f"prodotto_suggerito={sample.get('prodotto_suggerito')}"
+            )
 
-    # Add scenario summary
+        # Step 3: AFTER enriching all decisions, compute round metrics
+        # from the now-enriched decision dicts
+        compliance_count = sum(1 for d in decisions if d.get('conforme_direttiva', False))
+        compliance_rate = round(compliance_count / len(decisions), 2) if decisions else 0.0
+
+        mismatch_count = sum(1 for d in decisions if not d.get('accettato', False))
+        mismatch_rate = round(mismatch_count / len(decisions), 2) if decisions else 0.0
+
+        prodotti = [d.get('prodotto_suggerito', 'Altro') for d in decisions]
+        prodotto_counter = Counter(prodotti)
+        prodotto_dominante = prodotto_counter.most_common(1)[0][0] if prodotto_counter else 'Altro'
+
+        dispersione_prodotti = len(set(prodotti))
+
+        # Compliance per promoter
+        compliance_per_promotore = {}
+        promoters = {}
+        for decision in decisions:
+            promotore = decision.get('promotore', 'Unknown')
+            if promotore not in promoters:
+                promoters[promotore] = {'conforme': 0, 'total': 0}
+
+            promoters[promotore]['total'] += 1
+            if decision.get('conforme_direttiva', False):
+                promoters[promotore]['conforme'] += 1
+
+        for promotore, counts in promoters.items():
+            compliance_per_promotore[promotore] = round(
+                counts['conforme'] / counts['total'], 2
+            ) if counts['total'] > 0 else 0.0
+
+        # Step 4: Write round metrics to round_data dict
+        round_dict['compliance_rate'] = compliance_rate
+        round_dict['mismatch_rate'] = mismatch_rate
+        round_dict['prodotto_dominante'] = prodotto_dominante
+        round_dict['dispersione_prodotti'] = dispersione_prodotti
+        round_dict['compliance_per_promotore'] = compliance_per_promotore
+
+    # Step 5: AFTER all rounds processed, compute scenario summary
     enrich_scenario(scenario_dict)
 
     # Write output JSON
     try:
         output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        all_decisions = [
+            d
+            for r in scenario_dict['rounds']
+            for d in r.get('decisions', [])
+        ]
+
+        round_compliances = [
+            r.get('compliance_rate', 0.0)
+            for r in scenario_dict['rounds']
+            if r.get('compliance_rate') is not None
+        ]
+        round_mismatches = [
+            r.get('mismatch_rate', 0.0)
+            for r in scenario_dict['rounds']
+            if r.get('mismatch_rate') is not None
+        ]
+
+        overall_compliance = round(
+            sum(round_compliances) / len(round_compliances), 2
+        ) if round_compliances else 0.0
+
+        overall_mismatch = round(
+            sum(round_mismatches) / len(round_mismatches), 2
+        ) if round_mismatches else 0.0
+
+        scenario_dict['summary']['overall_compliance_rate'] = overall_compliance
+        scenario_dict['summary']['overall_mismatch_rate'] = overall_mismatch
+        scenario_dict['summary']['overall_acceptance_rate'] = round(
+            1 - overall_mismatch, 2
+        )
+
+        from collections import defaultdict
+        gruppi = defaultdict(list)
+        for d in all_decisions:
+            key = (
+                d.get('profilo_rischio_prevalente', 'Balanced'),
+                d.get('prodotto_suggerito', 'Altro')
+            )
+            gruppi[key].append(d)
+
+        matrice = []
+        for (profilo, prodotto), decisioni in gruppi.items():
+            matrice.append({
+                'profilo': profilo,
+                'prodotto': prodotto,
+                'num_decisioni': len(decisioni),
+                'adeguatezza_media': round(
+                    sum(d.get('adeguatezza_score', 0.0)
+                        for d in decisioni) / len(decisioni), 2
+                ),
+                'acceptance_rate': round(
+                    sum(1 for d in decisioni
+                        if d.get('accettato')) / len(decisioni), 2
+                ),
+            })
+
+        matrice.sort(key=lambda x: x['adeguatezza_media'], reverse=True)
+        scenario_dict['summary']['matrice_strategica'] = matrice
+
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(scenario_dict, f, indent=2, ensure_ascii=False)
         logger.info(f"Wrote enriched JSON: {output_file}")
