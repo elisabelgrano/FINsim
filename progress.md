@@ -186,19 +186,41 @@ backend/app/finsim/
 ├── ontology/
 │   ├── ontology_loader.py          # Node/relationship creation
 │   ├── search_finsim.py            # Query DSL
+│   ├── populate_finsim.py          # Initial data population
+│   ├── schema_runner.py            # Schema wipe/reset command
+│   ├── test_populate.py            # Integration tests
 │   └── finsim_schema.json          # Allowlist schema
 ├── agents/
-│   ├── promoter_agent.py           # PromotoreAgent (LLM decision)
+│   ├── promotore_agent.py          # PromotoreAgent (LLM decision)
 │   └── client_agent.py             # ClientAgent (fallback/batch processing)
-├── infrastructure/
+├── metrics/
+│   ├── normalizzatore.py           # Product normalization logic
+│   └── __init__.py
+├── llm/
 │   ├── ollama_client.py            # REST client Ollama
-│   ├── neo4j_storage.py            # (inherited) Storage interface
-│   └── config.py                   # (inherited) Configuration
-├── simulation/
-│   ├── simulation_engine.py        # Core orchestration
-│   ├── run_simulation.py           # Standalone runner
-│   └── results_exporter.py         # JSON output
-├── populate_finsim.py              # Initial data population
+│   └── __init__.py
+├── scripts/
+│   ├── migra_json_esistenti.py     # Data enrichment migration script
+│   ├── carica_enriched_mongo.py    # MongoDB loader (optional)
+│   └── __init__.py
+├── simulation_engine.py            # Core orchestration (round execution)
+├── search_finsim.py                # Database query interface
+├── run_simulation.py               # Standalone simulation runner
+├── advisor.py                      # Virtual Advisor API (FastAPI)
+├── visualizzatore_grafici.py       # Plotly chart generation (9 types)
+├── app_frontend.py                 # Frontend application
+├── test_alignment.py               # Property alignment tests
+├── test_agent.py                   # Agent unit tests
+├── output/                         # Simulation results
+│   ├── risultati_S0.json
+│   ├── risultati_S1.json
+│   ├── risultati_S2.json
+│   ├── risultati_S3.json
+│   ├── risultati_S4.json
+│   └── enriched/                   # Enriched results from migration
+│       ├── risultati_S0.json
+│       ├── risultati_S1.json
+│       └── ...
 └── __init__.py
 ```
 
@@ -207,58 +229,239 @@ backend/app/finsim/
 ## Features Implementate
 
 ### ✅ Core Simulation Loop
-- Round-by-round execution per scenario
-- Multi-scenario support (S0-S4)
-- State persistence Neo4j
-- Trust dynamics update
+- Round-by-round execution per scenario (1-20 rounds configurable)
+- Multi-scenario support (S0-S4) with distinct macro parameters
+- State persistence Neo4j with transaction safety
+- Trust dynamics update based on product-risk adequacy
 
 ### ✅ A/B Testing
-- Adaptive strategy via LLM (PromotoreAgent)
-- Fixed benchmark strategy fallback
-- Balanced split per test rigor
-- Cross-scenario comparison capability
+- Adaptive strategy via LLM (PromotoreAgent with context injection)
+- Fixed benchmark strategy fallback (deterministic rules)
+- Balanced 50/50 split across client portfolio
+- Cross-scenario comparison capability with metrics
 
 ### ✅ Agent Communication
-- Scenario → Directive → Promoter → Client
-- LLM prompts context-injected (scenario, directive, portfolio)
-- Fallback locale se LLM unavailable
+- 4-tier hierarchy: Scenario → Directive → Promoter → Client
+- LLM prompts context-injected (scenario, directive, portfolio, risk profiles)
+- Fallback strategies if LLM unavailable (deterministic defaults)
+- Chat-based advisee agent communication (via advisor API)
+
+### ✅ Advanced Metrics & Analytics
+- **Product Normalization:** Intelligent categorization (5 types + fallback)
+- **Adequacy Scoring:** Risk-product compatibility matrix (0.0-1.0 scale)
+- **Directive Compliance:** Binary flag + per-promoter rate tracking
+- **Acceptance Rate:** Threshold-based (≥0.5 adequacy = accepted)
+- **Strategic Matrix:** Cross-tabulation of risk profiles × products
+- **Round Summaries:** Aggregate metrics per simulation round
+- **Scenario Summaries:** Overall compliance, mismatch, acceptance rates
+
+### ✅ Frontend Visualizations
+- 9 interactive Plotly charts with premium styling
+- HEATMAP_PERFORMANCE: Risk × Wealth strategic grid
+- BAR_PRODOTTI: Product satisfaction distribution
+- LINEE_COMPARATIVE: Cumulative AUM evolution (20 rounds)
+- WATERFALL_PATRIMONIO: Wealth composition breakdown
+- SANKEY_FLUSSI: Client flow dynamics and churn
+- AREA_GUADAGNI: Revenue generation over time
+- SEMAFORO_ADEGUATEZZA: Adequacy compliance traffic light
+- ACCETTAZIONI_PER_SCENARIO: Multi-scenario acceptance comparison
+- TREND_COMPLIANCE: Regulatory adherence trends
+
+### ✅ Virtual Advisor API
+- Ollama-powered (gemma4:e4b) tactical recommendation engine
+- Autonomous chart selection based on user query
+- Strategic context injection (metrics + historical data)
+- JSON-structured responses with detailed captions
+- Italian language output with financial terminology
+- Health check endpoint for service monitoring
+
+### ✅ Data Migration & Enrichment
+- Batch enrichment of existing simulation JSON files
+- Neo4j cluster profile lookup integration
+- Robust error handling and logging
+- Output to separate `enriched/` directory (non-destructive)
+- Summary reporting (total decisions, compliance rates)
 
 ### ✅ Database Integrity
-- Property alignment fixed (all expected properties on nodes)
-- Allowlist-validated labels/relationships
-- Parameterized Cypher (zero injection risk)
+- Property alignment (all expected properties on nodes)
+- Allowlist-validated labels/relationships against `finsim_schema.json`
+- Parameterized Cypher queries (zero injection risk)
 - Unique constraints per scenario/promoter/client IDs
+- Type coercion and validation at boundaries
 
 ### ✅ Performance
 - Bulk node creation (optimize Neo4j writes)
 - Cluster-only enumeration (avoid 5×20 blind iteration)
 - Scenario completion caching (skip re-execution)
-- Batch client processing via LIGHT_LLM
+- Batch client processing via LIGHT_LLM (qwen2.5:3b)
+- Efficient Neo4j querying with proper indexing hints
+
+---
+
+### Fase 8: Advanced Metrics & Enrichment (Commit: 7420dc2 → a1d8b8c)
+
+**Cosa è stato fatto:**
+- ✅ **Metrics Normalization Module (`normalizzatore.py`):**
+  - Intelligent product name normalization (Bond_Corporate, Bond_Sovereign, Cash_Equivalents, Mixed_Funds, Altro)
+  - Substring matching with case-insensitive rules
+  - Fallback to "Altro" for unrecognized products
+
+- ✅ **Migration Script (`migra_json_esistenti.py`):**
+  - Batch enrichment of existing risultati JSON files (S0-S4)
+  - Neo4j integration for cluster risk profile lookup
+  - Computes adequacy scores per product-risk pair
+  - Generates directive compliance metrics
+  - Builds strategic matrix (profilo × prodotto analysis)
+  - Outputs to `output/enriched/` directory
+  - Robust error handling and logging
+
+- ✅ **Round-Level Metrics:**
+  - compliance_rate: % decisions matching scenario focus product
+  - mismatch_rate: % products rejected (adequacy < 0.5)
+  - prodotto_dominante: Most common recommended product
+  - dispersione_prodotti: Product diversity count
+  - compliance_per_promotore: Directive adherence per strategy
+
+- ✅ **Decision-Level Enrichment:**
+  - prodotto_suggerito_raw: Original LLM output
+  - prodotto_suggerito: Normalized category
+  - profilo_rischio_prevalente: Client cluster risk profile
+  - conforme_direttiva: Boolean compliance flag
+  - adeguatezza_score: Product-risk fit (0.0-1.0)
+  - accettato: Boolean acceptance flag (≥0.5)
+
+**Schema Integration:**
+```json
+{
+  "decision": {
+    "promotore": "P1_Fisso",
+    "cluster": "(2, 3)",
+    "prodotto_suggerito": "Bond_Corporate",
+    "prodotto_suggerito_raw": "Obbligazioni Corporate",
+    "profilo_rischio_prevalente": "Balanced",
+    "conforme_direttiva": true,
+    "adeguatezza_score": 0.8,
+    "accettato": true
+  }
+}
+```
+
+---
+
+### Fase 9: Frontend Visualizations (Commit: 185f59c → f59dbdf)
+
+**Cosa è stato fatto:**
+- ✅ **9 Interactive Plotly Visualizations:**
+
+  1. **HEATMAP_PERFORMANCE** — Risk × Wealth strategic grid
+     - Shows Adaptive vs Fixed performance by client segment
+     - Color scale: Green (Adaptive wins) → Yellow (Tie) → Red (Fixed wins)
+     
+  2. **BAR_PRODOTTI** — Product satisfaction distribution
+     - Stacked bars showing satisfaction levels per product
+     - Identifies best/worst performing financial instruments
+     
+  3. **LINEE_COMPARATIVE** — Cumulative AUM evolution (Rounds 1-20)
+     - Dual-line chart comparing Adaptive vs Fixed total collected assets
+     - Shows strategy effectiveness over time
+     
+  4. **WATERFALL_PATRIMONIO** — Wealth composition breakdown
+     - Cascading chart from Initial AUM → Inflows → Outflows → Final AUM
+     - Visual decomposition of wealth changes per round
+     
+  5. **SANKEY_FLUSSI** — Client flow dynamics
+     - Flow diagram showing client migrations between clusters
+     - Flow thickness indicates migration volume
+     - Identifies churn and retention patterns
+     
+  6. **AREA_GUADAGNI** — Cumulative revenue generation
+     - Stacked area chart of earnings across rounds
+     - Shows revenue by client segment/product
+     
+  7. **SEMAFORO_ADEGUATEZZA** — Adequacy traffic light system
+     - Color-coded heatmap: Green (≥0.5) → Yellow (0.3-0.5) → Red (<0.3)
+     - Grid shows product-risk mismatch hotspots
+     
+  8. **ACCETTAZIONI_PER_SCENARIO** — Scenario acceptance comparison
+     - Bar chart comparing acceptance rates across S0-S4
+     - Highlights which scenarios perform best
+     
+  9. **TREND_COMPLIANCE** — Regulatory compliance trends
+     - Line chart of directive adherence per round
+     - Compares Adaptive vs Fixed compliance trajectory
+
+**Frontend Integration:**
+- Premium Light Mode styling (Segoe UI typography, high contrast)
+- Responsive hover templates with emoji indicators
+- Automatic color scaling based on data ranges
+- Fallback sample data for demo mode
+
+---
+
+### Fase 10: Virtual Advisor API (Commit: 86cc9c3 → ad9c4d1)
+
+**Cosa è stato fatto:**
+- ✅ **FastAPI-based Virtual Advisor Service (`advisor.py`):**
+  - Analyzes financial metrics and provides tactical recommendations
+  - Uses Ollama (gemma4:e4b) for LLM intelligence
+  
+- ✅ **Endpoints:**
+  - `POST /api/advisor/chat` — Generate tactical advice + chart suggestions
+  - `GET /health` — Service health check
+  
+- ✅ **Advanced Chart Selection Logic:**
+  - Autonomous decision: chooses 0-4 relevant charts based on user query
+  - Strict terminology matching per chart type (non confuse X/Y axes for SANKEY)
+  - Rule-based routing (e.g., "patrimonio" → WATERFALL, "churn" → SANKEY)
+  
+- ✅ **Robust Response Handling:**
+  - JSON extraction and validation from LLM output
+  - Type coercion for Pydantic models
+  - Fallback responses if LLM fails
+  - Chart code allowlist filtering
+  
+- ✅ **Detailed Chart Captions:**
+  - 3-part structure: COME LEGGERLO → ESEMPIO CONCRETO → COLLEGAMENTO STRATEGICO
+  - Italian language with strict financial terminology
+  - Visual component explanations per chart type
+
+**System Prompt Features:**
+- Framework: Assess → Identify → Recommend → Visualize
+- Context injection: Performance metrics, risk profiles, sentiment
+- Critical rules for chart interpretation accuracy
+- Autonomous lead analyst role with independent decision-making
 
 ---
 
 ## Known Issues & Roadmap
 
-### Fase 7 (In Progress) — Security Hardening
+### Fase 11 (In Progress) — Security Hardening
 - [ ] CVE-2026-7059: Path traversal in simulation.py (Platform param non-sanitizzato)
 - [ ] CVE-2026-7058: Command injection in services/send_command
 - [ ] Parametrizzazione completa tutte query dinamiche
+- [ ] API authentication (JWT bearer tokens)
+- [ ] Rate limiting on advisor endpoint
 
-### Fase 8 — Integration Testing
-- [ ] Full round 1-20 execution su S0
-- [ ] Cross-scenario comparison metrics
-- [ ] A/B significance testing
-- [ ] Performance benchmarking (round execution time)
+### Fase 12 — Dashboard UI Integration
+- [ ] Frontend dashboard with metric visualization panels
+- [ ] Real-time metric computation during simulation
+- [ ] Chart interaction (drill-down, filtering, export)
+- [ ] Advisor chatbot widget integration
+- [ ] Scenario comparison view
 
-### Fase 9 — Observability
-- [ ] Logging round decisions (LLM reasoning)
-- [ ] Metrics export (Prometheus format)
-- [ ] Trace integration per debug
+### Fase 13 — Production Readiness
+- [ ] Export capabilities (PDF reports, CSV, Excel)
+- [ ] Database optimization (indexes on frequently queried columns)
+- [ ] Caching layer for metric computations
+- [ ] Monitoring and alerting (performance, errors, advisor accuracy)
+- [ ] Documentation and user guides
 
-### Fase 10 — Optimization
-- [ ] Parallel round execution (Async SimulationEngine)
-- [ ] Batch client trust calculation
-- [ ] LLM prompt caching per scenario-directive pair
+### Fase 14 — Advanced Analytics
+- [ ] Predictive models for client churn
+- [ ] Scenario sensitivity analysis
+- [ ] A/B statistical significance testing
+- [ ] Comparative benchmark reports
+- [ ] Advisor feedback loop (learning from user corrections)
 
 ---
 
@@ -266,33 +469,76 @@ backend/app/finsim/
 
 | Metrica | Valore | Status |
 |---|---|---|
-| Lines of Code (Backend) | ~3500 | ✅ Stable |
-| Neo4j Queries | 25+ | ✅ Parameterized |
+| Lines of Code (Backend) | ~6500+ | ✅ Expanding |
+| Neo4j Queries | 30+ | ✅ Parameterized |
+| Frontend Charts | 9 interactive visualizations | ✅ Complete |
+| Metrics Dimensions | 15+ computed metrics | ✅ Complete |
+| API Endpoints | 3 (advisor chat + health) | ✅ Complete |
 | Test Coverage | Syntax validated | ⚠️ Need unit tests |
 | Security Compliance | 8/10 | ⚠️ CVEs pending |
-| Documentation | CLAUDE.md + README | ✅ Complete |
+| Documentation | CLAUDE.md + README + progress | ✅ Complete |
 
 ---
 
 ## Come Continuare
 
-### Per eseguire una simulazione:
+### 1. Eseguire una simulazione:
 ```bash
 cd backend/app/finsim
 python run_simulation.py
 ```
+Output: `backend/app/finsim/output/risultati_S0.json` (and S1-S4 if configured)
 
-### Per ripopolare ontologia (reset):
+### 2. Arricchire dati simulazione con metriche:
 ```bash
-python populate_finsim.py
+cd backend/app/finsim/scripts
+python migra_json_esistenti.py
+```
+Output: `backend/app/finsim/output/enriched/risultati_S0.json` (enriched with metrics)
+
+### 3. Avviare Virtual Advisor API:
+```bash
+cd backend
+python -m app.finsim.advisor
+```
+Endpoint: `http://localhost:8000/api/advisor/chat` (POST con metrics data)
+Health: `http://localhost:8000/health` (GET)
+
+### 4. Generare visualizzazioni:
+```python
+from backend.app.finsim.visualizzatore_grafici import *
+import json
+
+# Carica dati arricchiti
+with open('backend/app/finsim/output/enriched/risultati_S0.json', 'r') as f:
+    scenario_data = json.load(f)
+
+# Genera singolo grafico
+fig = genera_heatmap_performance(scenario_data['summary'])
+fig.show()
+
+# Oppure tutti i 9 grafici per uno scenario
+for round_data in scenario_data['rounds']:
+    fig_perf = genera_heatmap_performance(round_data)
+    fig_prodotti = genera_bar_prodotti(round_data)
+    # ... etc
 ```
 
-### Per query database:
+### 5. Interrogare database per metriche:
 ```python
-from search_finsim import FinsimSearcher
+from backend.app.finsim.search_finsim import FinsimSearcher
+
 searcher = FinsimSearcher(config)
 scenario = searcher.get_scenario_state("s0")
-print(scenario)
+directive = searcher.get_directive("s0")
+print(f"Scenario: {scenario}")
+print(f"Directive: {directive}")
+```
+
+### 6. Testare normalizzazione prodotti:
+```bash
+cd backend/app/finsim/metrics
+python normalizzatore.py
 ```
 
 ---
@@ -310,7 +556,24 @@ print(scenario)
 | 0d8eb21 | A/B split refinement | 6 |
 | 2ac18f3 | Architecture diagram | 7 |
 | 86a0498 | README + documentation | 7 |
+| 91f5b9f | Add new metrics | 8 |
+| 8c6149e | Normalization metrics | 8 |
+| 7420dc2 | Adequacy scoring and compliance metrics | 8 |
+| a1d8b8c | Add migration script to enrich JSON files | 8 |
+| 185f59c | Enhance visualizations and frontend charts | 9 |
+| 547191b | Log: 20 round simulation | 9 |
+| db0f2b3 | Add frontend for strategic analysis | 9 |
+| 86cc9c3 | Implement FINsim Virtual Advisor API | 10 |
+| e33bc64 | Implement AI query flow with MongoDB integration | 10 |
+| c29f64c | Change model: gemma4:e4b | 10 |
+| f59dbdf | Add new visualizations (adequacy & acceptance) | 9 |
+| cd21a7a | Refactor decision enrichment process | 8 |
 
 ---
 
-**Prossima sessione:** Focus su CVE hardening (Fase 7) e test end-to-end Round 1-20.
+**Status Attuale (Giugno 2026):**
+- ✅ Fase 8-10: Metrics, visualizations, advisor API complete
+- ⏳ Fase 11: Security hardening in progress (CVE remediation)
+- 🔮 Fase 12+: Dashboard UI integration, production deployment
+
+**Prossima sessione:** Continue con security audit (Fase 11) e dashboard integration (Fase 12).

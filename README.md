@@ -375,12 +375,115 @@ NEO4J_PASSWORD=mirofish
 - `backend/app/storage/neo4j_storage.py` — Neo4j interface
 - `docker-compose.yml` — container orchestration
 
+### Advanced Metrics & Analytics
+
+FINsim now includes comprehensive metrics calculation and enrichment:
+
+#### Computed Metrics
+
+- **Adequacy Scores** — Product-risk alignment assessment (0.0–1.0) based on client risk profile
+- **Directive Compliance** — Whether recommended product matches scenario focus product
+- **Acceptance Rate** — Percentage of products accepted by clients (>= 0.5 adequacy threshold)
+- **Mismatch Rate** — Percentage of product recommendations rejected by clients
+- **Compliance Per Promoter** — Directive adherence rate by Adaptive vs Fixed strategies
+- **Product Distribution** — Normalized product categories (Bond_Corporate, Bond_Sovereign, Cash_Equivalents, Mixed_Funds, Altro)
+- **Strategic Matrix** — Cross-tabulation of risk profiles × products with performance metrics
+
+#### Data Enrichment Pipeline
+
+Run the migration script to enrich existing simulation JSON files with computed metrics:
+
+```bash
+cd backend/app/finsim/scripts
+python migra_json_esistenti.py
+```
+
+**What happens:**
+- Reads raw decision data from `backend/app/finsim/output/risultati_SX.json`
+- Normalizes product names using intelligent heuristics
+- Computes adequacy scores from risk-product compatibility matrix
+- Calculates directive compliance and acceptance rates per round
+- Generates strategic matrix (profilo × prodotto combinations)
+- Outputs enriched data to `backend/app/finsim/output/enriched/risultati_SX.json`
+
+### Frontend Visualizations
+
+FINsim includes 9 interactive Plotly-based visualizations:
+
+#### 1. **HEATMAP_PERFORMANCE** — Strategic Advantage Map
+- **What:** Risk level (Y-axis) × Wealth level (X-axis) performance grid
+- **Interpretation:** Green = Adaptive wins, Red = Fixed wins, Yellow = Tie
+- **Use case:** Identify which client segments respond better to adaptive strategies
+
+#### 2. **BAR_PRODOTTI** — Product Satisfaction Distribution  
+- **What:** Satisfaction levels across recommended financial products
+- **Interpretation:** Taller bars = higher client satisfaction with that product
+- **Use case:** Product portfolio optimization per scenario
+
+#### 3. **LINEE_COMPARATIVE** — Cumulative AUM Evolution
+- **What:** Comparative line chart of Total Collected Assets (round 1-20)
+- **Interpretation:** Adaptive (blue) vs Fixed (red) trajectory over time
+- **Use case:** Long-term strategy effectiveness assessment
+
+#### 4. **WATERFALL_PATRIMONIO** — Wealth Composition Breakdown
+- **What:** Stacked waterfall from Initial AUM → Inflows → Outflows → Final AUM
+- **Interpretation:** Visual decomposition of wealth changes per round
+- **Use case:** Identify sources of growth or attrition
+
+#### 5. **SANKEY_FLUSSI** — Client Flow Dynamics
+- **What:** Client migrations between risk clusters and churn destinations
+- **Interpretation:** Flow thickness = volume of clients; colors = direction
+- **Use case:** Detect client exodus patterns and retention risk zones
+
+#### 6. **AREA_GUADAGNI** — Revenue Generation Over Time
+- **What:** Stacked area chart of cumulative earnings (round 1-20)
+- **Interpretation:** Height = total revenue; colored bands = revenue by segment
+- **Use case:** Profitability trend analysis and commission forecasting
+
+#### 7. **SEMAFORO_ADEGUATEZZA** — Adequacy Traffic Light System
+- **What:** Color-coded grid (Green=Adequate ≥0.5, Yellow=Borderline 0.3-0.5, Red=Mismatch <0.3)
+- **Interpretation:** Bright cells = good matches; dark cells = product-risk conflicts
+- **Use case:** Compliance monitoring and product suitability audits
+
+#### 8. **ACCETTAZIONI_PER_SCENARIO** — Scenario Comparison Acceptance Rates
+- **What:** Side-by-side comparison of acceptance rates across S0-S4
+- **Interpretation:** Taller bars = better scenario performance
+- **Use case:** Macro scenario impact analysis
+
+#### 9. **TREND_COMPLIANCE** — Directive Adherence Trends
+- **What:** Line chart of compliance rate per round (Adaptive vs Fixed)
+- **Interpretation:** Higher line = better regulatory alignment
+- **Use case:** Regulatory risk assessment and strategy audit
+
+### Virtual Advisor API
+
+FINsim includes an **on-demand Virtual Advisor** service powered by Ollama (gemma4:e4b):
+
+```bash
+python -m backend.app.finsim.advisor
+```
+
+**Endpoints:**
+
+- `POST /api/advisor/chat` — Get tactical advice based on financial metrics
+  - Input: metrics data + optional user question
+  - Output: Structured response with strategic recommendation + suggested visualizations
+  
+- `GET /health` — Service health check
+
+**Features:**
+- Autonomous chart selection (chooses relevant visualizations based on query)
+- Strategic context injection (scenario, directive, portfolio analysis)
+- Detailed captions with visual interpretation guides
+- Italian language output
+- Fallback mechanisms for robustness
+
 ### Next Steps
 
-- **Phase 5:** Dashboard for real-time round metrics & trust evolution charts
-- **Phase 6:** Multi-scenario comparison report generation
-- **Phase 7:** Security audit & CVE remediation
-- **Phase 8:** Deploy to production with monitoring
+- **Phase 9:** Dashboard UI integration for interactive metric exploration
+- **Phase 10:** Real-time metrics computation during simulation runs
+- **Phase 11:** Export capabilities (PDF reports, CSV downloads, API integrations)
+- **Phase 12:** Deploy to production with monitoring
 
 ---
 
