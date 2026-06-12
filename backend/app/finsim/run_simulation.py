@@ -45,7 +45,7 @@ logger = logging.getLogger('finsim.run_simulation')
 def run_scenario_rounds(
     engine: SimulationEngine,
     scenario_id: str,
-    num_rounds: int = 3,
+    num_rounds: int = 200,
 ) -> Dict[str, Any]:
     """
     Execute multiple consecutive rounds for a scenario with result collection.
