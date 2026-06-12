@@ -8,6 +8,7 @@ and client reaction calculation using Neo4j queries and OllamaClient integration
 
 import json
 import logging
+from collections import Counter
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
@@ -201,6 +202,29 @@ class SimulationEngine:
                                 )
                                 continue
 
+                            # Get pre-reaction metrics
+                            pre_metrics_query = """
+                            MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
+                            WHERE c.cluster_riga = $riga AND c.cluster_col = $col
+                            RETURN
+                              avg(c.fiducia_attuale) as fiducia_media_pre,
+                              collect(c.profilo_rischio) as profili_rischio
+                            """
+                            pre_metrics_res = session.run(
+                                pre_metrics_query,
+                                promotore_uuid=promotore_uuid,
+                                riga=riga,
+                                col=col
+                            ).single()
+
+                            fiducia_media_pre = round(pre_metrics_res['fiducia_media_pre'], 4) if pre_metrics_res and pre_metrics_res['fiducia_media_pre'] is not None else 0.0
+                            profili_rischio_list = pre_metrics_res['profili_rischio'] if pre_metrics_res else []
+
+                            if profili_rischio_list:
+                                profilo_rischio_prevalente = Counter(profili_rischio_list).most_common(1)[0][0]
+                            else:
+                                profilo_rischio_prevalente = 'Balanced'
+
                             # Calculate client reactions
                             prodotto_suggerito = strategy_result['prodotto_suggerito']
                             clients_updated = self.calcola_reazione_clienti(
@@ -213,25 +237,31 @@ class SimulationEngine:
 
                             result['clients_updated'] += clients_updated
                             logger.info(f"    Updated {clients_updated} clients")
-                            
+
                             metrics_query = """
                             MATCH (p:Promotore {uuid: $promotore_uuid})-[g:GESTISCE]->(c:Cliente)-[:APPARTIENE_A]->(clu:ClusterProfilo)
                             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
                             RETURN
                                 avg(c.fiducia_attuale - c.fiducia_iniziale) as avg_delta_fiducia,
-                                avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione
+                                avg(c.soddisfazione - 0.5) as avg_delta_soddisfazione,
+                                avg(c.fiducia_attuale) as fiducia_media_post
                             """
                             metrics_res = session.run(metrics_query, promotore_uuid=promotore_uuid, riga=riga, col=col).single()
-                            
+
                             delta_fiducia = round(metrics_res['avg_delta_fiducia'], 4) if metrics_res and metrics_res['avg_delta_fiducia'] is not None else 0.0
                             delta_soddisfazione = round(metrics_res['avg_delta_soddisfazione'], 4) if metrics_res and metrics_res['avg_delta_soddisfazione'] is not None else 0.0
-                            
+                            fiducia_media_post = round(metrics_res['fiducia_media_post'], 4) if metrics_res and metrics_res['fiducia_media_post'] is not None else 0.0
+
                             promoter_data_for_mongo['strategies'].append({
                                 'cluster_coords': [riga, col],
                                 'clients_in_cluster': clients_updated,
                                 'llm_strategy': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
-                                'prodotto_suggerito': strategy_result['prodotto_suggerito'],
+                                'prodotto_suggerito': prodotto_normalized,
+                                'fiducia_media_pre': fiducia_media_pre,
+                                'fiducia_media_post': fiducia_media_post,
+                                'delta_fiducia_medio': round(fiducia_media_post - fiducia_media_pre, 4),
+                                'profilo_rischio_prevalente': profilo_rischio_prevalente,
                                 'performance_metrics': {
                                     'delta_fiducia_medio': delta_fiducia,
                                     'delta_soddisfazione_medio': delta_soddisfazione
