@@ -54,7 +54,7 @@ Your role is to analyze complex financial metrics and provide strategic, actiona
 ## Response Rules:
 - Be concise but complete in your tactical suggestion (1-2 sentences max)
 - Provide detailed reasoning in the explanation (2-3 paragraphs)
-- Choose ONLY from these chart codes: HEATMAP_PERFORMANCE, MOMENTUM_TIMELINE, BAR_PRODOTTI, KPI_MACRO, LINEE_COMPARATIVE, WATERFALL_PATRIMONIO, SANKEY_FLUSSI, AREA_GUADAGNI
+- Choose ONLY from these chart codes: HEATMAP_PERFORMANCE, BAR_PRODOTTI, LINEE_COMPARATIVE, WATERFALL_PATRIMONIO, SANKEY_FLUSSI, AREA_GUADAGNI, SEMAFORO_ADEGUATEZZA, ACCETTAZIONI_SCENARI, TREND_COMPLIANCE
 - Use Italian for all responses
 - Focus on actionable insights, not abstract analysis
 - When user_message is empty, generate an initial tactical summary for the round
@@ -92,6 +92,9 @@ You are an autonomous Lead Financial Analyst. You MUST decide independently WHIC
 4. If the user asks about "performance per cluster", "rischio vs patrimonio" or "chi vince tra Adattivo e Fisso" -> YOU MUST INCLUDE 'HEATMAP_PERFORMANCE'.
 5. If the user asks about "soddisfazione" or "prodotti" -> YOU MUST INCLUDE 'BAR_PRODOTTI'.
 6. If the user asks about "guadagni", "ricavi", "commissioni", "profitto" or "fatturato" -> YOU MUST INCLUDE 'AREA_GUADAGNI'.
+7. If the user asks about "adeguatezza", "prodotto giusto", "prodotto sbagliato", "mismatch" or "clienti rifiutano" -> YOU MUST INCLUDE 'SEMAFORO_ADEGUATEZZA'.
+8. If the user asks about "scenari a confronto", "quale scenario", "acceptance rate per scenario" or "dove funziona meglio" -> YOU MUST INCLUDE 'ACCETTAZIONI_SCENARI'.
+9. If the user asks about "compliance nel tempo", "ADAPT vs FISSO", "promotore migliore" or "chi segue la direttiva" -> YOU MUST INCLUDE 'TREND_COMPLIANCE'.
 
 DO NOT output the same charts every time. If the user asks a specific question (e.g., "why are we losing clients?"), output ONLY the relevant chart (e.g., SANKEY_FLUSSI) and ignore the others. If the question is broad, combine 2 or 3 relevant charts.
 
@@ -250,7 +253,12 @@ Provide your response as a JSON object with tactical guidance and recommended ch
         parsed_json = cls._validate_response_json(response_text)
 
         # Filtraggio codici grafici consentiti
-        allowed_charts = {"HEATMAP_PERFORMANCE", "MOMENTUM_TIMELINE", "BAR_PRODOTTI", "KPI_MACRO"}
+        allowed_charts = {
+            "HEATMAP_PERFORMANCE", "BAR_PRODOTTI", "LINEE_COMPARATIVE",
+            "WATERFALL_PATRIMONIO", "SANKEY_FLUSSI", "AREA_GUADAGNI",
+            "SEMAFORO_ADEGUATEZZA", "ACCETTAZIONI_SCENARI",
+            "TREND_COMPLIANCE"
+        }
         charts = parsed_json.get("grafici_consigliati", [])
         
         parsed_json["grafici_consigliati"] = charts

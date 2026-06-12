@@ -272,6 +272,303 @@ def genera_andamento_guadagni(business_metrics: dict):
     
     fig.update_xaxes(title_text="<b>Round Temporali</b>", showgrid=False)
     fig.update_yaxes(title_text="<b>Ricavi Generati (€)</b>", showgrid=True, gridcolor="rgba(0,0,0,0.05)")
-    
+
     return applica_stile_premium(fig, "Andamento Ricavi (Adattivo vs Fisso)")
+
+def genera_semaforo_adeguatezza(summary: dict):
+    """Barre orizzontali per prodotto, colorate in base all'adeguatezza media."""
+    matrice = summary.get('matrice_strategica', [])
+    if not matrice:
+        return None
+
+    from collections import defaultdict
+    prodotti = defaultdict(lambda: {'adeguatezza_totale': 0.0, 'decisioni': 0, 'accettate': 0})
+
+    for row in matrice:
+        prod = row['prodotto']
+        n = row['num_decisioni']
+        prodotti[prod]['adeguatezza_totale'] += row['adeguatezza_media'] * n
+        prodotti[prod]['decisioni'] += n
+        prodotti[prod]['accettate'] += round(row['acceptance_rate'] * n)
+
+    righe = []
+    for prod, vals in prodotti.items():
+        if vals['decisioni'] > 0:
+            adeguatezza_media = vals['adeguatezza_totale'] / vals['decisioni']
+            acceptance = vals['accettate'] / vals['decisioni']
+            righe.append({
+                'Prodotto': prod.replace('_', ' '),
+                'Adeguatezza': round(adeguatezza_media, 2),
+                'Acceptance': round(acceptance, 2),
+                'Decisioni': vals['decisioni']
+            })
+
+    righe.sort(key=lambda x: x['Adeguatezza'], reverse=True)
+
+    df = pd.DataFrame(righe)
+
+    def colore(val):
+        if val >= 0.8:
+            return '#059669'
+        elif val >= 0.5:
+            return '#f59e0b'
+        else:
+            return '#e11d48'
+
+    colori = [colore(v) for v in df['Adeguatezza']]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=df['Prodotto'],
+        x=df['Adeguatezza'],
+        orientation='h',
+        marker_color=colori,
+        showlegend=False,
+        name="",
+        text=[f"{v*100:.0f}% — {d} decisioni" for v, d in
+              zip(df['Adeguatezza'], df['Decisioni'])],
+        textposition='outside',
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Adeguatezza: %{x:.0%}<br>"
+            "Acceptance rate: %{customdata:.0%}<extra></extra>"
+        ),
+        customdata=df['Acceptance'],
+    ))
+
+    fig.add_vline(
+        x=0.5,
+        line_dash='dash',
+        line_color='#6b7280',
+        annotation_text='Soglia accettazione',
+        annotation_position='top'
+    )
+
+    fig.update_xaxes(
+        range=[0, 1.15],
+        tickformat='.0%',
+        title_text='<b>Adeguatezza Media</b>'
+    )
+    fig.update_yaxes(
+        title_text='<b>Prodotto</b>',
+        autorange='reversed'   
+    )
+    fig.update_layout(showlegend=False)
+
+    return applica_stile_premium(
+        fig,
+        "Semaforo Adeguatezza — Prodotti proposti ai clienti"
+    )
     
+def genera_accettazioni_per_scenario(tutti_scenari: list):
+    """
+    Barre raggruppate: accettate vs rifiutate per ogni scenario.
+    tutti_scenari: lista di dict con chiavi scenario_id, overall_acceptance_rate, overall_mismatch_rate, total_decisions - uno per scenario.
+    """
+    if not tutti_scenari:
+        return None
+    
+    scenari = [s['scenario_id'] for s in tutti_scenari]
+    accettate = [round(s['overall_acceptance_rate'] * s['total_decisions']) for s in tutti_scenari]
+    rifiutate = [round(s['overall_mismatch_rate'] * s['total_decisions']) for s in tutti_scenari]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        name='Accettate',
+        x=scenari,
+        y=accettate,
+        marker_color='#059669',
+        showlegend=True,
+        text=accettate,
+        textposition='outside',
+        hovertemplate='<b>%{x}</b><br>Accettate: %{y}<extra></extra>'
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Rifiutate',
+        x=scenari,
+        y=rifiutate,
+        marker_color='#e11d48',
+        showlegend=True,
+        text=rifiutate,
+        textposition='outside',
+        hovertemplate='<b>%{x}</b><br>Rifiutate: %{y}<extra></extra>'
+    ))
+    
+    # Linea soglia al 50% delle decisioni totali
+    max_decisioni = max(s['total_decisions'] for s in tutti_scenari)
+    fig.add_hline(
+        y=max_decisioni * 0.5,
+        line_dash='dash',
+        line_color='#6b7280',
+        annotation_text='Soglia 50%',
+        annotation_position='right'
+    )
+    
+    fig.update_layout(
+        barmode='group',
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            title_text=''
+        )
+    )
+    
+    fig.update_xaxes(title_text='<b>Scenario</b>')
+    fig.update_yaxes(
+        title_text='<b>Numero Decisioni</b>',
+        range=[0, max_decisioni * 1.3]
+    )
+
+    return applica_stile_premium(
+        fig,
+        "Proposte Accettate vs Rifiutate per Scenario"
+    )
+    
+def genera_trend_compliance(rounds_data: list, scenario_id: str = ""):
+    """
+    Linee temporali compliance ADAPT vs FISSO round per round.
+    rounds_Data: lista round dict con 'round' e 'compliance_per_promotore'.
+    Funziona con 1 o 20 round - si adatta automaticamente.
+    """
+    if not rounds_data:
+        return None
+    
+    rounds_numeri = []
+    adapt_vals = []
+    fisso_vals = []
+    
+    for r in sorted(rounds_data, key=lambda x: x.get('round', 0)):
+        comp = r.get('compliance_per_promotore', {})
+        if comp:
+            rounds_numeri.append(f"R{int(r.get('round', 0))}")
+            adapt_vals.append(comp.get('PROM-ADAPT-1', 0) * 100)
+            fisso_vals.append(comp.get('PROM-FISSO-1', 0) * 100)
+            
+    if not rounds_numeri:
+        return None
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=rounds_numeri,
+        y=adapt_vals,
+        mode='lines+markers',
+        name='ADAPT',
+        line=dict(width=3, color='#059669'),
+        marker=dict(size=8),
+        hovertemplate='<b>%{x}</b><br>ADAPT: %{y:.0f}%<estra></extra>'
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=rounds_numeri,
+        y=fisso_vals,
+        mode='lines+markers',
+        name='FISSO (Benchmark)',
+        line=dict(width=3, color='#3266ad', dash='dot'),
+        marker=dict(size=8, symbol='square'),
+        hovertemplate='<b>%{x}</b><br>FISSO: %{y:.0f}%<extra></extra>'
+    ))
+
+    fig.add_hline(
+        y=80,
+        line_dash='dash',
+        line_color='#6b7280',
+        annotation_text='Soglia 80%',
+        annotation_position='right'
+    )
+    
+    fig.update_layout(
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            title_text=''
+        )
+    )
+    
+    titolo = f"Trend Compliance per Round - {scenario_id}" if scenario_id else "Trend Compliance per Round"
+    
+    fig.update_xaxes(title_text='<b>Round</b>')
+    fig.update_yaxes(
+        title_text='<b>Compliance (%)</b>',
+        range=[0, 110]
+    )
+    
+    return applica_stile_premium(fig, titolo)
+
+def genera_interesse_composto():
+    """
+    Grafico educativo: crescita capitale con e senza interesse composto.
+    Statico — non dipende da dati simulazione.
+    """
+    anni = list(range(0, 31))
+    capitale_iniziale = 10000
+    tasso = 0.05
+
+    senza_investimento = [capitale_iniziale] * 31
+    con_interesse_semplice = [capitale_iniziale * (1 + tasso * a) for a in anni]
+    con_interesse_composto = [capitale_iniziale * (1 + tasso) ** a for a in anni]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=anni,
+        y=senza_investimento,
+        mode='lines',
+        name='Capitale fermo',
+        line=dict(width=2, color='#6b7280', dash='dot'),
+        hovertemplate='Anno %{x}<br>Valore: €%{y:,.0f}<extra></extra>'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=anni,
+        y=con_interesse_semplice,
+        mode='lines',
+        name='Interesse semplice (5%)',
+        line=dict(width=2, color='#f59e0b'),
+        hovertemplate='Anno %{x}<br>Valore: €%{y:,.0f}<extra></extra>'
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=anni,
+        y=con_interesse_composto,
+        mode='lines',
+        name='Interesse composto (5%)',
+        line=dict(width=3, color='#059669'),
+        fill='tonexty',
+        fillcolor='rgba(5, 150, 105, 0.1)',
+        hovertemplate='Anno %{x}<br>Valore: €%{y:,.0f}<extra></extra>'
+    ))
+
+    fig.update_layout(
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            title_text=''
+        )
+    )
+
+    fig.update_xaxes(
+        title_text='<b>Anni</b>',
+        tickvals=list(range(0, 31, 5))
+    )
+    fig.update_yaxes(
+        title_text='<b>Valore (€)</b>',
+        tickformat='€,.0f'
+    )
+
+    return applica_stile_premium(
+        fig,
+        "Il potere dell'interesse composto — €10.000 investiti al 5%"
+    )
