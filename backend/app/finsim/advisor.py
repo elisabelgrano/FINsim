@@ -10,10 +10,17 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
+from pymongo import MongoClient
+from fastapi.middleware.cors import CORSMiddleware
+from backend.app.config import Config
 
 from ..utils.logger import get_logger
 
 logger = get_logger("finsim.advisor")
+
+mongo_client = MongoClient(Config.MONGO_URI)
+mongo_db = mongo_client["finsim_analytics"]
+mongo_collection = mongo_db["simulation_history"]
 
 # ============== Pydantic Models ==============
 
@@ -292,6 +299,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://10.12.7.53:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post(
     "/api/advisor/chat",
@@ -320,6 +335,52 @@ async def health_check() -> dict:
         "service": "FINsim Virtual Advisor API",
         "llm_model": OllamaAdvisor.MODEL_NAME
     }
+
+
+@app.get("/api/dashboard/scenari", tags=["dashboard"])
+async def get_scenari():
+    docs = list(mongo_collection.find({}, {"scenario_id": 1}))
+    return {"scenari": [d["scenario_id"] for d in docs if "scenario_id" in d]}
+
+
+@app.get("/api/dashboard/scenario/{scenario_id}", tags=["dashboard"])
+async def get_scenario(scenario_id: str):
+    doc = mongo_collection.find_one({"scenario_id": scenario_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+    doc.pop("_id", None)
+    rounds_summary = []
+    for r in doc.pop("rounds", []):
+        rounds_summary.append({
+            "round": r.get("round"),
+            "compliance_rate": r.get("compliance_rate"),
+            "mismatch_rate": r.get("mismatch_rate"),
+            "prodotto_dominante": r.get("prodotto_dominante"),
+            "dispersione_prodotti": r.get("dispersione_prodotti"),
+            "compliance_per_promotore": r.get("compliance_per_promotore"),
+            "decisions_created": r.get("decisions_created"),
+            "clients_updated": r.get("clients_updated"),
+        })
+    doc["rounds_summary"] = rounds_summary
+    return doc
+
+
+@app.get("/api/dashboard/tutti", tags=["dashboard"])
+async def get_tutti_scenari():
+    docs = list(mongo_collection.find({}, {
+        "scenario_id": 1,
+        "summary": 1,
+        "business_metrics": 1,
+        "num_rounds": 1,
+        "total_decisions": 1,
+    }))
+    result = {}
+    for d in docs:
+        d.pop("_id", None)
+        sid = d.get("scenario_id")
+        if sid:
+            result[sid] = d
+    return {"scenari": result}
 
 
 if __name__ == "__main__":

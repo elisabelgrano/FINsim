@@ -335,19 +335,23 @@ def main():
             return
 
         # Scenario list
-        scenarios = ['S0_200', 'S1_200', 'S2_200', 'S3_200', 'S4_200']
+        # Scenario list - TORNANO ORIGINALI PER NEO4J
+        scenarios = ['S0', 'S1', 'S2', 'S3', 'S4']
         all_results = []
 
         for scenario_id in scenarios:
-            # Cache check: skip if scenario already exists in MongoDB
-            existing_doc = collection.find_one({"scenario_id": scenario_id})
+            # Creiamo il nuovo nome SOLO per MongoDB
+            mongo_scenario_id = f"{scenario_id}_200"
+            
+            # Cache check sul NUOVO nome
+            existing_doc = collection.find_one({"scenario_id": mongo_scenario_id})
             if existing_doc:
-                logger.info(f"Scenario {scenario_id} already completed. Skipping execution.")
+                logger.info(f"Scenario {mongo_scenario_id} already completed. Skipping execution.")
                 continue
 
             try:
                 logger.info(f"\n\n{'='*80}")
-                logger.info(f"SCENARIO {scenario_id} START")
+                logger.info(f"SCENARIO {scenario_id} START (Salvataggio come {mongo_scenario_id})")
                 logger.info(f"{'='*80}\n")
 
                 # Reset scenario state before running
@@ -359,7 +363,7 @@ def main():
                 ):
                     logger.error(f"Failed to reset state for scenario {scenario_id}, continuing anyway...")
 
-                # Run consecutive rounds
+                # Run consecutive rounds (ASSICURATI CHE SIA 200 QUI)
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
@@ -368,16 +372,16 @@ def main():
 
                 all_results.append(scenario_result)
 
-                # Save scenario results to MongoDB
-                scenario_result["scenario_id"] = scenario_id
+                # TRUCCO: Cambiamo l'ID prima di salvare su MongoDB
+                scenario_result["scenario_id"] = mongo_scenario_id
                 
-                logger.info(f"Calcolo metriche di business avanzate per {scenario_id}...")
+                logger.info(f"Calcolo metriche di business avanzate per {mongo_scenario_id}...")
                 scenario_result["business_metrics"] = engine._calcola_metriche_business(scenario_result)
                 
                 collection.insert_one(scenario_result)
-                logger.info(f"Scenario {scenario_id} results saved to MongoDB.")
+                logger.info(f"Scenario {mongo_scenario_id} results saved to MongoDB.")
 
-                logger.info(f"SCENARIO {scenario_id} COMPLETE\n")
+                logger.info(f"SCENARIO {mongo_scenario_id} COMPLETE\n")
 
             except Exception as e:
                 error_msg = f"Error processing scenario {scenario_id}: {str(e)}"

@@ -192,6 +192,7 @@ class SimulationEngine:
                                 promotore_id=promotore_id,
                                 riga=riga,
                                 col=col,
+                                round_n=round_n
                             )
 
                             if strategy_result.get('error'):

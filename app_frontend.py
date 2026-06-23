@@ -236,6 +236,7 @@ if "scenario" in st.session_state:
     metrics = scenario.get("business_metrics", {})
 
     st.info(f"📂 Stai analizzando lo Scenario ID: **{scenario.get('scenario_id')}**")
+    st.write(scenario.get("rounds", [])[0])
 
     # --- KPI ROW ---
     try:

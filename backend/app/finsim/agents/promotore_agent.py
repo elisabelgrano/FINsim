@@ -51,6 +51,7 @@ class PromotoreAgent:
         promotore_id: str,
         riga: int,
         col: int,
+        round_n: int=1
     ) -> Dict[str, Any]:
         """
         Generate marketing strategy for a client cluster.
@@ -95,7 +96,7 @@ class PromotoreAgent:
 
         try:
             # Fetch scenario and directive context
-            scenario_state = self.searcher.get_scenario_state(scenario_id, round_n=1)
+            scenario_state = self.searcher.get_scenario_state(scenario_id, round_n=round_n)
             if not scenario_state.get('scenario'):
                 result['error'] = f"Scenario not found: {scenario_id}"
                 logger.error(result['error'])
