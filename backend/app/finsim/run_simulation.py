@@ -363,7 +363,7 @@ def main():
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=20,
+                    num_rounds=200,
                 )
 
                 all_results.append(scenario_result)
