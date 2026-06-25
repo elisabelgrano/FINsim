@@ -16,6 +16,9 @@ from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 import tempfile
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
 
 app = FastAPI(
     title="FINsim Unified API",
@@ -1348,6 +1351,157 @@ async def get_tutti_scenari():
         if sid:
             result[sid] = d
     return {"scenari": result}
+
+
+# =====================================================================
+# PLOTLY CHARTS HELPERS & ENDPOINTS
+# =====================================================================
+
+COLORI_DIVERGENTI = ["#e11d48", "#f59e0b", "#059669"]
+
+def applica_stile_premium(fig, titolo: str):
+    """Applica un tema Light Mode enterprise ad alto contrasto e nitidezza"""
+    fig.update_layout(
+        title={
+            'text': f"<b>{titolo}</b>",
+            'y': 0.96,
+            'x': 0.02,
+            'xanchor': 'left',
+            'yanchor': 'top',
+            'font': dict(size=18, family="Segoe UI, -apple-system, Arial", color="#111827")
+        },
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Segoe UI, -apple-system, Arial", color="#374151", size=13),
+        margin=dict(l=60, r=30, t=70, b=60),
+        showlegend=True
+    )
+    fig.update_xaxes(
+        title_font=dict(size=14, color="#111827", weight="bold"),
+        tickfont=dict(size=12, color="#374151")
+    )
+    fig.update_yaxes(
+        title_font=dict(size=14, color="#111827", weight="bold"),
+        tickfont=dict(size=12, color="#374151")
+    )
+    return fig
+
+
+@app.post("/api/charts/heatmap", tags=["charts"])
+async def get_heatmap_performance(request: AdvisorRequest) -> dict:
+    """Generate performance heatmap (Patrimonio Gestito vs Profilo Rischio) as Plotly JSON"""
+    metrics = request.metrics_data or {}
+
+    rischi = ["Rischio Basso", "Rischio Medio", "Rischio Alto"]
+    patrimoni = ["Patrimonio Basso", "Patrimonio Medio", "Patrimonio Alto"]
+
+    dati_matrice = metrics.get("matrice_performance", [
+        [1.5, -0.4, 2.1],
+        [-0.8, 0.0, 1.2],
+        [0.5, -1.1, -0.2]
+    ])
+
+    grid_df = pd.DataFrame(dati_matrice, index=rischi, columns=patrimoni)
+
+    fig = px.imshow(
+        grid_df,
+        labels=dict(color="Vantaggio Netto"),
+        color_continuous_scale=COLORI_DIVERGENTI,
+        aspect="auto"
+    )
+
+    fig.update_traces(xgap=4, ygap=4)
+
+    val_min = grid_df.values.min() if not grid_df.isna().all().all() else -1
+    val_max = grid_df.values.max() if not grid_df.isna().all().all() else 1
+
+    fig.update_coloraxes(
+        showscale=True,
+        colorbar=dict(
+            thickness=15,
+            title="<b>Performance</b>",
+            tickvals=[val_min, 0, val_max],
+            ticktext=["Vince Standard", "Pareggio", "Vince IA Dinamica"],
+            tickfont=dict(size=11, color="#111827")
+        )
+    )
+
+    fig.update_xaxes(title_text="<b>Patrimonio Gestito</b>", side="bottom")
+    fig.update_yaxes(title_text="<b>Profilo di Rischio</b>")
+
+    fig = applica_stile_premium(fig, "Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)")
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/waterfall", tags=["charts"])
+async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
+    """Generate waterfall chart for patrimonio composition as Plotly JSON"""
+    metrics = request.metrics_data or {}
+
+    aum_iniziale = float(metrics.get("aum_iniziale", 100000000))
+    nuova_raccolta = float(metrics.get("nuova_raccolta_netta", 15500000))
+    effetto_mercato = float(metrics.get("effetto_mercato", -3200000))
+    churn_clienti = float(metrics.get("patrimonio_perso_churn", -5800000))
+    aum_finale = aum_iniziale + nuova_raccolta + effetto_mercato + churn_clienti
+
+    fig = go.Figure(go.Waterfall(
+        name="Patrimonio Gestito", orientation="v",
+        measure=["relative", "relative", "relative", "relative", "total"],
+        x=["Patrimonio Iniziale", "Nuova Raccolta", "Effetto Mercato", "Abbandoni", "Patrimonio Finale"],
+        textposition="outside",
+        text=[f"+{nuova_raccolta/1e6:.1f}M", f"{effetto_mercato/1e6:.1f}M", f"{churn_clienti/1e6:.1f}M", f"{aum_finale/1e6:.1f}M"],
+        y=[aum_iniziale, nuova_raccolta, effetto_mercato, churn_clienti, 0],
+        connector={"line": {"color": "rgba(0,0,0,0.1)", "width": 1}},
+        decreasing={"marker": {"color": "#e11d48"}},
+        increasing={"marker": {"color": "#059669"}},
+        totals={"marker": {"color": "#1f2937"}}
+    ))
+
+    fig.update_layout(
+        showlegend=False,
+    )
+
+    fig = applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio Gestito")
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/performance-lines", tags=["charts"])
+async def get_linee_comparative(request: AdvisorRequest) -> dict:
+    """Generate comparative performance lines as Plotly JSON"""
+    metrics = request.metrics_data or {}
+
+    storico_ia = metrics.get("storico_raccolta_adattivo", [i**1.2 * 10000 for i in range(1, 201)])
+    storico_fisso = metrics.get("storico_raccolta_fisso", [i * 9000 for i in range(1, 201)])
+    proposte = [f"Prop. {i}" for i in range(1, 201)]
+
+    df_ia = pd.DataFrame({"Proposta": proposte, "Valore": storico_ia, "Strategia": "Consulenza IA Dinamica"})
+    df_fisso = pd.DataFrame({"Proposta": proposte, "Valore": storico_fisso, "Strategia": "Strategia Standard"})
+    df = pd.concat([df_ia, df_fisso])
+
+    fig = px.line(
+        df, x="Proposta", y="Valore", color="Strategia",
+        color_discrete_map={"Consulenza IA Dinamica": "#059669", "Strategia Standard": "#e11d48"}
+    )
+
+    fig.update_traces(line=dict(width=3))
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            title_text=""
+        ),
+        xaxis=dict(showticklabels=False)
+    )
+
+    fig = applica_stile_premium(fig, "Evoluzione Performance Cumulata")
+
+    return {"data": fig.to_json()}
 
 
 if __name__ == "__main__":
