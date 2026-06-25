@@ -324,7 +324,13 @@ def get_dati_banca(scenario_id: str = "S0"):
     Endpoint che legge l'ultimo round da MongoDB, aggrega i dati dei prodotti
     e calcola i volumi, cluster e adeguatezza reale.
     """
-    doc = collection.find_one({"scenario_id": scenario_id})
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    doc = collection.find_one({"scenario_id": db_scenario_id})
 
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {"prodotti": []}
@@ -395,8 +401,14 @@ def get_trend_banca(scenario_id: str = "S0"):
     Legge i round da MongoDB e calcola la raccolta netta cumulata
     (Vero vs Falso su 'accettato' moltiplicato per i clienti).
     """
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
     # 1. Cerchiamo il documento della simulazione desiderata
-    doc = collection.find_one({"scenario_id": scenario_id})
+    doc = collection.find_one({"scenario_id": db_scenario_id})
     
     # Dati di fallback se il DB è vuoto o lo scenario non esiste
     if not doc or "rounds" not in doc:
@@ -461,7 +473,13 @@ def get_dati_promotore(scenario_id: str = "S0"):
     spaccato delle conversioni per profilo di rischio, product breakdown,
     alerts (churn e mifid), e next best actions.
     """
-    doc = collection.find_one({"scenario_id": scenario_id})
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {
             "status": "no_data",
@@ -642,7 +660,13 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
     - Compliance/Adeguatezza media per round (ADAPT vs FISSO)
     - Proposte Accettate per round (stacked bar)
     """
-    doc = collection.find_one({"scenario_id": scenario_id})
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    doc = collection.find_one({"scenario_id": db_scenario_id})
 
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {
@@ -714,7 +738,13 @@ def get_dati_cliente(scenario_id: str = "S0"):
     """
     Dati per il Cliente: Trasparenza, Fiducia e Discostamento (Adeguatezza).
     """
-    doc = collection.find_one({"scenario_id": scenario_id})
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {"fiducia_media": 0, "scostamento_profilo": 0}
 
@@ -1275,7 +1305,13 @@ async def get_scenari():
 @app.get("/api/dashboard/scenario/{scenario_id}", tags=["dashboard"])
 async def get_scenario(scenario_id: str):
     """Get detailed scenario data"""
-    doc = collection.find_one({"scenario_id": scenario_id})
+    # Mappa scenario_id al documento corretto da 200 round
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc:
         raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
     doc.pop("_id", None)
