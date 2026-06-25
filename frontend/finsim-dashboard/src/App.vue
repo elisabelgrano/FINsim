@@ -208,19 +208,19 @@
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
-            <div id="plotly-heatmap" style="height: 400px;"></div>
+            <div id="plotly-heatmap" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
             <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Analisi Contribuzione Patrimonio Gestito</h3></div>
-            <div id="plotly-waterfall" style="height: 400px;"></div>
+            <div id="plotly-waterfall" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
             <p class="chart-caption">Grafico a cascata che mostra la scomposizione del patrimonio finale: partendo da AUM iniziale, passando per nuova raccolta, effetto mercato, e abbandoni clienti, fino al patrimonio finale gestito.</p>
           </div>
 
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header"><h3>Evoluzione Performance Cumulata (200 Tentativi di Proposta)</h3></div>
-            <div id="plotly-lines" style="height: 400px;"></div>
+            <div id="plotly-lines" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
             <p class="chart-caption">Confronto delle linee di performance cumulate tra Consulenza IA Dinamica e Strategia Standard su tutti i 200 tentativi di proposta. Le divergenze evidenziano i vantaggi strategici dell'approccio personalizzato.</p>
           </div>
         </div>
@@ -360,10 +360,10 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>📋 Next Best Action</h3></div>
             <div style="display: flex; flex-direction: column; gap: 10px;">
-              <div v-for="(action, idx) in datiPromotore.next_best_actions" :key="idx" class="action-item-box">
+              <div v-for="(action, idx) in nextBestActionsTradotte" :key="idx" class="action-item-box">
                 {{ action }}
               </div>
-              <div v-if="datiPromotore.next_best_actions.length === 0" style="color: #8593A8; font-size: 13px; text-align: center; padding: 20px;">
+              <div v-if="nextBestActionsTradotte.length === 0" style="color: #8593A8; font-size: 13px; text-align: center; padding: 20px;">
                 Nessun azione consigliata al momento.
               </div>
             </div>
@@ -389,17 +389,11 @@
             </div>
           </div>
 
-          <!-- ROW 2B: Heatmap Cluster Clienti -->
+          <!-- ROW 2B: Heatmap Plotly Cluster Clienti -->
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>🔥 Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
-            <div class="heatmap-grid" style="grid-template-columns: repeat(5, 1fr); gap: 4px;">
-              <div v-for="(c, i) in clusterHeatmap" :key="i" class="heat-cell" :style="{ backgroundColor: c.bg, color: c.fg }">
-                {{ c.value }}
-              </div>
-            </div>
-            <div style="font-size: 11px; color: #8593A8; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(31,164,99,.1);">
-              <strong>Legenda:</strong> Verde = ADAPT domina | Rosso = FISSO domina | Valori = % conversione per cluster
-            </div>
+            <div id="plotly-heatmap-promotore" style="width: 100%; height: 400px; min-height: 400px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
+            <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
           </div>
 
           <!-- ROW 2C: Delta Performance ADAPT vs FISSO -->
@@ -897,6 +891,26 @@ const regimeMercato = computed(() => {
   return regimes[scenario.value] || regimes.S0;
 });
 
+const nextBestActionsTradotte = computed(() => {
+  const traduzioni = {
+    'Alert CONSOB/MIFID': 'Avvertenza Normativa',
+    'Rischio churn': 'Rischio Abbandono',
+    'ADAPT': 'Consulenza IA Dinamica',
+    'FISSO': 'Strategia Standard',
+    'Alert MIFID': 'Avvertenza Normativa',
+    'Churn Risk': 'Rischio Abbandono',
+    'Compliance Alert': 'Avvertenza Normativa'
+  };
+
+  return (datiPromotore.value.next_best_actions || []).map(action => {
+    let translated = action;
+    for (const [old, neu] of Object.entries(traduzioni)) {
+      translated = translated.replace(new RegExp(old, 'g'), neu);
+    }
+    return translated;
+  });
+});
+
 // --- METODI ---
 const getBtnStyle = (isActive, isScenario = false) => ({
   display: 'flex', alignItems: 'center', gap: isScenario ? '8px' : '0', width: '100%',
@@ -1241,6 +1255,9 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
   try {
     await loadPlotly();
 
+    // Attendi che il DOM sia completamente pronto prima di renderizzare
+    await nextTick();
+
     const payload = {
       metrics_data: {
         scenario_corrente: scenario_id,
@@ -1269,13 +1286,124 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
 
     if (res.ok) {
       const data = await res.json();
-      const figData = JSON.parse(data.data);
-      if (window.Plotly) {
-        Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+      // Se data.data è una stringa, parsala; altrimenti usala direttamente
+      let figData = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+
+      // Se figData non ha la struttura corretta, crea un wrapper
+      if (!figData.data || !figData.layout) {
+        figData = { data: figData.data || figData, layout: figData.layout || {} };
       }
+
+      // Verifica che il DOM element esista prima di renderizzare
+      const el = document.getElementById(divId);
+      if (!el) {
+        console.error(`DOM element #${divId} non trovato per Plotly`);
+        return;
+      }
+
+      if (window.Plotly) {
+        console.log(`[Plotly] Renderizzando ${divId}...`);
+        Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+      } else {
+        console.error('Plotly non è stato caricato');
+      }
+    } else {
+      console.error(`Errore API Plotly ${endpoint}: ${res.status} ${res.statusText}`);
+      const errorText = await res.text();
+      console.error('Risposta:', errorText);
     }
   } catch (error) {
     console.error(`Errore nel rendering Plotly ${divId}:`, error);
+  }
+};
+
+// Funzione dedicata per renderizzare la heatmap nella Vista Promotore
+const renderHeatmapPromotore = async () => {
+  try {
+    console.log('[Heatmap Promotore] Inizio render...');
+
+    // Carica Plotly se non è già disponibile
+    await loadPlotly();
+    console.log('[Heatmap Promotore] Plotly caricato:', !!window.Plotly);
+
+    // Attendi che Vue abbia montato il div nel DOM
+    await nextTick();
+    console.log('[Heatmap Promotore] nextTick completato');
+
+    // Verifica che il div esista nel DOM
+    const targetDiv = document.getElementById('plotly-heatmap-promotore');
+    if (!targetDiv) {
+      console.error('[Heatmap Promotore] ❌ DIV NON TROVATO nel DOM');
+      return;
+    }
+    console.log('[Heatmap Promotore] ✓ DIV trovato:', targetDiv.style.width, targetDiv.style.height);
+
+    // Prepara il payload
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        matrice_performance: [[1.5, -0.4, 2.1], [-0.8, 0.0, 1.2], [0.5, -1.1, -0.2]],
+        aum_iniziale: 100000000,
+        nuova_raccolta_netta: 15500000,
+        effetto_mercato: -3200000,
+        patrimonio_perso_churn: -5800000
+      },
+      user_message: ""
+    };
+
+    // Fetch dai dati della heatmap
+    console.log('[Heatmap Promotore] Fetching /api/charts/heatmap...');
+    const res = await fetch('http://10.12.7.53:8000/api/charts/heatmap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`API Error ${res.status}: ${res.statusText}`);
+    }
+
+    const responseData = await res.json();
+    console.log('[Heatmap Promotore] ✓ Response ricevuto, size:', JSON.stringify(responseData).length);
+
+    // Parsifica il JSON della figura se è una stringa
+    let figData = responseData.data;
+    if (typeof figData === 'string') {
+      figData = JSON.parse(figData);
+      console.log('[Heatmap Promotore] ✓ Parsed JSON string');
+    }
+
+    // Verifica che figData abbia data e layout
+    if (!figData.data || !figData.layout) {
+      console.error('[Heatmap Promotore] ❌ figData non ha structure corretta:', Object.keys(figData));
+      return;
+    }
+
+    console.log('[Heatmap Promotore] ✓ figData structure OK, drawing...');
+
+    // Renderizza con Plotly
+    if (window.Plotly) {
+      Plotly.newPlot(
+        'plotly-heatmap-promotore',
+        figData.data,
+        figData.layout,
+        { responsive: true, displayModeBar: true }
+      );
+      console.log('[Heatmap Promotore] ✓✓ Grafico renderizzato con successo!');
+    } else {
+      console.error('[Heatmap Promotore] ❌ window.Plotly non disponibile');
+    }
+  } catch (error) {
+    console.error('[Heatmap Promotore] ❌ Errore:', error.message);
+    console.error('[Heatmap Promotore] Stack:', error.stack);
   }
 };
 
@@ -1543,7 +1671,7 @@ watch(aiResponseCharts, async () => {
   await createAICharts();
 }, { deep: true });
 
-// Watch sulla vista per renderizzare i grafici Plotly quando banca è attiva
+// Watch sulla vista per renderizzare i grafici Plotly
 watch(view, async () => {
   if (view.value === 'banca') {
     console.log('[FINsim] 📈 Vista Banca attiva, renderizzando grafici Plotly...');
@@ -1551,6 +1679,10 @@ watch(view, async () => {
     await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
     await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
+  } else if (view.value === 'promotore') {
+    console.log('[FINsim] 📊 Vista Promotore attiva, renderizzando heatmap Plotly con funzione dedicata...');
+    // Usa la funzione dedicata per renderizzare la heatmap nella vista promotore
+    await renderHeatmapPromotore();
   }
 });
 

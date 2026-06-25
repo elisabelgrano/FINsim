@@ -619,13 +619,13 @@ def get_dati_promotore(scenario_id: str = "S0"):
     if adapt_fiducia_media < 50:
         next_best_actions.append("⚠️ Fiducia media critica: rallentare vendite e recuperare relazione cliente")
     if mifid_alerts_count > 0:
-        next_best_actions.append(f"🚨 Alert CONSOB/MIFID: {mifid_alerts_count} anomalie di adeguatezza riscontrate")
+        next_best_actions.append(f"🚨 Allerta Conformità Normativa: {mifid_alerts_count} anomalie di adeguatezza riscontrate")
     if churn_risk_count > 5:
-        next_best_actions.append("📉 Rischio churn elevato: rivedere strategia comunicativa")
+        next_best_actions.append("📉 Rischio Abbandono Critico: rivedere strategia comunicativa")
     if adapt_acc > fisso_acc:
-        next_best_actions.append("✅ ADAPT outperforma FISSO: mantenere approccio attuale")
+        next_best_actions.append("✅ Consulenza IA Dinamica outperforma Strategia Standard: mantenere approccio attuale")
     else:
-        next_best_actions.append("⚙️ FISSO competitive: aumentare personalizzazione")
+        next_best_actions.append("⚙️ Strategia Standard competitive: aumentare personalizzazione")
 
     if not next_best_actions:
         next_best_actions.append("✓ Situazione stabile, proseguire con strategia corrente")
@@ -1359,31 +1359,70 @@ async def get_tutti_scenari():
 
 COLORI_DIVERGENTI = ["#e11d48", "#f59e0b", "#059669"]
 
-def applica_stile_premium(fig, titolo: str):
-    """Applica un tema Light Mode enterprise ad alto contrasto e nitidezza"""
-    fig.update_layout(
-        title={
-            'text': f"<b>{titolo}</b>",
-            'y': 0.96,
-            'x': 0.02,
-            'xanchor': 'left',
-            'yanchor': 'top',
-            'font': dict(size=18, family="Segoe UI, -apple-system, Arial", color="#111827")
-        },
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Segoe UI, -apple-system, Arial", color="#374151", size=13),
-        margin=dict(l=60, r=30, t=70, b=60),
-        showlegend=True
-    )
-    fig.update_xaxes(
-        title_font=dict(size=14, color="#111827", weight="bold"),
-        tickfont=dict(size=12, color="#374151")
-    )
-    fig.update_yaxes(
-        title_font=dict(size=14, color="#111827", weight="bold"),
-        tickfont=dict(size=12, color="#374151")
-    )
+def applica_stile_premium(fig, titolo: str, dark_mode: bool = True):
+    """Applica tema enterprise con supporto Light/Dark Mode"""
+    if dark_mode:
+        # FINSIM-MOD: Dark Mode per dashboard Vue
+        fig.update_layout(
+            title={
+                'text': f"<b>{titolo}</b>",
+                'y': 0.96,
+                'x': 0.02,
+                'xanchor': 'left',
+                'yanchor': 'top',
+                'font': dict(size=18, family="Segoe UI, -apple-system, Arial", color="#C7D5E6")
+            },
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(30,41,59,0.3)',
+            font=dict(family="Segoe UI, -apple-system, Arial", color="#C7D5E6", size=13),
+            margin=dict(l=80, r=40, t=70, b=70),
+            showlegend=True,
+            hovermode='closest'
+        )
+        fig.update_xaxes(
+            title_font=dict(size=14, color="#C7D5E6", weight="bold"),
+            tickfont=dict(size=12, color="#C7D5E6"),
+            gridcolor="rgba(199, 213, 230, 0.1)",
+            zeroline=False
+        )
+        fig.update_yaxes(
+            title_font=dict(size=14, color="#C7D5E6", weight="bold"),
+            tickfont=dict(size=12, color="#C7D5E6"),
+            gridcolor="rgba(199, 213, 230, 0.1)",
+            zeroline=False
+        )
+        # FINSIM-MOD: Update colorbar per dark mode
+        fig.update_coloraxes(
+            colorbar=dict(
+                tickfont=dict(color="#C7D5E6", size=11),
+                title=dict(font=dict(color="#C7D5E6", size=12))
+            )
+        )
+    else:
+        # Light Mode originale
+        fig.update_layout(
+            title={
+                'text': f"<b>{titolo}</b>",
+                'y': 0.96,
+                'x': 0.02,
+                'xanchor': 'left',
+                'yanchor': 'top',
+                'font': dict(size=18, family="Segoe UI, -apple-system, Arial", color="#111827")
+            },
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Segoe UI, -apple-system, Arial", color="#374151", size=13),
+            margin=dict(l=60, r=30, t=70, b=60),
+            showlegend=True
+        )
+        fig.update_xaxes(
+            title_font=dict(size=14, color="#111827", weight="bold"),
+            tickfont=dict(size=12, color="#374151")
+        )
+        fig.update_yaxes(
+            title_font=dict(size=14, color="#111827", weight="bold"),
+            tickfont=dict(size=12, color="#374151")
+        )
     return fig
 
 
@@ -1429,7 +1468,7 @@ async def get_heatmap_performance(request: AdvisorRequest) -> dict:
     fig.update_xaxes(title_text="<b>Patrimonio Gestito</b>", side="bottom")
     fig.update_yaxes(title_text="<b>Profilo di Rischio</b>")
 
-    fig = applica_stile_premium(fig, "Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)")
+    fig = applica_stile_premium(fig, "Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)", dark_mode=True)
 
     return {"data": fig.to_json()}
 
@@ -1462,7 +1501,7 @@ async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
         showlegend=False,
     )
 
-    fig = applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio Gestito")
+    fig = applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio Gestito", dark_mode=True)
 
     return {"data": fig.to_json()}
 
@@ -1499,7 +1538,7 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
         xaxis=dict(showticklabels=False)
     )
 
-    fig = applica_stile_premium(fig, "Evoluzione Performance Cumulata")
+    fig = applica_stile_premium(fig, "Evoluzione Performance Cumulata", dark_mode=True)
 
     return {"data": fig.to_json()}
 
@@ -1529,7 +1568,7 @@ async def get_sankey_flussi(request: AdvisorRequest) -> dict:
         showlegend=False,
     )
 
-    fig = applica_stile_premium(fig, "Mappa di Migrazione dei Clienti e Tasso di Abbandoni")
+    fig = applica_stile_premium(fig, "Mappa di Migrazione dei Clienti e Tasso di Abbandoni", dark_mode=True)
 
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)
