@@ -178,7 +178,7 @@
             </div>
             <div class="chart-container"><canvas id="bRaccolta"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra l'evoluzione su <strong>200 Round storici</strong>, l'asse Y la Raccolta Netta Cumulata in milioni di euro. La linea verde (ADAPT) riflette la strategia adattiva, la linea blu (FISSO) il benchmark fisso.
+              <strong>Come leggere:</strong> L'asse X mostra l'evoluzione su <strong>200 Tentativi di Proposta</strong>, l'asse Y la Raccolta Netta Cumulata in milioni di euro. La linea verde (ADAPT) riflette la strategia adattiva, la linea blu (FISSO) il benchmark fisso.
               <strong>Deduzione:</strong> Una divergenza positiva di ADAPT rispetto a FISSO indica che l'approccio personalizzato sta generando maggior valore costante sul lungo periodo. Livelli plateau suggeriscono necessità di ricalibrazione della Direttiva.
             </div>
           </div>
@@ -495,7 +495,7 @@
             <div class="panel-header"><h3>Adeguatezza Media per Round</h3></div>
             <div class="chart-container"><canvas id="pCompliance"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong>, l'asse Y la percentuale di adeguatezza (0-100%). La linea verde (ADAPT) rappresenta l'approccio personalizzato, la linea blu tratteggiata (FISSO) il benchmark.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong>, l'asse Y la percentuale di adeguatezza (0-100%). La linea verde (ADAPT) rappresenta l'approccio personalizzato, la linea blu tratteggiata (FISSO) il benchmark.
               <strong>Deduzione:</strong> Se ADAPT supera FISSO, la strategia adattiva sta migliorando l'allineamento prodotto-cliente. Un trend decrescente suggerisce di rivedere la Direttiva.
             </div>
           </div>
@@ -504,7 +504,7 @@
             <div class="panel-header"><h3>Proposte Accettate per Round</h3></div>
             <div class="chart-container"><canvas id="pAccept"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong>, l'asse Y il numero di proposte accettate. Le barre verdi (ADAPT) e blu (FISSO) sono sovrapposte per un confronto immediato.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>10 Blocchi di Tentativi di Proposta</strong> (20 proposte per blocco), l'asse Y il numero cumulato di proposte accettate. Le barre verdi (ADAPT) e blu (FISSO) sono sovrapposte per un confronto immediato.
               <strong>Deduzione:</strong> Un volume ADAPT sistematicamente più alto indica maggiore efficacia della strategia personalizzata. Picchi anomali suggeriscono fattori di mercato esterni.
             </div>
           </div>
@@ -613,7 +613,7 @@
             <div class="panel-header"><h3>Evoluzione Fiducia</h3></div>
             <div class="chart-container"><canvas id="cFiducia"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong> storici, l'asse Y la percentuale di fiducia media del cliente (0-100%). La linea viola piena con area sottostante illustra il trend macro nel tempo.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong> storici, l'asse Y la percentuale di fiducia media del cliente (0-100%). La linea viola piena con area sottostante illustra il trend macro nel tempo.
               <strong>Deduzione:</strong> Un trend macro in crescita indica comunicazione efficace e soddisfazione aumentante del cliente. Cali improvvisi segnalano perdite di confidenza dovute a mercati avversi o inadeguatezze percepite nel portafoglio.
             </div>
           </div>
@@ -652,7 +652,7 @@
 
         <div class="modal-section">
           <h3>🧠 Sezione 2: Leggere i Dati — Concetti Fondamentali</h3>
-          <p><strong>200 Round Storici:</strong> FINsim simula 20 round decisionali per 5 scenari (S0-S4), generando 100 interazioni cliente × strategia. Ogni round rappresenta un momento decisionale dove il promotore sceglie un approccio (ADAPT personalizzato o FISSO benchmark).</p>
+          <p><strong>200 Tentativi di Proposta:</strong> FINsim esegue 200 tentativi di proposta sequenziali distribuiti su 5 scenari macroeconomici (S0-S4), generando 100 clienti sintetici × 2 strategie parallele (ADAPT e FISSO). Ogni tentativo di proposta rappresenta un momento decisionale dove il promotore/algoritmo sceglie un approccio di comunicazione e un prodotto finanziario da offrire al cliente.</p>
           <p><strong>Swarm Intelligence (ADAPT):</strong> La strategia ADAPT usa un'IA generativa (Qwen 2.5 32B) per produrre direttive bancarie dinamiche e personalizzate per promotori (Qwen 2.5 3B), rispetto al benchmark FISSO statico. Osserva come ADAPT evolve nel tempo.</p>
           <p><strong>KPI Chiave:</strong></p>
           <ul>
@@ -872,15 +872,15 @@ const renderCharts = () => {
   const ADAPT = '#178A57', FISSO = '#2E6FD6', LLM = '#7C3AED', TARGET = '#8593A8';
   const baseCfg = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
   
-  // Configurazione globale per snellire l'asse X sui 200 round
+  // Configurazione globale per snellire l'asse X sui 200 round (Tentativi di Proposta)
   const xAxisConfig = {
     x: {
       ticks: {
         autoSkip: false,
         callback: function(value, index, values){
-          if (index === 0) return 'R1';
-          if ((index + 1) % 20 === 0 && index < 199) return 'R' + (index + 1);
-          if (index === 199) return 'R200';
+          if (index === 0) return 'Prop. 1';
+          if ((index + 1) % 40 === 0 && index < 199) return 'Prop. ' + (index + 1);
+          if (index === 199) return 'Prop. 200';
           return '';
         },
         color: '#8593A8'
@@ -895,10 +895,27 @@ const renderCharts = () => {
   };
 
   if (view.value === 'promotore') {
-    // Assicura che i labels arrivino a 200 round
-    let promotoreLabels = datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1));
+    // Helper: Media mobile per smussare i dati
+    const movingAverage = (arr, windowSize = 15) => arr.map((val, idx, list) => {
+      const start = Math.max(0, idx - windowSize + 1);
+      const subset = list.slice(start, idx + 1);
+      return subset.reduce((a, b) => a + b, 0) / subset.length;
+    });
+
+    // Helper: Aggregazione in blocchi
+    const aggregateInBlocks = (arr, blockSize = 20) => {
+      const blocks = [];
+      for (let i = 0; i < arr.length; i += blockSize) {
+        const block = arr.slice(i, i + blockSize);
+        blocks.push(block.reduce((a, b) => a + b, 0));
+      }
+      return blocks;
+    };
+
+    // Assicura che i labels arrivino a 200 proposte
+    let promotoreLabels = datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'Prop. '+(i+1));
     if (promotoreLabels.length < 200) {
-      promotoreLabels = Array.from({length:200}, (_,i)=>promotoreLabels[i] || 'R'+(i+1));
+      promotoreLabels = Array.from({length:200}, (_,i)=>promotoreLabels[i] || 'Prop. '+(i+1));
     }
 
     // Estendi i dati a 200 elementi se necessario
@@ -912,37 +929,44 @@ const renderCharts = () => {
     const accettateAdapt = extendData(datiGraficiPromotore.value.accettate_adapt);
     const accettateFisso = extendData(datiGraficiPromotore.value.accettate_fisso);
 
-    // COMPLIANCE
+    // COMPLIANCE - con media mobile per smussare il rumore
+    const complianceAdaptSmoothed = movingAverage(complianceAdapt.length ? complianceAdapt : Array.from({length:200}, ()=>Math.random()*20 + 70));
+    const complianceFissoSmoothed = movingAverage(complianceFisso.length ? complianceFisso : Array.from({length:200}, ()=>80));
+
     mkChart('pCompliance', {
       type: 'line',
       data: {
         labels: promotoreLabels,
         datasets: [
-          { label: 'ADAPT (IA)', data: complianceAdapt.length ? complianceAdapt : Array.from({length:200}, ()=>Math.random()*20 + 70), borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
-          { label: 'FISSO (Benchmark)', data: complianceFisso.length ? complianceFisso : Array.from({length:200}, ()=>80), borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
+          { label: 'ADAPT (IA)', data: complianceAdaptSmoothed, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
+          { label: 'FISSO (Benchmark)', data: complianceFissoSmoothed, borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
         ]
       },
       options: { ...baseCfg, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { x: xAxisConfig.x, y: { min: 0, max: 100 } } }
     });
 
-    // ACCETTATE
+    // ACCETTATE - aggregato in 10 blocchi da 20
+    const blockLabels = ['Prop. 1-20', 'Prop. 21-40', 'Prop. 41-60', 'Prop. 61-80', 'Prop. 81-100', 'Prop. 101-120', 'Prop. 121-140', 'Prop. 141-160', 'Prop. 161-180', 'Prop. 181-200'];
+    const accettateAdaptAgg = aggregateInBlocks(accettateAdapt.length ? accettateAdapt : Array.from({length:200}, ()=>Math.random()*10 + 5));
+    const accettateFissoAgg = aggregateInBlocks(accettateFisso.length ? accettateFisso : Array.from({length:200}, ()=>Math.random()*5 + 2));
+
     mkChart('pAccept', {
       type: 'bar',
       data: {
-        labels: promotoreLabels,
+        labels: blockLabels,
         datasets: [
-          { label: 'Accettate ADAPT', data: accettateAdapt.length ? accettateAdapt : Array.from({length:200}, ()=>Math.random()*10 + 5), backgroundColor: '#1E9E63' },
-          { label: 'Accettate FISSO', data: accettateFisso.length ? accettateFisso : Array.from({length:200}, ()=>Math.random()*5 + 2), backgroundColor: '#2E6FD6' }
+          { label: 'Accettate ADAPT', data: accettateAdaptAgg, backgroundColor: '#1E9E63' },
+          { label: 'Accettate FISSO', data: accettateFissoAgg, backgroundColor: '#2E6FD6' }
         ]
       },
-      options: { ...baseCfg, scales: { x: xAxisConfig.x }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+      options: { ...baseCfg, scales: { x: { ticks: { color: '#8593A8' }, grid: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
     });
 
   } else if (view.value === 'banca') {
-    // Assicura che i labels arrivino a 200 round
-    let bancaLabels = trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1));
+    // Assicura che i labels arrivino a 200 proposte
+    let bancaLabels = trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'Prop. '+(i+1));
     if (bancaLabels.length < 200) {
-      bancaLabels = Array.from({length:200}, (_,i)=>bancaLabels[i] || 'R'+(i+1));
+      bancaLabels = Array.from({length:200}, (_,i)=>bancaLabels[i] || 'Prop. '+(i+1));
     }
 
     const extendData = (arr) => {
@@ -970,8 +994,8 @@ const renderCharts = () => {
     mkChart('bRadar', { type: 'radar', data: { labels: ['Bond Corp', 'Monetario', 'Azionario', 'Illiquidi', 'Gov Bond'], datasets: [{ label: 'Target Direttiva', data: [80, 90, 20, 10, 85], borderColor: TARGET, borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0 }, { label: 'Portafoglio Attuale', data: [65, 80, 35, 15, 70], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.18)', borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { r: { suggestedMin: 0, suggestedMax: 100 } } } });
   
   } else if (view.value === 'cliente') {
-    // FIDUCIA - già a 200 round
-    const clienteLabels = Array.from({length:200}, (_,i)=>'R'+(i+1));
+    // FIDUCIA - già a 200 proposte
+    const clienteLabels = Array.from({length:200}, (_,i)=>'Prop. '+(i+1));
     mkChart('cFiducia', {
       type: 'line',
       data: {
