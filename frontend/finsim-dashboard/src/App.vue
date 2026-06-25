@@ -39,7 +39,68 @@
       <div class="content-area">
 
         <div v-if="view === 'banca'" class="dashboard-grid">
-          
+
+          <div class="panel advisor-panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>🤖 Copilota IA</h3>
+            </div>
+            <div class="advisor-search-box">
+              <input
+                v-model="searchQuery"
+                @keydown="handleSearchKeydown"
+                :disabled="isAdvisorLoading"
+                type="text"
+                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                class="advisor-input"
+              />
+            </div>
+            <div class="advisor-quick-pills">
+              <button
+                v-for="(q, i) in quickQuestions"
+                :key="i"
+                @click="inviaRichiestaAdvisor(q)"
+                :disabled="isAdvisorLoading"
+                class="quick-pill"
+              >
+                {{ q }}
+              </button>
+            </div>
+            <div v-if="isAdvisorLoading" class="advisor-loading">
+              <div class="loading-spinner"></div>
+              <span>Il Copilota sta analizzando i 200 round storici...</span>
+            </div>
+            <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
+              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+            </div>
+          </div>
+
+          <div class="regime-card" style="grid-column: span 12;">
+            <div class="regime-header">
+              <div :class="['status-led', regimeMercato.colorClass]"></div>
+              <div class="regime-label">{{ regimeMercato.label }}</div>
+            </div>
+            <div class="regime-metrics-grid">
+              <div class="metric-item">
+                <div class="metric-label">TASSO BCE</div>
+                <div class="metric-value">{{ regimeMercato.tassoBce }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">INDICE GEORISK</div>
+                <div class="metric-value">{{ regimeMercato.tensioneGeo }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">MARKET PULSE</div>
+                <div class="metric-value">{{ regimeMercato.marketSentiment }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">REGWATCH COMPLIANCE</div>
+                <div class="metric-value">{{ regimeMercato.regWatch }}</div>
+              </div>
+            </div>
+            <div class="regime-note">{{ regimeMercato.client_tip }}</div>
+          </div>
+
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
               <h3>Matrice Vendite e Adeguatezza</h3>
@@ -81,7 +142,7 @@
 
           <div class="panel" style="grid-column: span 8;">
             <div class="panel-header">
-              <h3>Raccolta Netta — Trend 20 round</h3>
+              <h3>Raccolta Netta — Trend</h3>
             </div>
             <div class="chart-container"><canvas id="bRaccolta"></canvas></div>
           </div>
@@ -95,6 +156,67 @@
         </div>
 
         <div v-if="view === 'promotore'" class="dashboard-grid">
+
+          <div class="panel advisor-panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>🤖 Copilota IA</h3>
+            </div>
+            <div class="advisor-search-box">
+              <input
+                v-model="searchQuery"
+                @keydown="handleSearchKeydown"
+                :disabled="isAdvisorLoading"
+                type="text"
+                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                class="advisor-input"
+              />
+            </div>
+            <div class="advisor-quick-pills">
+              <button
+                v-for="(q, i) in quickQuestions"
+                :key="i"
+                @click="inviaRichiestaAdvisor(q)"
+                :disabled="isAdvisorLoading"
+                class="quick-pill"
+              >
+                {{ q }}
+              </button>
+            </div>
+            <div v-if="isAdvisorLoading" class="advisor-loading">
+              <div class="loading-spinner"></div>
+              <span>Il Copilota sta analizzando i 200 round storici...</span>
+            </div>
+            <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
+              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+            </div>
+          </div>
+
+          <div class="regime-card" style="grid-column: span 12;">
+            <div class="regime-header">
+              <div :class="['status-led', regimeMercato.colorClass]"></div>
+              <div class="regime-label">{{ regimeMercato.label }}</div>
+            </div>
+            <div class="regime-metrics-grid">
+              <div class="metric-item">
+                <div class="metric-label">TASSO BCE</div>
+                <div class="metric-value">{{ regimeMercato.tassoBce }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">INDICE GEORISK</div>
+                <div class="metric-value">{{ regimeMercato.tensioneGeo }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">MARKET PULSE</div>
+                <div class="metric-value">{{ regimeMercato.marketSentiment }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">REGWATCH COMPLIANCE</div>
+                <div class="metric-value">{{ regimeMercato.regWatch }}</div>
+              </div>
+            </div>
+            <div class="regime-note">{{ regimeMercato.promoter_tip }}</div>
+          </div>
 
           <!-- ROW 1: Strategia LLM + Commissioni -->
           <div class="panel highlight-panel" style="grid-column: span 8;">
@@ -124,7 +246,7 @@
 
           <div class="panel highlight-panel" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 16px;">
             <div>
-              <h4 style="color: #8593A8; margin-bottom: 8px; font-size: 12px; text-transform: uppercase;">Commissioni Cumulate (20 Round)</h4>
+              <h4 style="color: #8593A8; margin-bottom: 8px; font-size: 12px; text-transform: uppercase;">Commissioni Cumulate</h4>
               <div style="font-size: 32px; font-weight: bold; color: #1FA463;">
                 € {{ datiPromotore.adapt.commissioni_cumulate.toLocaleString('it-IT') }}
               </div>
@@ -278,6 +400,68 @@
         </div>
 
         <div v-if="view === 'cliente'" class="dashboard-grid">
+
+          <div class="panel advisor-panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>🤖 Copilota IA</h3>
+            </div>
+            <div class="advisor-search-box">
+              <input
+                v-model="searchQuery"
+                @keydown="handleSearchKeydown"
+                :disabled="isAdvisorLoading"
+                type="text"
+                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                class="advisor-input"
+              />
+            </div>
+            <div class="advisor-quick-pills">
+              <button
+                v-for="(q, i) in quickQuestions"
+                :key="i"
+                @click="inviaRichiestaAdvisor(q)"
+                :disabled="isAdvisorLoading"
+                class="quick-pill"
+              >
+                {{ q }}
+              </button>
+            </div>
+            <div v-if="isAdvisorLoading" class="advisor-loading">
+              <div class="loading-spinner"></div>
+              <span>Il Copilota sta analizzando i 200 round storici...</span>
+            </div>
+            <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
+              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+            </div>
+          </div>
+
+          <div class="regime-card" style="grid-column: span 12;">
+            <div class="regime-header">
+              <div :class="['status-led', regimeMercato.colorClass]"></div>
+              <div class="regime-label">{{ regimeMercato.label }}</div>
+            </div>
+            <div class="regime-metrics-grid">
+              <div class="metric-item">
+                <div class="metric-label">TASSO BCE</div>
+                <div class="metric-value">{{ regimeMercato.tassoBce }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">INDICE GEORISK</div>
+                <div class="metric-value">{{ regimeMercato.tensioneGeo }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">MARKET PULSE</div>
+                <div class="metric-value">{{ regimeMercato.marketSentiment }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">REGWATCH COMPLIANCE</div>
+                <div class="metric-value">{{ regimeMercato.regWatch }}</div>
+              </div>
+            </div>
+            <div class="regime-note">{{ regimeMercato.client_tip }}</div>
+          </div>
+
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
               <h3>Heatmap Propensione al Rischio</h3>
@@ -313,6 +497,10 @@ import Chart from 'chart.js/auto';
 const view = ref('banca'); // Partiamo dalla vista banca
 const scenario = ref('S0'); // Impostiamo a S0 visto che i tuoi dati su Mongo sono S0
 let chartInstances = [];
+const isAdvisorLoading = ref(false);
+const aiResponseBrief = ref('');
+const aiResponseDetail = ref('');
+const searchQuery = ref('');
 
 // --- VARIABILI REATTIVE PER I DATI MONGODB ---
 const productSales = ref([]);
@@ -362,6 +550,13 @@ const scenarioPills = [
   { id: 'S3', label: 'Stress' }, { id: 'S4', label: 'Recessione' },
 ];
 
+const quickQuestions = [
+  "Quale profilo di rischio sta soffrendo di più?",
+  "Spiegami il trend della compliance per questo scenario",
+  "Analizza il sentiment di mercato e l'impatto sulle commissioni",
+  "Quali sono i rischi principali per la prossima finestra temporale?"
+];
+
 const clusters = computed(() => {
   const vals = [88, 82, 75, 70, 65, 91, 85, 79, 73, 68, 78, 72, 66, 58, 48, 62, 54, 44, 32, 22];
   return vals.map(v => {
@@ -374,16 +569,78 @@ const clusters = computed(() => {
   });
 });
 
+const regimeMercato = computed(() => {
+  const regimes = {
+    S0: {
+      label: "REGIME DI STABILITÀ (BASSA VOLATILITÀ)",
+      colorClass: "status-stable",
+      promoter_tip: "Posizionamento neutrale. Ottimizzazione del roll-over sui mandati esistenti.",
+      client_tip: "Condizioni di mercato regolari. Il portafoglio segue l'asset allocation strategica programmata.",
+      tassoBce: "2.0% (Dopo 8 tagli)",
+      tensioneGeo: "78/100 (Crisi Hormuz)",
+      marketSentiment: "Ansioso-Laterale",
+      regWatch: "Media (MiFID Stabile)"
+    },
+    S1: {
+      label: "ESPANSIONE ECONOMICA (SUPPORTO MONETARIO)",
+      colorClass: "status-expansion",
+      promoter_tip: "Aggressività misurata su equity e credito. Allungamento scadenze su tassi supportivi.",
+      client_tip: "Ciclo favorevole ai mercati. Portafoglio allineato a risk-on moderato con diversificazione.",
+      tassoBce: "2.50% (+50bp)",
+      tensioneGeo: "78/100 (Crisi Persiste)",
+      marketSentiment: "Equity -12% (Spread +80bp)",
+      regWatch: "Alta (Prudenza Duration)"
+    },
+    S2: {
+      label: "INASPRIMENTO MONETARIO (DURATION RISK)",
+      colorClass: "status-warning",
+      promoter_tip: "Ribilanciamento verso scadenze brevi (short-duration) e strumenti a tasso variabile.",
+      client_tip: "Fase di aggiustamento dei tassi di interesse. Monitoraggio attivo della componente obbligazionaria.",
+      tassoBce: "Sospeso (Incertezza)",
+      tensioneGeo: "95/100 (Coinvolgimento NATO)",
+      marketSentiment: "Equity -20% / Oro +25%",
+      regWatch: "Allerta Straordinaria Consob"
+    },
+    S3: {
+      label: "MARKET SHOCK (ELEVATA VOLATILITÀ)",
+      colorClass: "status-critical",
+      promoter_tip: "Attivazione protocolli di protezione del capitale. Monitoraggio dei livelli di massimo drawdown.",
+      client_tip: "Fase di forte instabilità tecnica dei mercati. Si raccomanda stabilità emotiva e focus sul lungo termine.",
+      tassoBce: "2.0% (Stabile)",
+      tensioneGeo: "35/100 (Accordo USA-Iran)",
+      marketSentiment: "Equity +8% (Rimbalzo Tecnico)",
+      regWatch: "Nessuna Restrizione"
+    },
+    S4: {
+      label: "CONTRAZIONE MACROECONOMICA",
+      colorClass: "status-recession",
+      promoter_tip: "Shift strategico su comparti difensivi, anticiclici e monetari ad alta liquidità.",
+      client_tip: "Rallentamento del ciclo economico globale. Portafoglio orientato alla massima resilienza e protezione.",
+      tassoBce: "2.0%",
+      tensioneGeo: "78/100",
+      marketSentiment: "Identico a Baseline (Cambio Direttiva)",
+      regWatch: "Media (Ricalibrazione Target)"
+    }
+  };
+  return regimes[scenario.value] || regimes.S0;
+});
+
 // --- METODI ---
 const getBtnStyle = (isActive, isScenario = false) => ({
-  display: 'flex', alignItems: 'center', gap: isScenario ? '8px' : '0', width: '100%', 
+  display: 'flex', alignItems: 'center', gap: isScenario ? '8px' : '0', width: '100%',
   padding: isScenario ? '7px 8px' : '8px 8px', marginBottom: '1px',
-  border: 0, cursor: 'pointer', borderRadius: '6px', fontFamily: 'inherit', 
+  border: 0, cursor: 'pointer', borderRadius: '6px', fontFamily: 'inherit',
   fontSize: isScenario ? '12px' : '13px', textAlign: 'left',
-  background: isActive ? 'rgba(31,164,99,.14)' : 'transparent', 
+  background: isActive ? 'rgba(31,164,99,.14)' : 'transparent',
   color: isActive ? '#FFFFFF' : '#C7D5E6',
   boxShadow: isActive ? 'inset 2px 0 0 #1FA463' : 'none'
 });
+
+const handleSearchKeydown = (e) => {
+  if (e.key === 'Enter' && !isAdvisorLoading.value) {
+    inviaRichiestaAdvisor(searchQuery.value);
+  }
+};
 
 // --- LOGICA GRAFICI ---
 const renderCharts = () => {
@@ -506,6 +763,42 @@ const fetchData = async () => {
 
   } catch (error) {
     console.error("Errore di connessione a FastAPI:", error);
+  }
+};
+
+// --- FUNZIONE ADVISOR IA ---
+const inviaRichiestaAdvisor = async (messaggioUtente) => {
+  if (!messaggioUtente.trim()) return;
+
+  isAdvisorLoading.value = true;
+  aiResponseBrief.value = '';
+  aiResponseDetail.value = '';
+
+  try {
+    const payload = {
+      metrics_data: datiPromotore.value,
+      user_message: messaggioUtente
+    };
+
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      aiResponseBrief.value = data.brief || 'Analisi completata.';
+      aiResponseDetail.value = data.detail || '';
+    } else {
+      aiResponseBrief.value = 'Errore nella richiesta al Copilota. Riprovare.';
+    }
+  } catch (error) {
+    console.error("Errore nella chiamata Advisor:", error);
+    aiResponseBrief.value = 'Errore di connessione. Verificare il backend.';
+  } finally {
+    isAdvisorLoading.value = false;
+    searchQuery.value = '';
   }
 };
 
@@ -694,6 +987,237 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
   background: rgba(214, 66, 66, 0.12);
   border: 1px solid rgba(214, 66, 66, 0.3);
   color: #F87171;
+}
+
+/* Market Regime Indicator */
+.regime-card {
+  background-color: #111A24;
+  border: 1px solid #1C2B3A;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.regime-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  animation: pulse-led 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.status-led.status-stable {
+  background-color: #16A34A;
+  box-shadow: 0 0 10px rgba(22, 163, 74, 0.6);
+}
+
+.status-led.status-expansion {
+  background-color: #0891B2;
+  box-shadow: 0 0 10px rgba(8, 145, 178, 0.6);
+}
+
+.status-led.status-warning {
+  background-color: #D97706;
+  box-shadow: 0 0 10px rgba(217, 119, 6, 0.6);
+}
+
+.status-led.status-critical {
+  background-color: #DC2626;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+}
+
+.status-led.status-recession {
+  background-color: #1E3A8A;
+  box-shadow: 0 0 10px rgba(30, 58, 138, 0.6);
+}
+
+.regime-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: #FFFFFF;
+  flex: 1;
+}
+
+.regime-note {
+  font-size: 13px;
+  color: #8593A8;
+  line-height: 1.5;
+  font-style: italic;
+  border-left: 2px solid rgba(133, 147, 168, 0.4);
+  padding-left: 12px;
+}
+
+@keyframes pulse-led {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+/* Regime Metrics Grid */
+.regime-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(28, 43, 58, 0.5);
+  border-bottom: 1px solid rgba(28, 43, 58, 0.5);
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metric-item .metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #5C6F86;
+}
+
+.metric-item .metric-value {
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: #E2E8F0;
+  line-height: 1.4;
+}
+
+/* Advisor Panel */
+.advisor-panel {
+  padding: 16px;
+}
+
+.advisor-search-box {
+  margin-bottom: 12px;
+}
+
+.advisor-input {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: #0B1118;
+  border: 1px solid #1C2B3A;
+  border-radius: 6px;
+  color: #E2E8F0;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.advisor-input::placeholder {
+  color: #5C6F86;
+}
+
+.advisor-input:focus {
+  border-color: #1FA463;
+}
+
+.advisor-input:disabled {
+  background-color: #0B1118;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.advisor-quick-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quick-pill {
+  padding: 6px 12px;
+  background-color: rgba(31, 164, 99, 0.1);
+  border: 1px solid rgba(31, 164, 99, 0.2);
+  border-radius: 20px;
+  color: #8593A8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.quick-pill:hover:not(:disabled) {
+  background-color: rgba(31, 164, 99, 0.15);
+  border-color: rgba(31, 164, 99, 0.3);
+  color: #1FA463;
+}
+
+.quick-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.advisor-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(31, 164, 99, 0.05);
+  border-left: 3px solid #1FA463;
+  border-radius: 4px;
+  color: #1FA463;
+  font-size: 13px;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(31, 164, 99, 0.3);
+  border-top: 2px solid #1FA463;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.advisor-response {
+  padding: 12px;
+  background: rgba(31, 164, 99, 0.08);
+  border-left: 3px solid #1FA463;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.response-brief {
+  color: #E2E8F0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.response-detail {
+  color: #8593A8;
+  font-size: 12px;
+  line-height: 1.5;
+  padding-top: 8px;
+  border-top: 1px solid rgba(31, 164, 99, 0.1);
 }
 
 </style>
