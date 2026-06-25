@@ -19,7 +19,7 @@
 
       <div class="sidebar-section" style="margin-top:24px;">
         <h4>SCENARIO ATTIVO</h4>
-        <button 
+        <button
           v-for="s in scenarioPills" :key="s.id"
           @click="scenario = s.id"
           :style="getBtnStyle(scenario === s.id, true)"
@@ -27,6 +27,20 @@
           <span class="status-dot" :class="{ active: scenario === s.id }"></span>
           {{ s.label }}
         </button>
+      </div>
+
+      <div class="sidebar-section" style="margin-top:24px; flex: 1; display: flex; flex-direction: column;">
+        <h4>📋 CRONOLOGIA CONVERSAZIONI</h4>
+        <div class="conversation-history-scroll">
+          <div v-if="conversationHistory.length === 0" style="color: #6B7280; font-size: 12px; text-align: center; padding: 12px;">
+            Nessuna domanda ancora...
+          </div>
+          <div v-for="conv in conversationHistory" :key="conv.id" class="history-item">
+            <div class="history-time">{{ conv.timestamp }}</div>
+            <div class="history-question">{{ conv.question }}</div>
+            <div class="history-brief">{{ conv.brief }}</div>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -83,20 +97,21 @@
                 <div class="charts-header">📊 Grafici Consigliati:</div>
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
-                    <span class="chart-code">{{ chart.codice }}</span>
-                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
+                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
                     </div>
-                    <!-- Div per grafici Plotly on-demand -->
-                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                    <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
+                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
-                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                         style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
                     </div>
-                    <!-- Fallback per codici non supportati -->
+                    <!-- Fallback for unsupported chart codes -->
                     <div v-else class="chart-widget-fallback">
-                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
-                        📊 {{ chart.codice }}
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 12px;">
+                        📊 Grafico '{{ chart.codice }}' non ancora mappato.<br/>
+                        <span style="font-size: 11px; color: #6B7280;">Controlla la console per i dettagli.</span>
                       </div>
                     </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
@@ -263,20 +278,21 @@
                 <div class="charts-header">📊 Grafici Consigliati:</div>
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
-                    <span class="chart-code">{{ chart.codice }}</span>
-                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
+                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
                     </div>
-                    <!-- Div per grafici Plotly on-demand -->
-                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                    <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
+                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
-                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                         style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
                     </div>
-                    <!-- Fallback per codici non supportati -->
+                    <!-- Fallback for unsupported chart codes -->
                     <div v-else class="chart-widget-fallback">
-                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
-                        📊 {{ chart.codice }}
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 12px;">
+                        📊 Grafico '{{ chart.codice }}' non ancora mappato.<br/>
+                        <span style="font-size: 11px; color: #6B7280;">Controlla la console per i dettagli.</span>
                       </div>
                     </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
@@ -421,7 +437,14 @@
             </div>
           </div>
 
-          <!-- ROW 3: Confronto Performance Globale -->
+          <!-- ROW 3: Curva di Sopravvivenza Clienti (Kaplan-Meier) -->
+          <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header"><h3>📈 Curva di Sopravvivenza Clienti (Kaplan-Meier)</h3></div>
+            <div id="plotly-sopravvivenza" style="width: 100%; height: 400px; min-height: 400px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
+            <p class="chart-caption">Curva di retention che mostra il tasso di sopravvivenza dei clienti nel tempo, comparando la Consulenza IA Dinamica (verde) vs Strategia Standard (rosso). I "scalini" rappresentano i momenti in cui i clienti abbandonano il portafoglio.</p>
+          </div>
+
+          <!-- ROW 4: Confronto Performance Globale -->
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
               <h3>Confronto Performance: Consulenza IA Dinamica vs Strategia Standard</h3>
@@ -577,20 +600,21 @@
                 <div class="charts-header">📊 Grafici Consigliati:</div>
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
-                    <span class="chart-code">{{ chart.codice }}</span>
-                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
+                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
                     </div>
-                    <!-- Div per grafici Plotly on-demand -->
-                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                    <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
+                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
-                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                         style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
                     </div>
-                    <!-- Fallback per codici non supportati -->
+                    <!-- Fallback for unsupported chart codes -->
                     <div v-else class="chart-widget-fallback">
-                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
-                        📊 {{ chart.codice }}
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 12px;">
+                        📊 Grafico '{{ chart.codice }}' non ancora mappato.<br/>
+                        <span style="font-size: 11px; color: #6B7280;">Controlla la console per i dettagli.</span>
                       </div>
                     </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
@@ -745,6 +769,7 @@ const aiResponseCharts = ref([]);
 const aiRating = ref(0);
 const searchQuery = ref('');
 let lastUserMessage = '';
+const conversationHistory = ref([]);
 
 // --- VARIABILI REATTIVE PER I DATI MONGODB ---
 const productSales = ref([]);
@@ -800,6 +825,36 @@ const quickQuestions = [
   "Analizza il sentiment di mercato e l'impatto sulle commissioni",
   "Quali sono i rischi principali per la prossima finestra temporale?"
 ];
+
+// FINSIM-MOD: Chart code to Italian name mapping (STEP 3 - Dynamic Integration)
+const nomiGrafici = {
+  'TREND_COMPLIANCE': 'Trend di Conformità Normativa (MiFID)',
+  'SEMAFORO_ADEGUATEZZA': 'Stato Adeguatezza Proposte (Semaforo)',
+  'SANKEY_FLUSSI': 'Analisi di Sopravvivenza Clienti (Kaplan-Meier)',
+  'HEATMAP_PERFORMANCE': 'Mappa del Vantaggio Strategico',
+  'ANDAMENTO_GUADAGNI': 'Evoluzione Ricavi Cumulati',
+  'BAR_PRODOTTI': 'Soddisfazione per Tipologia Prodotto',
+  'INTERESSE_COMPOSTO': 'Proiezione Interesse Composto',
+  'ACCETTAZIONI_SCENARI': 'Proposte Accettate vs Rifiutate',
+  'LINEE_COMPARATIVE': 'Trend Raccolta nei 200 Round',
+  'WATERFALL_PATRIMONIO': 'Scomposizione AUM (Variazioni)',
+  'AREA_GUADAGNI': 'Andamento Ricavi nei 200 Round'
+};
+
+// FINSIM-MOD: Chart code to API endpoint mapping
+const chartCodeToEndpoint = {
+  'TREND_COMPLIANCE': '/api/charts/compliance',
+  'SEMAFORO_ADEGUATEZZA': '/api/charts/semaforo',
+  'SANKEY_FLUSSI': '/api/charts/sopravvivenza',
+  'HEATMAP_PERFORMANCE': '/api/charts/heatmap',
+  'ANDAMENTO_GUADAGNI': '/api/charts/guadagni',
+  'AREA_GUADAGNI': '/api/charts/guadagni',
+  'BAR_PRODOTTI': '/api/charts/prodotti',
+  'INTERESSE_COMPOSTO': '/api/charts/interesse-composto',
+  'ACCETTAZIONI_SCENARI': '/api/charts/accettazioni',
+  'LINEE_COMPARATIVE': '/api/charts/linee-comparative',
+  'WATERFALL_PATRIMONIO': '/api/charts/waterfall'
+};
 
 const clusters = computed(() => {
   const vals = [88, 82, 75, 70, 65, 91, 85, 79, 73, 68, 78, 72, 66, 58, 48, 62, 54, 44, 32, 22];
@@ -1225,6 +1280,15 @@ const inviaRichiestaAdvisor = async (messaggioUtente, isRetry = false) => {
       aiResponseBrief.value = data.suggerimento_breve || 'Analisi completata.';
       aiResponseDetail.value = data.dettaglio_risposta || '';
       aiResponseCharts.value = data.grafici_consigliati || [];
+
+      // Salva nella cronologia conversazionale
+      conversationHistory.value.push({
+        id: Date.now(),
+        question: messaggioUtente,
+        brief: aiResponseBrief.value,
+        detail: aiResponseDetail.value,
+        timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+      });
     } else {
       aiResponseBrief.value = 'Errore nella richiesta al Copilota. Riprovare.';
     }
@@ -1246,7 +1310,7 @@ const setAdvisorRating = async (stars) => {
 };
 
 const shouldRenderChart = (codice) => {
-  return ['HEATMAP_PERFORMANCE', 'SEMAFORO_ADEGUATEZZA', 'AREA_GUADAGNI', 'WATERFALL_PATRIMONIO'].includes(codice);
+  return ['SEMAFORO_ADEGUATEZZA', 'AREA_GUADAGNI', 'WATERFALL_PATRIMONIO'].includes(codice);
 };
 
 let aiChartInstances = [];
@@ -1376,18 +1440,28 @@ const renderHeatmapPromotore = async () => {
 
     // Parsifica il JSON della figura se è una stringa
     let figData = responseData.data;
+    console.log('[Heatmap Promotore] Type of figData:', typeof figData);
+    console.log('[Heatmap Promotore] figData is string?', typeof figData === 'string');
+
     if (typeof figData === 'string') {
+      console.log('[Heatmap Promotore] Parsing JSON string...');
       figData = JSON.parse(figData);
-      console.log('[Heatmap Promotore] ✓ Parsed JSON string');
+      console.log('[Heatmap Promotore] ✓ Parsed JSON string, now type:', typeof figData);
     }
 
     // Verifica che figData abbia data e layout
+    console.log('[Heatmap Promotore] figData keys:', Object.keys(figData).slice(0, 5));
+    console.log('[Heatmap Promotore] Has .data?', !!figData.data, 'Has .layout?', !!figData.layout);
+
     if (!figData.data || !figData.layout) {
-      console.error('[Heatmap Promotore] ❌ figData non ha structure corretta:', Object.keys(figData));
+      console.error('[Heatmap Promotore] ❌ figData non ha structure corretta!');
+      console.error('[Heatmap Promotore] Full figData:', JSON.stringify(figData).substring(0, 500));
       return;
     }
 
-    console.log('[Heatmap Promotore] ✓ figData structure OK, drawing...');
+    console.log('[Heatmap Promotore] ✓ figData structure OK');
+    console.log('[Heatmap Promotore] figData.data length:', figData.data.length);
+    console.log('[Heatmap Promotore] drawing...');
 
     // Renderizza con Plotly
     if (window.Plotly) {
@@ -1407,36 +1481,166 @@ const renderHeatmapPromotore = async () => {
   }
 };
 
+// Funzione dedicata per renderizzare la Curva di Sopravvivenza (Kaplan-Meier)
+const renderSopravvivenza = async () => {
+  try {
+    console.log('[Sopravvivenza] Inizio render curva Kaplan-Meier...');
+
+    // Carica Plotly se non è già disponibile
+    await loadPlotly();
+    console.log('[Sopravvivenza] Plotly caricato:', !!window.Plotly);
+
+    // Attendi che Vue abbia montato il div nel DOM
+    await nextTick();
+    console.log('[Sopravvivenza] nextTick completato');
+
+    // Verifica che il div esista nel DOM
+    const targetDiv = document.getElementById('plotly-sopravvivenza');
+    if (!targetDiv) {
+      console.error('[Sopravvivenza] ❌ DIV NON TROVATO nel DOM');
+      return;
+    }
+    console.log('[Sopravvivenza] ✓ DIV trovato:', targetDiv.style.width, targetDiv.style.height);
+
+    // Prepara il payload
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        matrice_performance: [[1.5, -0.4, 2.1], [-0.8, 0.0, 1.2], [0.5, -1.1, -0.2]],
+        aum_iniziale: 100000000,
+        nuova_raccolta_netta: 15500000,
+        effetto_mercato: -3200000,
+        patrimonio_perso_churn: -5800000
+      },
+      user_message: ""
+    };
+
+    // Fetch dai dati della curva di sopravvivenza
+    console.log('[Sopravvivenza] Fetching /api/charts/sopravvivenza...');
+    const res = await fetch('http://10.12.7.53:8000/api/charts/sopravvivenza', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`API Error ${res.status}: ${res.statusText}`);
+    }
+
+    const responseData = await res.json();
+    console.log('[Sopravvivenza] ✓ Response ricevuto, size:', JSON.stringify(responseData).length);
+
+    // Parsifica il JSON della figura se è una stringa
+    let figData = responseData.data;
+    if (typeof figData === 'string') {
+      figData = JSON.parse(figData);
+      console.log('[Sopravvivenza] ✓ Parsed JSON string');
+    }
+
+    // Verifica che figData abbia data e layout
+    if (!figData.data || !figData.layout) {
+      console.error('[Sopravvivenza] ❌ figData non ha structure corretta:', Object.keys(figData));
+      return;
+    }
+
+    console.log('[Sopravvivenza] ✓ figData structure OK, drawing...');
+
+    // Renderizza con Plotly
+    if (window.Plotly) {
+      Plotly.newPlot(
+        'plotly-sopravvivenza',
+        figData.data,
+        figData.layout,
+        { responsive: true, displayModeBar: true }
+      );
+      console.log('[Sopravvivenza] ✓✓ Curva renderizzata con successo!');
+    } else {
+      console.error('[Sopravvivenza] ❌ window.Plotly non disponibile');
+    }
+  } catch (error) {
+    console.error('[Sopravvivenza] ❌ Errore:', error.message);
+    console.error('[Sopravvivenza] Stack:', error.stack);
+  }
+};
+
+// FINSIM-MOD: Dynamic Plotly chart renderer for AI-suggested charts (STEP 3)
 const renderAIPlotlyCharts = async () => {
   try {
     await loadPlotly();
+    await nextTick();
 
     aiResponseCharts.value.forEach(async (chart, idx) => {
-      if (chart.codice === 'SANKEY_FLUSSI') {
-        const divId = `plotly-ai-${idx}`;
-        const el = document.getElementById(divId);
-        if (!el) return;
+      const divId = `plotly-ai-${idx}`;
+      const el = document.getElementById(divId);
+      if (!el) {
+        console.warn(`[AI Chart Render] DOM element #${divId} not found for chart ${chart.codice}`);
+        return;
+      }
 
-        const payload = {
-          metrics_data: {
-            scenario_corrente: scenario.value,
-            commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
-            commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0
-          },
-          user_message: ""
-        };
+      // Get endpoint from mapping, fallback to placeholder if not found
+      const endpoint = chartCodeToEndpoint[chart.codice];
+      if (!endpoint) {
+        console.error(`[AI Chart Render] No endpoint mapped for chart code: ${chart.codice}. Supported codes:`, Object.keys(chartCodeToEndpoint));
+        return;
+      }
 
-        const res = await fetch('http://10.12.7.53:8000/api/charts/sankey-flussi', {
+      // Prepare payload with all necessary metrics
+      const payload = {
+        metrics_data: {
+          scenario_corrente: scenario.value,
+          commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+          commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+          tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+          tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+          fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+          fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+          proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+          proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+          matrice_performance: [[1.5, -0.4, 2.1], [-0.8, 0.0, 1.2], [0.5, -1.1, -0.2]],
+          aum_iniziale: 100000000,
+          nuova_raccolta_netta: 15500000,
+          effetto_mercato: -3200000,
+          patrimonio_perso_churn: -5800000
+        },
+        user_message: ""
+      };
+
+      try {
+        console.log(`[AI Chart Render] Fetching ${chart.codice} from ${endpoint}...`);
+        const res = await fetch(`http://10.12.7.53:8000${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (res.ok && window.Plotly) {
-          const data = await res.json();
-          const figData = JSON.parse(data.data);
-          Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+        if (!res.ok) {
+          console.error(`[AI Chart Render] API error ${res.status} for ${chart.codice}`);
+          return;
         }
+
+        const data = await res.json();
+        let figData = data.data;
+
+        if (typeof figData === 'string') {
+          figData = JSON.parse(figData);
+        }
+
+        if (figData.data && figData.layout && window.Plotly) {
+          console.log(`[AI Chart Render] ✓ Rendering ${chart.codice} to #${divId}`);
+          Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+        } else {
+          console.error(`[AI Chart Render] Invalid figData structure for ${chart.codice}`);
+        }
+      } catch (error) {
+        console.error(`[AI Chart Render] Error rendering ${chart.codice}:`, error.message);
       }
     });
   } catch (error) {
@@ -1467,19 +1671,7 @@ const createAICharts = async () => {
 
     let config = null;
 
-    if (chart.codice === 'HEATMAP_PERFORMANCE') {
-      config = {
-        type: 'bubble',
-        data: {
-          labels: ['Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'Cluster 5'],
-          datasets: [
-            { label: 'ADAPT Win', data: [{ x: 10, y: 20, r: 8 }, { x: 30, y: 25, r: 10 }], backgroundColor: 'rgba(31,164,99,0.5)' },
-            { label: 'FISSO Win', data: [{ x: 50, y: 15, r: 7 }, { x: 70, y: 30, r: 9 }], backgroundColor: 'rgba(46,111,214,0.5)' }
-          ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { x: { min: 0, max: 100 }, y: { min: 0, max: 100 } } }
-      };
-    } else if (chart.codice === 'SEMAFORO_ADEGUATEZZA') {
+    if (chart.codice === 'SEMAFORO_ADEGUATEZZA') {
       config = {
         type: 'doughnut',
         data: {
@@ -1680,9 +1872,12 @@ watch(view, async () => {
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
     await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
   } else if (view.value === 'promotore') {
-    console.log('[FINsim] 📊 Vista Promotore attiva, renderizzando heatmap Plotly con funzione dedicata...');
-    // Usa la funzione dedicata per renderizzare la heatmap nella vista promotore
-    await renderHeatmapPromotore();
+    console.log('[FINsim] 📊 Vista Promotore attiva, renderizzando grafici Plotly...');
+    // Renderizza la heatmap e la curva di sopravvivenza in parallelo
+    await Promise.all([
+      renderHeatmapPromotore(),
+      renderSopravvivenza()
+    ]).catch(err => console.error('[FINsim] Errore nel rendering dei grafici:', err));
   }
 });
 
@@ -1699,13 +1894,13 @@ onBeforeUnmount(() => {
 <style>
 /* Reset base e Font */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0B1118; color: #E2E8F0; font-size: 14px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #111c24; color: #f8fafc; font-size: 14px; }
 
 /* Layout Globale */
 .dashboard-layout { display: flex; height: 100vh; overflow: hidden; }
 
 /* Sidebar */
-.sidebar { width: 260px; background-color: #111A24; border-right: 1px solid #1C2B3A; padding: 24px 16px; display: flex; flex-direction: column; }
+.sidebar { width: 260px; background-color: #0f172a; border-right: 1px solid #1C2B3A; padding: 24px 16px; display: flex; flex-direction: column; }
 .sidebar-header { margin-bottom: 40px; }
 .logo { font-size: 20px; font-weight: 700; color: #FFFFFF; letter-spacing: 0.5px; }
 .version { font-size: 11px; color: #1FA463; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
@@ -1715,29 +1910,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 
 /* Main Content */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.topbar { height: 64px; border-bottom: 1px solid #1C2B3A; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background-color: #0B1118; }
-.breadcrumb { font-size: 14px; color: #8593A8; }
+.topbar { height: 64px; border-bottom: 1px solid #1C2B3A; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background-color: #111c24; }
+.breadcrumb { font-size: 14px; color: #cbd5e0; }
 .user-profile { width: 32px; height: 32px; border-radius: 50%; background-color: #1FA463; border: 2px solid #111A24; }
 
 /* Area Contenuto */
-.content-area { padding: 32px; overflow-y: auto; height: calc(100vh - 64px); }
+.content-area { padding: 32px; overflow-y: auto; height: calc(100vh - 64px); background-color: #111c24; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; }
 
 /* Pannelli */
-.panel { background-color: #111A24; border: 1px solid #1C2B3A; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
+.panel { background-color: #273549; border: 1px solid #3d4d63; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .panel-header h3 { font-size: 15px; font-weight: 600; color: #FFFFFF; }
-.filters span { font-size: 12px; color: #8593A8; background: #1C2B3A; padding: 4px 10px; border-radius: 20px; }
+.filters span { font-size: 12px; color: #cbd5e0; background: #3d4d63; padding: 4px 10px; border-radius: 20px; }
 
 /* Tabelle */
 .table-responsive { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; text-align: left; }
-.data-table th { color: #5C6F86; font-size: 12px; text-transform: uppercase; padding-bottom: 12px; border-bottom: 1px solid #1C2B3A; font-weight: 600; }
-.data-table td { padding: 14px 0; border-bottom: 1px solid #1C2B3A; font-size: 13px; }
+.data-table th { color: #cbd5e0; font-size: 12px; text-transform: uppercase; padding-bottom: 12px; border-bottom: 1px solid #3d4d63; font-weight: 600; }
+.data-table td { padding: 14px 0; border-bottom: 1px solid #3d4d63; font-size: 13px; }
 .data-table tr:last-child td { border-bottom: none; }
 
 /* Elementi UI (Progress bar, badge, etc) */
-.progress-bar-bg { background-color: #1C2B3A; height: 6px; border-radius: 3px; display: inline-block; width: 60px; overflow: hidden; vertical-align: middle; }
+.progress-bar-bg { background-color: #3d4d63; height: 6px; border-radius: 3px; display: inline-block; width: 60px; overflow: hidden; vertical-align: middle; }
 .progress-bar-fill { height: 100%; border-radius: 3px; }
 .status-badge { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
 .status-badge.green { background-color: #1FA463; box-shadow: 0 0 8px rgba(31,164,99,0.4); }
@@ -2466,6 +2661,76 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
   background: rgba(255, 213, 0, 0.15);
   border-color: rgba(255, 213, 0, 0.4);
   box-shadow: 0 4px 12px rgba(255, 213, 0, 0.2);
+}
+
+/* Cronologia Conversazioni nella Sidebar */
+.conversation-history-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+  margin-top: 8px;
+}
+
+.conversation-history-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-history-scroll::-webkit-scrollbar-track {
+  background: rgba(133, 147, 168, 0.05);
+  border-radius: 3px;
+}
+
+.conversation-history-scroll::-webkit-scrollbar-thumb {
+  background: rgba(133, 147, 168, 0.3);
+  border-radius: 3px;
+}
+
+.conversation-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(133, 147, 168, 0.5);
+}
+
+.history-item {
+  background: rgba(31, 164, 99, 0.06);
+  border-left: 2px solid rgba(31, 164, 99, 0.3);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 11px;
+  color: #C7D5E6;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.history-item:hover {
+  background: rgba(31, 164, 99, 0.12);
+  border-left-color: rgba(31, 164, 99, 0.6);
+  transform: translateX(2px);
+}
+
+.history-time {
+  font-size: 10px;
+  color: #8593A8;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.history-question {
+  font-size: 11px;
+  color: #1FA463;
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.history-brief {
+  font-size: 10px;
+  color: #9CA3AF;
+  line-height: 1.2;
+  word-break: break-word;
+  opacity: 0.9;
 }
 
 </style>

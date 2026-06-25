@@ -71,7 +71,7 @@ When providing the 'didascalia' (caption) for a chart, DO NOT write generic summ
 You MUST use the correct terminology based on the chart type. NEVER mention "Asse X" or "Asse Y" for charts that don't have them!
 
 STRICT TERMINOLOGY DICTIONARY:
-- HEATMAP_PERFORMANCE: Use "Asse X (Patrimonio)", "Asse Y (Rischio)". Explain that green means Adaptive wins and red means Fixed wins.
+- HEATMAP_PERFORMANCE: Use "Asse X (Patrimonio)", "Asse Y (Rischio)". Explain that green cells mean Adaptive outperforms Fixed strategy, red cells mean Fixed outperforms Adaptive. Describe specific high-value segments.
 - BAR_PRODOTTI: Use "Asse X (Prodotti Finanziari)", "Asse Y (Livello di Soddisfazione)".
 - LINEE_COMPARATIVE: Use "Asse X (Evoluzione dei Round 1-20)", "Asse Y (Valore della Raccolta Cumulata)".
 - WATERFALL_PATRIMONIO: DO NOT use X/Y axes terminology! Use "Mattoncini di variazione" or "Fattori di scomposizione". Explain the steps from Initial AUM, through inflows/outflows, to Final AUM.
@@ -80,7 +80,7 @@ STRICT TERMINOLOGY DICTIONARY:
 
 Structure the didascalia like this:
 1. COME LEGGERLO: Explain the correct visual components using the STRICT TERMINOLOGY DICTIONARY above.
-2. ESEMPIO CONCRETO: Highlight a specific visual finding based on the context (e.g., "Nota come il nastro che parte dal Cluster Alto Rischio e finisce in CHURN sia particolarmente spesso...").
+2. ESEMPIO CONCRETO: Highlight a specific visual finding based on the context (e.g., for HEATMAP: "Nota come la cella Verde nel Cluster Patrimonio Alto / Rischio Medio mostra una dominanza dell'IA sul benchmark..."; for other charts, provide chart-specific insights).
 3. COLLEGAMENTO STRATEGICO: Connect this visual evidence directly to your 'suggerimento_breve'.
 
 ## Metrics Context (if present in input):

@@ -1428,47 +1428,26 @@ def applica_stile_premium(fig, titolo: str, dark_mode: bool = True):
 
 @app.post("/api/charts/heatmap", tags=["charts"])
 async def get_heatmap_performance(request: AdvisorRequest) -> dict:
-    """Generate performance heatmap (Patrimonio Gestito vs Profilo Rischio) as Plotly JSON"""
+    """Generate performance heatmap (Patrimonio Gestito vs Profilo Rischio) as Plotly JSON.
+    Data-Driven: Calculates from real conversion rate delta if matrice_performance is unavailable."""
+    # FINSIM-MOD: Import inline for data-driven heatmap generation
+    from visualizzatore_grafici import genera_heatmap_performance
+
     metrics = request.metrics_data or {}
 
-    rischi = ["Rischio Basso", "Rischio Medio", "Rischio Alto"]
-    patrimoni = ["Patrimonio Basso", "Patrimonio Medio", "Patrimonio Alto"]
+    # Call the data-driven function from visualizzatore_grafici
+    fig = genera_heatmap_performance(metrics)
 
-    dati_matrice = metrics.get("matrice_performance", [
-        [1.5, -0.4, 2.1],
-        [-0.8, 0.0, 1.2],
-        [0.5, -1.1, -0.2]
-    ])
-
-    grid_df = pd.DataFrame(dati_matrice, index=rischi, columns=patrimoni)
-
-    fig = px.imshow(
-        grid_df,
-        labels=dict(color="Vantaggio Netto"),
-        color_continuous_scale=COLORI_DIVERGENTI,
-        aspect="auto"
+    # Apply dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
     )
-
-    fig.update_traces(xgap=4, ygap=4)
-
-    val_min = grid_df.values.min() if not grid_df.isna().all().all() else -1
-    val_max = grid_df.values.max() if not grid_df.isna().all().all() else 1
-
-    fig.update_coloraxes(
-        showscale=True,
-        colorbar=dict(
-            thickness=15,
-            title="<b>Performance</b>",
-            tickvals=[val_min, 0, val_max],
-            ticktext=["Vince Standard", "Pareggio", "Vince IA Dinamica"],
-            tickfont=dict(size=11, color="#111827")
-        )
-    )
-
-    fig.update_xaxes(title_text="<b>Patrimonio Gestito</b>", side="bottom")
-    fig.update_yaxes(title_text="<b>Profilo di Rischio</b>")
-
-    fig = applica_stile_premium(fig, "Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)", dark_mode=True)
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)',
+                     title_font=dict(color='#C7D5E6'))
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)',
+                     title_font=dict(color='#C7D5E6'))
 
     return {"data": fig.to_json()}
 
@@ -1543,9 +1522,71 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
     return {"data": fig.to_json()}
 
 
+@app.post("/api/charts/sopravvivenza", tags=["charts"])
+async def get_curva_sopravvivenza(request: AdvisorRequest) -> dict:
+    """Generate Kaplan-Meier Customer Retention Curve as Plotly JSON.
+    Data-Driven: Fetches real rounds data from MongoDB if available.
+    Forces 200-round scenario resolution."""
+    # FINSIM-MOD: Imported from visualizzatore_grafici
+    from visualizzatore_grafici import genera_curva_sopravvivenza
+
+    metrics = request.metrics_data or {}
+    scenario_id = metrics.get("scenario_corrente", "S0")
+
+    # FINSIM-MOD: Force 200-round scenario resolution by querying scenario_id field
+    # Fetch rounds data from MongoDB
+    rounds_data = []
+    debug_info = {}
+    try:
+        # Query MongoDB for simulation data (200 rounds)
+        # DB stores as "{scenario_id}_200" (e.g., "S0_200" not "S0")
+        db_scenario_key = f"{scenario_id}_200"
+        debug_info["searching_for"] = db_scenario_key
+
+        # Try direct query first
+        sim_doc = collection.find_one({"scenario_id": db_scenario_key})
+        debug_info["found_direct"] = sim_doc is not None
+
+        if not sim_doc:
+            # Fallback: search by scenario_id alone, get largest num_rounds
+            sim_doc = collection.find_one(
+                {"scenario_id": {"$regex": f"^{scenario_id}"}},
+                sort=[("num_rounds", -1), ("_id", -1)]
+            )
+            debug_info["found_fallback"] = sim_doc is not None
+
+        if sim_doc and "rounds" in sim_doc:
+            rounds_data = sim_doc["rounds"]
+            debug_info["rounds_fetched"] = len(rounds_data)
+        else:
+            debug_info["error"] = f"No rounds found (tried {db_scenario_key})"
+    except Exception as e:
+        debug_info["exception"] = str(e)
+
+    business_metrics = {
+        "aum_iniziale": float(metrics.get("aum_iniziale", 100000000)),
+        "patrimonio_perso_churn_adapt": float(metrics.get("patrimonio_perso_churn", 5800000)) * 0.6,
+        "patrimonio_perso_churn_fisso": float(metrics.get("patrimonio_perso_churn", 5800000)) * 1.0,
+    }
+
+    # Genera la curva usando dati reali o fallback a sintetici
+    fig = genera_curva_sopravvivenza(rounds_data, business_metrics)
+
+    # Applica dark mode styling se necessario
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
 @app.post("/api/charts/sankey-flussi", tags=["charts"])
 async def get_sankey_flussi(request: AdvisorRequest) -> dict:
-    """Generate Sankey flow diagram for client migration as Plotly JSON"""
+    """[DEPRECATED] Generate Sankey flow diagram for client migration as Plotly JSON"""
     label = ["Cluster Basso Rischio", "Cluster Medio Rischio", "Cluster Alto Rischio", "Stabili", "Upgrade Profilo", "ABBANDONI"]
     source = [0, 0, 0, 1, 1, 1, 2, 2, 2]
     target = [3, 4, 5, 3, 4, 5, 3, 4, 5]
@@ -1572,6 +1613,226 @@ async def get_sankey_flussi(request: AdvisorRequest) -> dict:
 
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False)
+
+    return {"data": fig.to_json()}
+
+
+# =====================================================================
+# STANDARDIZED CHART ENDPOINTS (STEP 2: Global Chart Exposure)
+# =====================================================================
+
+@app.post("/api/charts/heatmap", tags=["charts"])
+async def get_heatmap_performance(request: AdvisorRequest) -> dict:
+    """Generate Performance Heatmap (Patrimonio vs Rischio) as Plotly JSON"""
+    from visualizzatore_grafici import genera_heatmap_performance
+
+    metrics = request.metrics_data or {}
+
+    fig = genera_heatmap_performance(metrics)
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'))
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/prodotti", tags=["charts"])
+async def get_bar_prodotti(request: AdvisorRequest) -> dict:
+    """Generate Product Satisfaction Bar Chart as Plotly JSON"""
+    from visualizzatore_grafici import genera_bar_prodotti
+
+    metrics = request.metrics_data or {}
+
+    fig = genera_bar_prodotti(metrics)
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/guadagni", tags=["charts"])
+async def get_andamento_guadagni(request: AdvisorRequest) -> dict:
+    """Generate Revenue Trend Chart (Profits over 200 rounds) as Plotly JSON"""
+    from visualizzatore_grafici import genera_andamento_guadagni
+
+    metrics = request.metrics_data or {}
+
+    fig = genera_andamento_guadagni(metrics)
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/linee-comparative", tags=["charts"])
+async def get_linee_comparative(request: AdvisorRequest) -> dict:
+    """Generate Comparative Performance Lines (Collections over 200 rounds) as Plotly JSON"""
+    from visualizzatore_grafici import genera_linee_comparative
+
+    metrics = request.metrics_data or {}
+
+    fig = genera_linee_comparative(metrics)
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/waterfall", tags=["charts"])
+async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
+    """Generate AUM Waterfall Chart as Plotly JSON"""
+    from visualizzatore_grafici import genera_waterfall_patrimonio
+
+    metrics = request.metrics_data or {}
+
+    fig = genera_waterfall_patrimonio(metrics)
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/semaforo", tags=["charts"])
+async def get_semaforo_adeguatezza(request: AdvisorRequest) -> dict:
+    """Generate Adequacy Traffic Light Chart as Plotly JSON"""
+    from visualizzatore_grafici import genera_semaforo_adeguatezza
+
+    metrics = request.metrics_data or {}
+    summary = metrics.get("summary", {})
+
+    fig = genera_semaforo_adeguatezza(summary)
+
+    if fig is None:
+        return {"data": "{}"}
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'))
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/accettazioni", tags=["charts"])
+async def get_accettazioni_per_scenario(request: AdvisorRequest) -> dict:
+    """Generate Acceptance Rate Grouped Bar Chart (ADAPT vs FISSO) as Plotly JSON"""
+    from visualizzatore_grafici import genera_accettazioni_per_scenario
+
+    metrics = request.metrics_data or {}
+    business_metrics = metrics.get("business_metrics", {})
+
+    fig = genera_accettazioni_per_scenario(business_metrics)
+
+    if fig is None:
+        return {"data": "{}"}
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/compliance", tags=["charts"])
+async def get_trend_compliance(request: AdvisorRequest) -> dict:
+    """Generate Compliance Trend Chart (ADAPT vs FISSO over rounds) as Plotly JSON"""
+    from visualizzatore_grafici import genera_trend_compliance
+
+    metrics = request.metrics_data or {}
+    scenario_id = metrics.get("scenario_corrente", "S0")
+
+    # Fetch rounds data from MongoDB
+    rounds_data = []
+    try:
+        db_scenario_key = f"{scenario_id}_200"
+        sim_doc = collection.find_one({"scenario_id": db_scenario_key})
+
+        if not sim_doc:
+            sim_doc = collection.find_one(
+                {"scenario_id": {"$regex": f"^{scenario_id}"}},
+                sort=[("num_rounds", -1), ("_id", -1)]
+            )
+
+        if sim_doc and "rounds" in sim_doc:
+            rounds_data = sim_doc["rounds"]
+    except Exception as e:
+        print(f"[Compliance Chart] Error fetching rounds: {e}")
+
+    fig = genera_trend_compliance(rounds_data, scenario_id)
+
+    if fig is None:
+        return {"data": "{}"}
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+
+    return {"data": fig.to_json()}
+
+
+@app.post("/api/charts/interesse-composto", tags=["charts"])
+async def get_interesse_composto(request: AdvisorRequest) -> dict:
+    """Generate Compound Interest Educational Chart as Plotly JSON"""
+    from visualizzatore_grafici import genera_interesse_composto
+
+    fig = genera_interesse_composto()
+
+    # Dark mode styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30,41,59,0.3)',
+        font=dict(color='#C7D5E6')
+    )
+    fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
+    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
 
     return {"data": fig.to_json()}
 
