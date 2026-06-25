@@ -838,6 +838,7 @@ Rispondi ESCLUSIVAMENTE in italiano, formato testo puro, senza markdown, senza b
 async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     """Generate PowerPoint presentation with metrics and analysis."""
     metrics = request.metrics_data or {}
+    user_message = request.user_message or "Analisi Automatica"
 
     # Estrai metriche principali una volta per tutto il documento
     comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
