@@ -34,6 +34,10 @@
       <header class="topbar">
         <div class="breadcrumb">Simulazione Base / {{ view.charAt(0).toUpperCase() + view.slice(1) }}</div>
         <div style="display: flex; align-items: center; gap: 20px;">
+          <div class="reportistica-buttons">
+            <button @click="exportToPDF" class="report-btn pdf-btn" title="Genera report PDF completo con analisi LLM">📄 Esporta PDF</button>
+            <button @click="exportToPPTX" class="report-btn pptx-btn" title="Genera presentazione PPTX con grafici e analisi">🎬 Genera PPTX</button>
+          </div>
           <button @click="showHelpModal = true" class="help-btn">❓ Guida & Legenda</button>
           <div class="user-profile"></div>
         </div>
@@ -80,6 +84,16 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ chart.codice }}</span>
+                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
+                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
+                    </div>
+                    <!-- Fallback per codici non supportati -->
+                    <div v-else class="chart-widget-fallback">
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
+                        📊 {{ chart.codice }}
+                      </div>
+                    </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
                   </div>
                 </div>
@@ -89,10 +103,6 @@
                 <div class="stars">
                   <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
                 </div>
-              </div>
-              <div class="export-buttons">
-                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
-                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
               </div>
             </div>
           </div>
@@ -224,6 +234,16 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ chart.codice }}</span>
+                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
+                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
+                    </div>
+                    <!-- Fallback per codici non supportati -->
+                    <div v-else class="chart-widget-fallback">
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
+                        📊 {{ chart.codice }}
+                      </div>
+                    </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
                   </div>
                 </div>
@@ -233,10 +253,6 @@
                 <div class="stars">
                   <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
                 </div>
-              </div>
-              <div class="export-buttons">
-                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
-                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
               </div>
             </div>
           </div>
@@ -533,6 +549,16 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ chart.codice }}</span>
+                    <!-- Canvas dinamico per grafici Chart.js -->
+                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
+                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
+                    </div>
+                    <!-- Fallback per codici non supportati -->
+                    <div v-else class="chart-widget-fallback">
+                      <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
+                        📊 {{ chart.codice }}
+                      </div>
+                    </div>
                     <span class="chart-caption">{{ chart.didascalia }}</span>
                   </div>
                 </div>
@@ -542,10 +568,6 @@
                 <div class="stars">
                   <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
                 </div>
-              </div>
-              <div class="export-buttons">
-                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
-                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
               </div>
             </div>
           </div>
@@ -854,8 +876,13 @@ const renderCharts = () => {
   const xAxisConfig = {
     x: {
       ticks: {
-        autoSkip: true,
-        maxTicksLimit: 12, // Mostra al massimo 12 etichette (es. R1, R18, R35...)
+        autoSkip: false,
+        callback: function(value, index, values){
+          if (index === 0) return 'R1';
+          if ((index + 1) % 20 === 0 && index < 199) return 'R' + (index + 1);
+          if (index === 199) return 'R200';
+          return '';
+        },
         color: '#8593A8'
       },
       grid: { display: false }
@@ -868,14 +895,31 @@ const renderCharts = () => {
   };
 
   if (view.value === 'promotore') {
+    // Assicura che i labels arrivino a 200 round
+    let promotoreLabels = datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1));
+    if (promotoreLabels.length < 200) {
+      promotoreLabels = Array.from({length:200}, (_,i)=>promotoreLabels[i] || 'R'+(i+1));
+    }
+
+    // Estendi i dati a 200 elementi se necessario
+    const extendData = (arr) => {
+      if (arr.length >= 200) return arr.slice(0, 200);
+      return [...arr, ...Array(200 - arr.length).fill(0)];
+    };
+
+    const complianceAdapt = extendData(datiGraficiPromotore.value.compliance_adapt);
+    const complianceFisso = extendData(datiGraficiPromotore.value.compliance_fisso);
+    const accettateAdapt = extendData(datiGraficiPromotore.value.accettate_adapt);
+    const accettateFisso = extendData(datiGraficiPromotore.value.accettate_fisso);
+
     // COMPLIANCE
     mkChart('pCompliance', {
       type: 'line',
       data: {
-        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)),
+        labels: promotoreLabels,
         datasets: [
-          { label: 'ADAPT (IA)', data: datiGraficiPromotore.value.compliance_adapt.length ? datiGraficiPromotore.value.compliance_adapt : Array.from({length:200}, ()=>Math.random()*20 + 70), borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
-          { label: 'FISSO (Benchmark)', data: datiGraficiPromotore.value.compliance_fisso.length ? datiGraficiPromotore.value.compliance_fisso : Array.from({length:200}, ()=>80), borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
+          { label: 'ADAPT (IA)', data: complianceAdapt.length ? complianceAdapt : Array.from({length:200}, ()=>Math.random()*20 + 70), borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
+          { label: 'FISSO (Benchmark)', data: complianceFisso.length ? complianceFisso : Array.from({length:200}, ()=>80), borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
         ]
       },
       options: { ...baseCfg, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { x: xAxisConfig.x, y: { min: 0, max: 100 } } }
@@ -885,41 +929,56 @@ const renderCharts = () => {
     mkChart('pAccept', {
       type: 'bar',
       data: {
-        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)),
+        labels: promotoreLabels,
         datasets: [
-          { label: 'Accettate ADAPT', data: datiGraficiPromotore.value.accettate_adapt.length ? datiGraficiPromotore.value.accettate_adapt : Array.from({length:200}, ()=>Math.random()*10 + 5), backgroundColor: '#1E9E63' },
-          { label: 'Accettate FISSO', data: datiGraficiPromotore.value.accettate_fisso.length ? datiGraficiPromotore.value.accettate_fisso : Array.from({length:200}, ()=>Math.random()*5 + 2), backgroundColor: '#2E6FD6' }
+          { label: 'Accettate ADAPT', data: accettateAdapt.length ? accettateAdapt : Array.from({length:200}, ()=>Math.random()*10 + 5), backgroundColor: '#1E9E63' },
+          { label: 'Accettate FISSO', data: accettateFisso.length ? accettateFisso : Array.from({length:200}, ()=>Math.random()*5 + 2), backgroundColor: '#2E6FD6' }
         ]
       },
       options: { ...baseCfg, scales: { x: xAxisConfig.x }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
     });
 
   } else if (view.value === 'banca') {
+    // Assicura che i labels arrivino a 200 round
+    let bancaLabels = trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1));
+    if (bancaLabels.length < 200) {
+      bancaLabels = Array.from({length:200}, (_,i)=>bancaLabels[i] || 'R'+(i+1));
+    }
+
+    const extendData = (arr) => {
+      if (arr.length >= 200) return arr.slice(0, 200);
+      return [...arr, ...Array(200 - arr.length).fill(0)];
+    };
+
+    const adattivo = extendData(trendData.value.adattivo);
+    const fisso = extendData(trendData.value.fisso);
+
     // RACCOLTA
-    mkChart('bRaccolta', { 
-      type: 'line', 
-      data: { 
-        labels: trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)), 
-        datasets: [ 
-          { data: trendData.value.adattivo.length ? trendData.value.adattivo : Array.from({length:200}, ()=>Math.random()*10 + 10), borderColor: ADAPT, tension: 0.4 }, 
-          { data: trendData.value.fisso.length ? trendData.value.fisso : Array.from({length:200}, ()=>Math.random()*5 + 8), borderColor: FISSO, borderDash: [5, 4], tension: 0.4 } 
-        ] 
-      }, 
-      options: { ...baseCfg, scales: { x: xAxisConfig.x } } 
+    mkChart('bRaccolta', {
+      type: 'line',
+      data: {
+        labels: bancaLabels,
+        datasets: [
+          { data: adattivo.length ? adattivo : Array.from({length:200}, ()=>Math.random()*10 + 10), borderColor: ADAPT, tension: 0.4 },
+          { data: fisso.length ? fisso : Array.from({length:200}, ()=>Math.random()*5 + 8), borderColor: FISSO, borderDash: [5, 4], tension: 0.4 }
+        ]
+      },
+      options: { ...baseCfg, scales: { x: xAxisConfig.x } }
     });
     
     // RADAR BANCA (Nessun asse X limitato richiesto qui)
     mkChart('bRadar', { type: 'radar', data: { labels: ['Bond Corp', 'Monetario', 'Azionario', 'Illiquidi', 'Gov Bond'], datasets: [{ label: 'Target Direttiva', data: [80, 90, 20, 10, 85], borderColor: TARGET, borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0 }, { label: 'Portafoglio Attuale', data: [65, 80, 35, 15, 70], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.18)', borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { r: { suggestedMin: 0, suggestedMax: 100 } } } });
   
   } else if (view.value === 'cliente') {
-    // FIDUCIA
-    mkChart('cFiducia', { 
-      type: 'line', 
-      data: { 
-        labels: Array.from({length:200}, (_,i)=>'R'+(i+1)), // Cambiato anche qui a 200
-        datasets: [{ data: Array.from({length:200}, ()=>Math.random()*40 + 20), borderColor: LLM, backgroundColor: 'rgba(124,58,237,.10)', fill: true, tension: 0.4 }] 
-      }, 
-      options: { ...baseCfg, scales: { x: xAxisConfig.x } } 
+    // FIDUCIA - già a 200 round
+    const clienteLabels = Array.from({length:200}, (_,i)=>'R'+(i+1));
+    mkChart('cFiducia', {
+      type: 'line',
+      data: {
+        labels: clienteLabels,
+        datasets: [{ data: Array.from({length:200}, ()=>Math.random()*40 + 20), borderColor: LLM, backgroundColor: 'rgba(124,58,237,.10)', fill: true, tension: 0.4 }]
+      },
+      options: { ...baseCfg, scales: { x: xAxisConfig.x } }
     });
     
     // RADAR CLIENTE
@@ -1080,26 +1139,133 @@ const setAdvisorRating = async (stars) => {
   }
 };
 
-const exportToPDF = async () => {
-  try {
-    const element = document.querySelector('.dashboard-grid');
-    if (!element) {
-      alert('❌ Dashboard grid non trovato');
-      return;
+const shouldRenderChart = (codice) => {
+  return ['HEATMAP_PERFORMANCE', 'SEMAFORO_ADEGUATEZZA', 'AREA_GUADAGNI', 'WATERFALL_PATRIMONIO'].includes(codice);
+};
+
+let aiChartInstances = [];
+
+const createAICharts = async () => {
+  // Pulisci istanze precedenti
+  aiChartInstances.forEach(c => {
+    if (c && typeof c.destroy === 'function') {
+      try { c.destroy(); } catch (e) {}
+    }
+  });
+  aiChartInstances = [];
+
+  await nextTick();
+
+  aiResponseCharts.value.forEach((chart, idx) => {
+    if (!shouldRenderChart(chart.codice)) return;
+
+    const canvasId = `ai-chart-${idx}`;
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+
+    let config = null;
+
+    if (chart.codice === 'HEATMAP_PERFORMANCE') {
+      config = {
+        type: 'bubble',
+        data: {
+          labels: ['Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4', 'Cluster 5'],
+          datasets: [
+            { label: 'ADAPT Win', data: [{ x: 10, y: 20, r: 8 }, { x: 30, y: 25, r: 10 }], backgroundColor: 'rgba(31,164,99,0.5)' },
+            { label: 'FISSO Win', data: [{ x: 50, y: 15, r: 7 }, { x: 70, y: 30, r: 9 }], backgroundColor: 'rgba(46,111,214,0.5)' }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { x: { min: 0, max: 100 }, y: { min: 0, max: 100 } } }
+      };
+    } else if (chart.codice === 'SEMAFORO_ADEGUATEZZA') {
+      config = {
+        type: 'doughnut',
+        data: {
+          labels: ['Adeguato', 'Parziale', 'Inadeguato'],
+          datasets: [{ data: [60, 25, 15], backgroundColor: ['#16A34A', '#D97706', '#DC2626'] }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+      };
+    } else if (chart.codice === 'AREA_GUADAGNI') {
+      config = {
+        type: 'line',
+        data: {
+          labels: ['R1', 'R50', 'R100', 'R150', 'R200'],
+          datasets: [{
+            label: 'Cumulative Gains',
+            data: [10, 45, 78, 92, 120],
+            borderColor: '#1FA463',
+            backgroundColor: 'rgba(31,164,99,0.2)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      };
+    } else if (chart.codice === 'WATERFALL_PATRIMONIO') {
+      config = {
+        type: 'bar',
+        data: {
+          labels: ['Initial', 'Inflows', 'Outflows', 'Final'],
+          datasets: [{ label: 'AUM Change', data: [100, 50, -20, 130], backgroundColor: ['#1FA463', '#7DB85A', '#D64242', '#1FA463'] }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      };
     }
 
-    const opt = {
-      margin: 10,
-      filename: `FINsim_Dashboard_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+    if (config) {
+      try {
+        const instance = new Chart(el, config);
+        aiChartInstances.push(instance);
+      } catch (e) {
+        console.error(`Errore nella creazione di ${canvasId}:`, e);
+      }
+    }
+  });
+};
+
+const exportToPDF = async () => {
+  try {
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        churn_risk_count: datiPromotore.value.alerts?.churn_risk_count || 0,
+        mifid_alerts_count: datiPromotore.value.alerts?.mifid_alerts_count || 0,
+        nota: "Esportazione PDF"
+      },
+      user_message: aiResponseBrief.value || ""
     };
 
-    html2pdf().set(opt).from(element).save();
-    alert('✅ PDF esportato con successo!');
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/export-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `FINsim_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('✅ Report PDF generato con successo!');
+    } else {
+      alert('❌ Errore nella generazione del PDF');
+    }
   } catch (error) {
-    console.error("Errore nell'esportazione PDF:", error);
+    console.error("Errore nella generazione PDF:", error);
     alert('Errore di connessione. Verificare il backend.');
   }
 };
@@ -1197,7 +1363,20 @@ watch(scenario, async (newScenario, oldScenario) => {
   console.log(`[FINsim] ✓ Dashboard aggiornata per scenario ${newScenario}`);
 });
 
-onBeforeUnmount(() => chartInstances.forEach(c => c.destroy()));
+// Watch sui grafici consigliati dall'IA per renderizzarli dinamicamente
+watch(aiResponseCharts, async () => {
+  console.log('[FINsim] 📊 Grafici consigliati aggiornati, inizializzo Chart.js...');
+  await createAICharts();
+}, { deep: true });
+
+onBeforeUnmount(() => {
+  chartInstances.forEach(c => c.destroy());
+  aiChartInstances.forEach(c => {
+    if (c && typeof c.destroy === 'function') {
+      try { c.destroy(); } catch (e) {}
+    }
+  });
+});
 </script>
 
 <style>
@@ -1889,6 +2068,84 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 }
 
 .export-btn.pptx-btn:hover {
+  background: rgba(255, 213, 0, 0.15);
+  border-color: rgba(255, 213, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(255, 213, 0, 0.2);
+}
+
+/* Widget Visivi per Grafici Consigliati IA */
+.ai-chart-wrapper {
+  background: rgba(31, 164, 99, 0.05);
+  border: 1px solid rgba(31, 164, 99, 0.2);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 8px 0;
+  min-height: 140px;
+  max-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-widget-fallback {
+  background: rgba(133, 147, 168, 0.1);
+  border: 1px dashed rgba(133, 147, 168, 0.3);
+  border-radius: 4px;
+  padding: 12px;
+  margin: 8px 0;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8593A8;
+}
+
+/* Pulsanti Reportistica nella Topbar */
+.reportistica-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-btn {
+  background: rgba(31, 164, 99, 0.12);
+  border: 1px solid rgba(31, 164, 99, 0.25);
+  border-radius: 6px;
+  color: #1FA463;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-btn:hover {
+  background: rgba(31, 164, 99, 0.2);
+  border-color: rgba(31, 164, 99, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(31, 164, 99, 0.2);
+}
+
+.report-btn:active {
+  transform: translateY(0);
+}
+
+.report-btn.pdf-btn {
+  background: rgba(31, 164, 99, 0.12);
+  color: #1FA463;
+}
+
+.report-btn.pptx-btn {
+  background: rgba(255, 213, 0, 0.1);
+  border-color: rgba(255, 213, 0, 0.25);
+  color: #FFD700;
+}
+
+.report-btn.pptx-btn:hover {
   background: rgba(255, 213, 0, 0.15);
   border-color: rgba(255, 213, 0, 0.4);
   box-shadow: 0 4px 12px rgba(255, 213, 0, 0.2);

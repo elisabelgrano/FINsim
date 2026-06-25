@@ -767,11 +767,90 @@ async def chat_with_advisor(request: AdvisorRequest) -> AdvisorResponse:
     return response
 
 
+def _generate_executive_analysis(metrics: Dict[str, Any]) -> str:
+    """Genera un'analisi esecutiva completa tramite LLM per report e presentazioni."""
+    # Estrai metriche con valori di fallback
+    comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
+    comm_fisso = float(metrics.get('commissioni_cumulate_fisso') or 0)
+    conv_adapt = float(metrics.get('tasso_conversione_adapt_pct') or 0)
+    conv_fisso = float(metrics.get('tasso_conversione_fisso_pct') or 0)
+    fid_adapt = float(metrics.get('fiducia_media_adapt') or 0)
+    fid_fisso = float(metrics.get('fiducia_media_fisso') or 0)
+    prop_adapt = int(metrics.get('proposte_totali_adapt') or 0)
+    prop_fisso = int(metrics.get('proposte_totali_fisso') or 0)
+    churn = int(metrics.get('churn_risk_count') or 0)
+    mifid = int(metrics.get('mifid_alerts_count') or 0)
+
+    prompt = f"""Sei un esperto analista finanziario. Genera un'analisi esecutiva DETTAGLIATA di 500-600 parole per un comitato di direzione basandoti su questi dati reali di 200 round di simulazione:
+
+SCENARIO: {metrics.get('scenario_corrente', 'N/A')}
+
+KPI PRINCIPALI (aggregati su 200 round):
+- Commissioni Cumulate ADAPT (IA): € {comm_adapt:,.0f}
+- Commissioni Cumulate FISSO (Benchmark): € {comm_fisso:,.0f}
+- Differenziale: € {comm_adapt - comm_fisso:,.0f} ({((comm_adapt - comm_fisso) / (comm_fisso or 1) * 100):.1f}%)
+
+- Tasso Conversione ADAPT: {conv_adapt:.1f}%
+- Tasso Conversione FISSO: {conv_fisso:.1f}%
+- Delta: {conv_adapt - conv_fisso:.1f} punti percentuali
+
+- Fiducia Media ADAPT: {fid_adapt:.1f}%
+- Fiducia Media FISSO: {fid_fisso:.1f}%
+
+- Proposte Totali ADAPT: {prop_adapt}
+- Proposte Totali FISSO: {prop_fisso}
+
+METRICHE DI RISCHIO:
+- Clienti a Rischio Churn: {churn}
+- Alert MIFID/CONSOB: {mifid}
+
+REQUISITI:
+1. Apri con un executive summary di 2-3 frasi sullo scenario
+2. Analizza le performance relative tra ADAPT e FISSO
+3. Interpreta i fattori macroeconomici impliciti
+4. Commenta il livello di rischio e conformità
+5. Suggerisci 3-4 implicazioni strategiche
+6. Concludi con raccomandazioni per il board
+
+Rispondi ESCLUSIVAMENTE in italiano, formato testo puro, senza markdown, senza bullet points."""
+
+    try:
+        payload = {
+            "model": OllamaAdvisor.MODEL_NAME,
+            "prompt": prompt,
+            "stream": False
+        }
+        response = requests.post(
+            OllamaAdvisor.OLLAMA_GENERATE_URL,
+            json=payload,
+            timeout=120
+        )
+        if response.ok:
+            data = response.json()
+            analysis = data.get("response", "").strip()
+            return analysis[:2000] if analysis else "Analisi non disponibile"
+    except Exception as e:
+        print(f"[ANALYSIS] Errore nella generazione dell'analisi LLM: {str(e)}")
+    return "Analisi non disponibile"
+
+
 @app.post("/api/advisor/export-pptx", tags=["advisor"])
 async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     """Generate PowerPoint presentation with metrics and analysis."""
     metrics = request.metrics_data or {}
-    user_message = request.user_message or "Analisi Scenario Automatica"
+
+    # Estrai metriche principali una volta per tutto il documento
+    comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
+    comm_fisso = float(metrics.get('commissioni_cumulate_fisso') or 0)
+    conv_adapt = float(metrics.get('tasso_conversione_adapt_pct') or 0)
+    conv_fisso = float(metrics.get('tasso_conversione_fisso_pct') or 0)
+    fid_adapt = float(metrics.get('fiducia_media_adapt') or 0)
+    fid_fisso = float(metrics.get('fiducia_media_fisso') or 0)
+    prop_adapt = int(metrics.get('proposte_totali_adapt') or 0)
+    prop_fisso = int(metrics.get('proposte_totali_fisso') or 0)
+
+    # Genera analisi esecutiva tramite LLM (indipendente dalla chat dell'utente)
+    llm_analysis = _generate_executive_analysis(metrics)
 
     prs = Presentation()
     prs.slide_width = Inches(10)
@@ -828,10 +907,6 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         line.line.color.rgb = COLOR_ADAPT
         line.line.width = Pt(2)
 
-        comm_adapt = metrics.get('commissioni_cumulate_adapt', 0)
-        comm_fisso = metrics.get('commissioni_cumulate_fisso', 0)
-        conv_adapt = metrics.get('tasso_conversione_adapt_pct', 0)
-        conv_fisso = metrics.get('tasso_conversione_fisso_pct', 0)
         regime = metrics.get('scenario_corrente', 'Baseline')
 
         content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8.6), Inches(5.5))
@@ -924,15 +999,6 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
 
         headers = ["Metrica", "ADAPT (IA)", "FISSO (Benchmark)", "Differenza"]
 
-        comm_adapt = metrics.get('commissioni_cumulate_adapt', 0) or 0
-        comm_fisso = metrics.get('commissioni_cumulate_fisso', 0) or 0
-        conv_adapt = metrics.get('tasso_conversione_adapt_pct', 0) or 0
-        conv_fisso = metrics.get('tasso_conversione_fisso_pct', 0) or 0
-        fid_adapt = metrics.get('fiducia_media_adapt', 0) or 0
-        fid_fisso = metrics.get('fiducia_media_fisso', 0) or 0
-        prop_adapt = metrics.get('proposte_totali_adapt', 0) or 0
-        prop_fisso = metrics.get('proposte_totali_fisso', 0) or 0
-
         data = [
             ["Commissioni (€)", f"{comm_adapt:,.0f}", f"{comm_fisso:,.0f}", f"{comm_adapt - comm_fisso:,.0f}"],
             ["Conversione (%)", f"{conv_adapt:.1f}%", f"{conv_fisso:.1f}%", f"{conv_adapt - conv_fisso:.1f}%"],
@@ -966,13 +1032,24 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     add_kpi_dashboard_slide()
 
     add_content_slide(
-        "Scenario Corrente",
+        "Analisi Esecutiva",
         [
             f"Scenario: {metrics.get('scenario_corrente', 'N/A')}",
+            f"Data Analisi: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            f"",
+            llm_analysis,
+        ]
+    )
+
+    add_content_slide(
+        "Contesto della Simulazione",
+        [
+            f"Scenario Attivo: {metrics.get('scenario_corrente', 'N/A')}",
             f"Data di Generazione: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
             f"",
-            f"📊 Analisi basata su 200 round storici (5 scenari × 20 round × 100 clienti)",
-            f"🤖 Confronto Swarm Intelligence (ADAPT) vs Benchmark Fisso (FISSO)",
+            f"📊 Analisi basata su 200 round storici (5 scenari × 20 round × 100 clienti sintetici)",
+            f"🤖 Confronto Swarm Intelligence (ADAPT con IA) vs Benchmark Fisso (FISSO statico)",
+            f"🎯 Metodologia: Simulazione Monte Carlo con agenti autonomi",
         ]
     )
 
@@ -1055,6 +1132,121 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         path=tmp_path,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=f"FINsim_Presentation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
+    )
+
+
+@app.post("/api/advisor/export-pdf", tags=["advisor"])
+async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
+    """Generate PDF report with metrics and LLM-generated analysis."""
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+
+    metrics = request.metrics_data or {}
+
+    # Estrai metriche con valori di fallback
+    comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
+    comm_fisso = float(metrics.get('commissioni_cumulate_fisso') or 0)
+    conv_adapt = float(metrics.get('tasso_conversione_adapt_pct') or 0)
+    conv_fisso = float(metrics.get('tasso_conversione_fisso_pct') or 0)
+    fid_adapt = float(metrics.get('fiducia_media_adapt') or 0)
+    fid_fisso = float(metrics.get('fiducia_media_fisso') or 0)
+    prop_adapt = int(metrics.get('proposte_totali_adapt') or 0)
+    prop_fisso = int(metrics.get('proposte_totali_fisso') or 0)
+    churn = int(metrics.get('churn_risk_count') or 0)
+    mifid = int(metrics.get('mifid_alerts_count') or 0)
+
+    # Genera analisi esecutiva tramite LLM
+    llm_analysis = _generate_executive_analysis(metrics)
+
+    # Crea PDF con ReportLab
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    doc = SimpleDocTemplate(tmp_path, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Stili personalizzati
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1FA463'),
+        spaceAfter=12,
+        alignment=1
+    )
+
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#1FA463'),
+        spaceAfter=8,
+        spaceBefore=8
+    )
+
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=14,
+        alignment=4
+    )
+
+    # Titolo
+    elements.append(Paragraph("FINsim Financial Analysis Report", title_style))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Metadati
+    meta_text = f"<b>Scenario:</b> {metrics.get('scenario_corrente', 'N/A')}<br/><b>Date:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}<br/><b>Coverage:</b> 200 historical rounds"
+    elements.append(Paragraph(meta_text, styles['Normal']))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Analisi Esecutiva
+    elements.append(Paragraph("Executive Summary", heading_style))
+    elements.append(Paragraph(llm_analysis, normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Tabella KPI
+    elements.append(Paragraph("Key Performance Indicators", heading_style))
+    kpi_data = [
+        ['Metric', 'ADAPT (IA)', 'FISSO (Benchmark)', 'Delta'],
+        ['Cumulative Commissions (€)', f'{comm_adapt:,.0f}', f'{comm_fisso:,.0f}', f'{comm_adapt - comm_fisso:,.0f}'],
+        ['Conversion Rate (%)', f'{conv_adapt:.1f}%', f'{conv_fisso:.1f}%', f'{conv_adapt - conv_fisso:.1f}%'],
+        ['Average Trust (%)', f'{fid_adapt:.1f}%', f'{fid_fisso:.1f}%', f'{fid_adapt - fid_fisso:.1f}%'],
+        ['Total Proposals', f'{prop_adapt}', f'{prop_fisso}', f'{prop_adapt - prop_fisso}'],
+    ]
+
+    kpi_table = Table(kpi_data, colWidths=[2*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1FA463')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(kpi_table)
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Risk Metrics
+    elements.append(Paragraph("Risk & Compliance Metrics", heading_style))
+    risk_text = f"<b>Clients at Churn Risk:</b> {churn}<br/><b>MIFID/CONSOB Alerts:</b> {mifid}<br/><b>Overall Risk Level:</b> {'High' if (churn + mifid) > 10 else 'Medium' if (churn + mifid) > 5 else 'Low'}"
+    elements.append(Paragraph(risk_text, styles['Normal']))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Build PDF
+    doc.build(elements)
+
+    return FileResponse(
+        path=tmp_path,
+        media_type="application/pdf",
+        filename=f"FINsim_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     )
 
 
