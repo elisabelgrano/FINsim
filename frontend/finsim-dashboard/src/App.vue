@@ -927,35 +927,90 @@ const renderCharts = () => {
   }
 };
 
-// --- FUNZIONE PER CHIAMARE LE API (Aggiornata) ---
-const fetchData = async () => {
+// --- FUNZIONE PER CHIAMARE LE API CON ERROR HANDLING ROBUSTO ---
+const fetchWithTimeout = async (url, timeout = 5000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
-    const currentScenario = scenario.value;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+};
 
-    const resTabella = await fetch(`http://10.12.7.53:8000/api/dati-banca?scenario_id=${currentScenario}`);
-    if (resTabella.ok) {
-      const dataTabella = await resTabella.json();
-      productSales.value = dataTabella.prodotti || [];
+const fetchData = async () => {
+  console.log(`[FINsim] Caricamento dati per scenario: ${scenario.value}`);
+  const currentScenario = scenario.value;
+  const baseURL = 'http://10.12.7.53:8000';
+
+  try {
+    // 1. Fetch dati tabella banca (prodotti)
+    try {
+      console.log('[FINsim] Fetching /api/dati-banca...');
+      const resTabella = await fetchWithTimeout(`${baseURL}/api/dati-banca?scenario_id=${currentScenario}`, 8000);
+      if (resTabella.ok) {
+        const dataTabella = await resTabella.json();
+        productSales.value = dataTabella.prodotti || [];
+        console.log(`[FINsim] ✓ Prodotti caricati: ${productSales.value.length} items`);
+      } else {
+        console.warn(`[FINsim] ⚠ Endpoint dati-banca returned ${resTabella.status}`);
+      }
+    } catch (err) {
+      console.error('[FINsim] ✗ Error fetching dati-banca:', err.message);
     }
 
-    const resTrend = await fetch(`http://10.12.7.53:8000/api/trend-banca?scenario_id=${currentScenario}`);
-    if (resTrend.ok) {
-      const dataTrend = await resTrend.json();
-      trendData.value = dataTrend;
+    // 2. Fetch trend banca
+    try {
+      console.log('[FINsim] Fetching /api/trend-banca...');
+      const resTrend = await fetchWithTimeout(`${baseURL}/api/trend-banca?scenario_id=${currentScenario}`, 8000);
+      if (resTrend.ok) {
+        const dataTrend = await resTrend.json();
+        trendData.value = dataTrend;
+        console.log(`[FINsim] ✓ Trend caricato: ${dataTrend.labels?.length || 0} rounds`);
+      } else {
+        console.warn(`[FINsim] ⚠ Endpoint trend-banca returned ${resTrend.status}`);
+      }
+    } catch (err) {
+      console.error('[FINsim] ✗ Error fetching trend-banca:', err.message);
     }
 
-    const resPromotore = await fetch(`http://10.12.7.53:8000/api/dati-promotore?scenario_id=${currentScenario}`);
-    if (resPromotore.ok) {
-      datiPromotore.value = await resPromotore.json();
+    // 3. Fetch dati promotore (KPI, performance)
+    try {
+      console.log('[FINsim] Fetching /api/dati-promotore...');
+      const resPromotore = await fetchWithTimeout(`${baseURL}/api/dati-promotore?scenario_id=${currentScenario}`, 8000);
+      if (resPromotore.ok) {
+        const dataPromo = await resPromotore.json();
+        datiPromotore.value = dataPromo;
+        console.log(`[FINsim] ✓ Dati promotore caricati: ${dataPromo.adapt?.commissioni_cumulate || 0}€ ADAPT`);
+      } else {
+        console.warn(`[FINsim] ⚠ Endpoint dati-promotore returned ${resPromotore.status}`);
+      }
+    } catch (err) {
+      console.error('[FINsim] ✗ Error fetching dati-promotore:', err.message);
     }
 
-    const resGrafici = await fetch(`http://10.12.7.53:8000/api/dati-promotore-grafici?scenario_id=${currentScenario}`);
-    if (resGrafici.ok) {
-      datiGraficiPromotore.value = await resGrafici.json();
+    // 4. Fetch grafici promotore
+    try {
+      console.log('[FINsim] Fetching /api/dati-promotore-grafici...');
+      const resGrafici = await fetchWithTimeout(`${baseURL}/api/dati-promotore-grafici?scenario_id=${currentScenario}`, 8000);
+      if (resGrafici.ok) {
+        const dataGrafici = await resGrafici.json();
+        datiGraficiPromotore.value = dataGrafici;
+        console.log(`[FINsim] ✓ Dati grafici caricati: ${dataGrafici.labels?.length || 0} rounds`);
+      } else {
+        console.warn(`[FINsim] ⚠ Endpoint dati-promotore-grafici returned ${resGrafici.status}`);
+      }
+    } catch (err) {
+      console.error('[FINsim] ✗ Error fetching dati-promotore-grafici:', err.message);
     }
+
+    console.log(`[FINsim] ✓ Caricamento dati completato`);
 
   } catch (error) {
-    console.error("Errore di connessione a FastAPI:", error);
+    console.error("[FINsim] Errore generale nel caricamento dati:", error);
   }
 };
 
@@ -1097,15 +1152,49 @@ const exportToPPTX = async () => {
 
 // --- LIFECYCLE HOOKS ---
 onMounted(async () => {
+  console.log('[FINsim] 🚀 App mounted - caricamento dati iniziale...');
+  console.log(`[FINsim] Scenario iniziale: ${scenario.value}`);
+
   await fetchData();
-  renderCharts();
+
+  console.log('[FINsim] ✓ Dati caricati, renderizzazione grafici...');
+  await nextTick(() => renderCharts());
+
+  console.log('[FINsim] ✓ Dashboard pronta!');
 });
 
-// Quando cambia la vista o lo scenario, ricarica i grafici e/o i dati
-watch(view, () => nextTick(() => renderCharts()));
-watch(scenario, async () => {
-  await fetchData(); // Se cambi scenario a sinistra, ri-pesca da Mongo!
+// Quando cambia la vista, ri-renderizza i grafici
+watch(view, () => {
+  console.log(`[FINsim] 👁️ Vista cambiata a: ${view.value}`);
   nextTick(() => renderCharts());
+});
+
+// Quando cambia lo scenario, ricarica TUTTI i dati da MongoDB
+watch(scenario, async (newScenario, oldScenario) => {
+  console.log(`[FINsim] 🔄 Scenario cambiato: ${oldScenario} → ${newScenario}`);
+  console.log('[FINsim] 📊 Ricaricando tutti i dati da MongoDB...');
+
+  // Reset di tutti i dati prima di fare il fetch
+  productSales.value = [];
+  trendData.value = { labels: [], adattivo: [], fisso: [] };
+  datiPromotore.value = {
+    status: 'loading',
+    adapt: { strategia_consigliata: '', approccio_comunicativo: '', commissioni_cumulate: 0, tasso_conversione_pct: 0, fiducia_media: 0, proposte_totali: 0, tags: [] },
+    fisso: { commissioni_cumulate: 0, tasso_conversione_pct: 0, fiducia_media: 0, proposte_totali: 0 },
+    risk_profile_breakdown: [],
+    product_breakdown: [],
+    alerts: { churn_risk_count: 0, mifid_alerts_count: 0 },
+    next_best_actions: []
+  };
+  datiGraficiPromotore.value = { labels: [], compliance_adapt: [], compliance_fisso: [], accettate_adapt: [], accettate_fisso: [] };
+
+  // Fetch dati per il nuovo scenario
+  await fetchData();
+
+  // Renderizza i grafici con i nuovi dati
+  await nextTick(() => renderCharts());
+
+  console.log(`[FINsim] ✓ Dashboard aggiornata per scenario ${newScenario}`);
 });
 
 onBeforeUnmount(() => chartInstances.forEach(c => c.destroy()));

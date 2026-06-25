@@ -15,7 +15,6 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
-from xhtml2pdf import HTML
 import tempfile
 
 app = FastAPI(
@@ -766,115 +765,6 @@ async def chat_with_advisor(request: AdvisorRequest) -> AdvisorResponse:
         user_message=request.user_message
     )
     return response
-
-
-@app.post("/api/advisor/export-pdf", tags=["advisor"])
-async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
-    """Generate PDF report with advisor analysis and metrics."""
-    metrics = request.metrics_data
-    current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-    html_content = f"""
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
-            .header {{ border-bottom: 3px solid #1FA463; padding-bottom: 15px; margin-bottom: 30px; }}
-            .logo {{ font-size: 24px; font-weight: bold; color: #1FA463; }}
-            .subtitle {{ font-size: 12px; color: #666; margin-top: 5px; }}
-            .section {{ margin-bottom: 25px; }}
-            .section-title {{ font-size: 14px; font-weight: bold; color: #1FA463; text-transform: uppercase; border-left: 3px solid #1FA463; padding-left: 10px; margin-bottom: 10px; }}
-            .metric-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }}
-            .metric-label {{ font-weight: bold; color: #333; }}
-            .metric-value {{ color: #1FA463; font-weight: bold; }}
-            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
-            th {{ background-color: #f5f5f5; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #ddd; }}
-            td {{ padding: 8px 10px; border: 1px solid #ddd; }}
-            .adapt-col {{ color: #1FA463; }}
-            .fisso-col {{ color: #2E6FD6; }}
-            .footer {{ margin-top: 40px; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 15px; }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <div class="logo">FINsim</div>
-            <div class="subtitle">Financial Simulation Platform | Report Generato: {current_date}</div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">Scenario Corrente</div>
-            <div class="metric-row">
-                <span class="metric-label">Scenario:</span>
-                <span class="metric-value">{metrics.get('scenario_corrente', 'N/A')}</span>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">KPI Aggregati</div>
-            <table>
-                <tr>
-                    <th>Metrica</th>
-                    <th class="adapt-col">ADAPT (IA)</th>
-                    <th class="fisso-col">FISSO (Benchmark)</th>
-                    <th>Differenza</th>
-                </tr>
-                <tr>
-                    <td>Commissioni Cumulate (€)</td>
-                    <td class="adapt-col">{metrics.get('commissioni_cumulate_adapt', 0):,.0f}</td>
-                    <td class="fisso-col">{metrics.get('commissioni_cumulate_fisso', 0):,.0f}</td>
-                    <td>{metrics.get('commissioni_cumulate_adapt', 0) - metrics.get('commissioni_cumulate_fisso', 0):,.0f}</td>
-                </tr>
-                <tr>
-                    <td>Tasso di Conversione (%)</td>
-                    <td class="adapt-col">{metrics.get('tasso_conversione_adapt_pct', 0):.1f}%</td>
-                    <td class="fisso-col">{metrics.get('tasso_conversione_fisso_pct', 0):.1f}%</td>
-                    <td>{metrics.get('tasso_conversione_adapt_pct', 0) - metrics.get('tasso_conversione_fisso_pct', 0):.1f}%</td>
-                </tr>
-                <tr>
-                    <td>Fiducia Media (%)</td>
-                    <td class="adapt-col">{metrics.get('fiducia_media_adapt', 0):.1f}%</td>
-                    <td class="fisso-col">{metrics.get('fiducia_media_fisso', 0):.1f}%</td>
-                    <td>{metrics.get('fiducia_media_adapt', 0) - metrics.get('fiducia_media_fisso', 0):.1f}%</td>
-                </tr>
-                <tr>
-                    <td>Proposte Totali</td>
-                    <td class="adapt-col">{metrics.get('proposte_totali_adapt', 0)}</td>
-                    <td class="fisso-col">{metrics.get('proposte_totali_fisso', 0)}</td>
-                    <td>{metrics.get('proposte_totali_adapt', 0) - metrics.get('proposte_totali_fisso', 0)}</td>
-                </tr>
-            </table>
-        </div>
-
-        <div class="section">
-            <div class="section-title">Alert e Rischi</div>
-            <div class="metric-row">
-                <span class="metric-label">Rischio Churn:</span>
-                <span class="metric-value">{metrics.get('churn_risk_count', 0)} clienti</span>
-            </div>
-            <div class="metric-row">
-                <span class="metric-label">Alert MIFID:</span>
-                <span class="metric-value">{metrics.get('mifid_alerts_count', 0)} anomalie</span>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Questo report è stato generato automaticamente dalla piattaforma FINsim in data {current_date}.</p>
-            <p>Per domande o chiarimenti, contattare l'amministratore di sistema.</p>
-        </div>
-    </body>
-    </html>
-    """
-
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        HTML(string=html_content).write_pdf(tmp.name)
-        tmp_path = tmp.name
-
-    return FileResponse(
-        path=tmp_path,
-        media_type="application/pdf",
-        filename=f"FINsim_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    )
 
 
 @app.post("/api/advisor/export-pptx", tags=["advisor"])
