@@ -33,7 +33,10 @@
     <main class="main-content">
       <header class="topbar">
         <div class="breadcrumb">Simulazione Base / {{ view.charAt(0).toUpperCase() + view.slice(1) }}</div>
-        <div class="user-profile"></div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <button @click="showHelpModal = true" class="help-btn">❓ Guida & Legenda</button>
+          <div class="user-profile"></div>
+        </div>
       </header>
 
       <div class="content-area">
@@ -70,8 +73,27 @@
               <span>Il Copilota sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
-              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
               <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+              <div v-if="aiResponseCharts && aiResponseCharts.length > 0" class="recommended-charts">
+                <div class="charts-header">📊 Grafici Consigliati:</div>
+                <div class="charts-pills">
+                  <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
+                    <span class="chart-code">{{ chart.codice }}</span>
+                    <span class="chart-caption">{{ chart.didascalia }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="advisor-rating">
+                <span class="rating-label">Utile?</span>
+                <div class="stars">
+                  <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
+                </div>
+              </div>
+              <div class="export-buttons">
+                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
+                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
+              </div>
             </div>
           </div>
 
@@ -145,13 +167,21 @@
               <h3>Raccolta Netta — Trend</h3>
             </div>
             <div class="chart-container"><canvas id="bRaccolta"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> L'asse X mostra l'evoluzione su <strong>200 Round storici</strong>, l'asse Y la Raccolta Netta Cumulata in milioni di euro. La linea verde (ADAPT) riflette la strategia adattiva, la linea blu (FISSO) il benchmark fisso.
+              <strong>Deduzione:</strong> Una divergenza positiva di ADAPT rispetto a FISSO indica che l'approccio personalizzato sta generando maggior valore costante sul lungo periodo. Livelli plateau suggeriscono necessità di ricalibrazione della Direttiva.
+            </div>
           </div>
-          
+
           <div class="panel" style="grid-column: span 4;">
             <div class="panel-header">
               <h3>Target Direttiva vs Attuale</h3>
             </div>
             <div class="chart-container"><canvas id="bRadar"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> Questo grafico radar mostra 5 dimensioni strategiche (Bond Corporate, Monetario, Azionario, Illiquidi, Gov Bond). La linea grigia tratteggiata rappresenta il Target della Direttiva, la linea blu il Portafoglio Effettivo.
+              <strong>Deduzione:</strong> Quando il blu è dentro il grigio, il portafoglio è allineato. Sporgenze indicano sovraesposizioni; rientranze indicano sottodimensionamenti rispetto alla strategia pianificata.
+            </div>
           </div>
         </div>
 
@@ -187,8 +217,27 @@
               <span>Il Copilota sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
-              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
               <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+              <div v-if="aiResponseCharts && aiResponseCharts.length > 0" class="recommended-charts">
+                <div class="charts-header">📊 Grafici Consigliati:</div>
+                <div class="charts-pills">
+                  <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
+                    <span class="chart-code">{{ chart.codice }}</span>
+                    <span class="chart-caption">{{ chart.didascalia }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="advisor-rating">
+                <span class="rating-label">Utile?</span>
+                <div class="stars">
+                  <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
+                </div>
+              </div>
+              <div class="export-buttons">
+                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
+                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
+              </div>
             </div>
           </div>
 
@@ -391,11 +440,19 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Adeguatezza Media per Round</h3></div>
             <div class="chart-container"><canvas id="pCompliance"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong>, l'asse Y la percentuale di adeguatezza (0-100%). La linea verde (ADAPT) rappresenta l'approccio personalizzato, la linea blu tratteggiata (FISSO) il benchmark.
+              <strong>Deduzione:</strong> Se ADAPT supera FISSO, la strategia adattiva sta migliorando l'allineamento prodotto-cliente. Un trend decrescente suggerisce di rivedere la Direttiva.
+            </div>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Proposte Accettate per Round</h3></div>
             <div class="chart-container"><canvas id="pAccept"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong>, l'asse Y il numero di proposte accettate. Le barre verdi (ADAPT) e blu (FISSO) sono sovrapposte per un confronto immediato.
+              <strong>Deduzione:</strong> Un volume ADAPT sistematicamente più alto indica maggiore efficacia della strategia personalizzata. Picchi anomali suggeriscono fattori di mercato esterni.
+            </div>
           </div>
         </div>
 
@@ -431,8 +488,27 @@
               <span>Il Copilota sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
-              <div class="response-brief">{{ aiResponseBrief }}</div>
+              <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
               <div v-if="aiResponseDetail" class="response-detail">{{ aiResponseDetail }}</div>
+              <div v-if="aiResponseCharts && aiResponseCharts.length > 0" class="recommended-charts">
+                <div class="charts-header">📊 Grafici Consigliati:</div>
+                <div class="charts-pills">
+                  <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
+                    <span class="chart-code">{{ chart.codice }}</span>
+                    <span class="chart-caption">{{ chart.didascalia }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="advisor-rating">
+                <span class="rating-label">Utile?</span>
+                <div class="stars">
+                  <span v-for="star in 5" :key="star" @click="setAdvisorRating(star)" :class="['star', { active: aiRating >= star }]">★</span>
+                </div>
+              </div>
+              <div class="export-buttons">
+                <button @click="exportToPDF" class="export-btn pdf-btn">📄 Esporta PDF</button>
+                <button @click="exportToPPTX" class="export-btn pptx-btn">🎬 Genera PPTX</button>
+              </div>
             </div>
           </div>
 
@@ -476,31 +552,94 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Evoluzione Fiducia</h3></div>
             <div class="chart-container"><canvas id="cFiducia"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Round</strong> storici, l'asse Y la percentuale di fiducia media del cliente (0-100%). La linea viola piena con area sottostante illustra il trend macro nel tempo.
+              <strong>Deduzione:</strong> Un trend macro in crescita indica comunicazione efficace e soddisfazione aumentante del cliente. Cali improvvisi segnalano perdite di confidenza dovute a mercati avversi o inadeguatezze percepite nel portafoglio.
+            </div>
           </div>
-          
+
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Allineamento Profilo vs Portafoglio</h3></div>
             <div class="chart-container"><canvas id="cRadar"></canvas></div>
+            <div class="chart-static-caption">
+              <strong>Come leggere:</strong> Questo grafico radar radar mostra 5 dimensioni di preferenza cliente (Rischio, Orizzonte, Liquidità, Rendimento, Conoscenza). La linea blu e la linea verde mostrano rispettivamente lo stato effettivo e quello adattivo.
+              <strong>Deduzione:</strong> Quando le aree colorate coincidono, il profilo del cliente è pienamente soddisfatto. Discrepanze suggeriscono necessità di ribilanciamento o comunicazione aggiuntiva circa il razionale delle scelte di portafoglio.
+            </div>
           </div>
         </div>
 
       </div>
     </main>
+
+    <!-- MODAL: Guida & Legenda -->
+    <div v-if="showHelpModal" class="help-modal" @click.self="showHelpModal = false">
+      <div class="modal-content">
+        <button @click="showHelpModal = false" class="modal-close-btn">✕</button>
+
+        <h2 class="modal-title">📚 Guida & Legenda FINsim</h2>
+
+        <div class="modal-section">
+          <h3>🎯 Sezione 1: Come Usare la Piattaforma</h3>
+          <p><strong>Selezione Scenario:</strong> Usa i pulsanti nella sidebar sinistra per passare tra S0 (Baseline), S1 (Espansione), S2 (Rialzo Tassi), S3 (Stress) e S4 (Biforcazione). Ogni scenario modella un regime macroeconomico diverso.</p>
+          <p><strong>Viste Operative:</strong> Puoi passare tra tre viste analitiche:</p>
+          <ul>
+            <li><strong>Banca:</strong> Dati a livello di istituzione (raccolta netta, portfolio allocation, adeguatezza globale).</li>
+            <li><strong>Promotore:</strong> Metriche di performance della strategia ADAPT vs FISSO (conversioni, commissioni, alert).</li>
+            <li><strong>Cliente:</strong> Prospettiva del cliente: fiducia, soddisfazione, allineamento profilo.</li>
+          </ul>
+          <p><strong>Copilota IA:</strong> Poni domande specifiche al Copilota per ricevere analisi tattica personalizzata. Usa le "Pillole Rapide" per domande predefinite. Valuta la risposta con le 5 stelle: se voto ≤ 2, il Copilota rigenerera una risposta alternativa.</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>🧠 Sezione 2: Leggere i Dati — Concetti Fondamentali</h3>
+          <p><strong>200 Round Storici:</strong> FINsim simula 20 round decisionali per 5 scenari (S0-S4), generando 100 interazioni cliente × strategia. Ogni round rappresenta un momento decisionale dove il promotore sceglie un approccio (ADAPT personalizzato o FISSO benchmark).</p>
+          <p><strong>Swarm Intelligence (ADAPT):</strong> La strategia ADAPT usa un'IA generativa (Qwen 2.5 32B) per produrre direttive bancarie dinamiche e personalizzate per promotori (Qwen 2.5 3B), rispetto al benchmark FISSO statico. Osserva come ADAPT evolve nel tempo.</p>
+          <p><strong>KPI Chiave:</strong></p>
+          <ul>
+            <li><strong>Tasso di Conversione:</strong> % di proposte accettate dai clienti.</li>
+            <li><strong>Commissioni Cumulate:</strong> Ricavi generati (1% su volume 100k€/cliente).</li>
+            <li><strong>Fiducia Media:</strong> Sentiment del cliente post-proposta (0-100%).</li>
+            <li><strong>Adeguatezza:</strong> Allineamento prodotto-profilo cliente (0-100%).</li>
+            <li><strong>Churn Risk / MIFID Alert:</strong> Anomalie di fiducia o adeguatezza che richiedono intervento.</li>
+          </ul>
+        </div>
+
+        <div class="modal-section">
+          <h3>📊 Sezione 3: Legenda Grafici</h3>
+          <p><strong>Colori Standard:</strong> Verde (#1FA463) = ADAPT/Positivo, Blu (#2E6FD6) = FISSO/Benchmark, Arancione (#E0922F) = Avvertenza, Rosso (#D64242) = Critico.</p>
+          <p><strong>Tipologie Grafici Comuni:</strong></p>
+          <ul>
+            <li><strong>Linea:</strong> Trend temporale (Round 1-20). Confronto ADAPT vs FISSO su una metrica continua.</li>
+            <li><strong>Barre:</strong> Volume o conteggio per categoria. Barre sovrapposte per A/B test ADAPT vs FISSO.</li>
+            <li><strong>Radar:</strong> Profilo multi-dimensionale. Area interna = obiettivo/target. Area esterna = attuale/scostamento.</li>
+            <li><strong>Heatmap:</strong> Intensità di performance per cluster (asse X: Patrimonio, asse Y: Rischio). Verde = dominio ADAPT, Rosso = dominio FISSO.</li>
+          </ul>
+          <p><strong>Interpretazione Rapida:</strong> Se una linea sale, la metrica migliora. Se ADAPT supera FISSO, la strategia personalizzata sta vincendo. Picchi anomali suggeriscono shock di mercato; consulta il regime macroeconomico nel panel "Regime di Mercato".</p>
+        </div>
+
+        <button @click="showHelpModal = false" class="modal-close-main-btn">Chiudi Guida</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import Chart from 'chart.js/auto';
+import html2pdf from 'html2pdf.js';
 
 // --- STATO ---
 const view = ref('banca'); // Partiamo dalla vista banca
 const scenario = ref('S0'); // Impostiamo a S0 visto che i tuoi dati su Mongo sono S0
 let chartInstances = [];
 const isAdvisorLoading = ref(false);
+const showHelpModal = ref(false);
 const aiResponseBrief = ref('');
 const aiResponseDetail = ref('');
+const aiResponseCharts = ref([]);
+const aiRating = ref(0);
 const searchQuery = ref('');
+let lastUserMessage = '';
 
 // --- VARIABILI REATTIVE PER I DATI MONGODB ---
 const productSales = ref([]);
@@ -643,6 +782,7 @@ const handleSearchKeydown = (e) => {
 };
 
 // --- LOGICA GRAFICI ---
+// --- LOGICA GRAFICI ---
 const renderCharts = () => {
   chartInstances.forEach(c => c.destroy());
   chartInstances = [];
@@ -650,86 +790,79 @@ const renderCharts = () => {
   const ADAPT = '#178A57', FISSO = '#2E6FD6', LLM = '#7C3AED', TARGET = '#8593A8';
   const baseCfg = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
   
+  // Configurazione globale per snellire l'asse X sui 200 round
+  const xAxisConfig = {
+    x: {
+      ticks: {
+        autoSkip: true,
+        maxTicksLimit: 12, // Mostra al massimo 12 etichette (es. R1, R18, R35...)
+        color: '#8593A8'
+      },
+      grid: { display: false }
+    }
+  };
+  
   const mkChart = (id, config) => {
     const el = document.getElementById(id);
     if (el) chartInstances.push(new Chart(el, config));
   };
 
   if (view.value === 'promotore') {
-    // COMPLIANCE: Adeguatezza media per round (ADAPT vs FISSO)
+    // COMPLIANCE
     mkChart('pCompliance', {
       type: 'line',
       data: {
-        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:20}, (_,i)=>'R'+(i+1)),
+        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)),
         datasets: [
-          {
-            label: 'ADAPT (IA)',
-            data: datiGraficiPromotore.value.compliance_adapt.length ? datiGraficiPromotore.value.compliance_adapt : Array.from({length:20}, ()=>Math.random()*20 + 70),
-            borderColor: ADAPT,
-            backgroundColor: 'rgba(23,138,87,.05)',
-            fill: true,
-            tension: 0.3,
-            borderWidth: 2
-          },
-          {
-            label: 'FISSO (Benchmark)',
-            data: datiGraficiPromotore.value.compliance_fisso.length ? datiGraficiPromotore.value.compliance_fisso : Array.from({length:20}, ()=>80),
-            borderColor: FISSO,
-            borderDash: [5, 4],
-            backgroundColor: 'rgba(46,111,214,.05)',
-            fill: true,
-            tension: 0.3,
-            borderWidth: 2
-          }
+          { label: 'ADAPT (IA)', data: datiGraficiPromotore.value.compliance_adapt.length ? datiGraficiPromotore.value.compliance_adapt : Array.from({length:200}, ()=>Math.random()*20 + 70), borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
+          { label: 'FISSO (Benchmark)', data: datiGraficiPromotore.value.compliance_fisso.length ? datiGraficiPromotore.value.compliance_fisso : Array.from({length:200}, ()=>80), borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
         ]
       },
-      options: {
-        ...baseCfg,
-        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
-        scales: { y: { min: 0, max: 100 } }
-      }
+      options: { ...baseCfg, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { x: xAxisConfig.x, y: { min: 0, max: 100 } } }
     });
 
-    // ACCETTATE: Proposte accettate per round (stacked bar ADAPT vs FISSO)
+    // ACCETTATE
     mkChart('pAccept', {
       type: 'bar',
       data: {
-        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:20}, (_,i)=>'R'+(i+1)),
+        labels: datiGraficiPromotore.value.labels.length ? datiGraficiPromotore.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)),
         datasets: [
-          {
-            label: 'Accettate ADAPT',
-            data: datiGraficiPromotore.value.accettate_adapt.length ? datiGraficiPromotore.value.accettate_adapt : Array.from({length:20}, ()=>Math.random()*10 + 5),
-            backgroundColor: '#1E9E63'
-          },
-          {
-            label: 'Accettate FISSO',
-            data: datiGraficiPromotore.value.accettate_fisso.length ? datiGraficiPromotore.value.accettate_fisso : Array.from({length:20}, ()=>Math.random()*5 + 2),
-            backgroundColor: '#2E6FD6'
-          }
+          { label: 'Accettate ADAPT', data: datiGraficiPromotore.value.accettate_adapt.length ? datiGraficiPromotore.value.accettate_adapt : Array.from({length:200}, ()=>Math.random()*10 + 5), backgroundColor: '#1E9E63' },
+          { label: 'Accettate FISSO', data: datiGraficiPromotore.value.accettate_fisso.length ? datiGraficiPromotore.value.accettate_fisso : Array.from({length:200}, ()=>Math.random()*5 + 2), backgroundColor: '#2E6FD6' }
         ]
       },
-      options: { ...baseCfg, indexAxis: undefined, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+      options: { ...baseCfg, scales: { x: xAxisConfig.x }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
     });
 
   } else if (view.value === 'banca') {
-    
-    // GRAFICO RACCOLTA ALIMENTATO DA MONGODB
+    // RACCOLTA
     mkChart('bRaccolta', { 
       type: 'line', 
       data: { 
-        labels: trendData.value.labels.length ? trendData.value.labels : Array.from({length:20}, (_,i)=>'R'+(i+1)), 
+        labels: trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'R'+(i+1)), 
         datasets: [ 
-          { data: trendData.value.adattivo.length ? trendData.value.adattivo : Array.from({length:20}, ()=>Math.random()*10 + 10), borderColor: ADAPT, tension: 0.4 }, 
-          { data: trendData.value.fisso.length ? trendData.value.fisso : Array.from({length:20}, ()=>Math.random()*5 + 8), borderColor: FISSO, borderDash: [5, 4], tension: 0.4 } 
+          { data: trendData.value.adattivo.length ? trendData.value.adattivo : Array.from({length:200}, ()=>Math.random()*10 + 10), borderColor: ADAPT, tension: 0.4 }, 
+          { data: trendData.value.fisso.length ? trendData.value.fisso : Array.from({length:200}, ()=>Math.random()*5 + 8), borderColor: FISSO, borderDash: [5, 4], tension: 0.4 } 
         ] 
       }, 
-      options: baseCfg 
+      options: { ...baseCfg, scales: { x: xAxisConfig.x } } 
     });
     
+    // RADAR BANCA (Nessun asse X limitato richiesto qui)
     mkChart('bRadar', { type: 'radar', data: { labels: ['Bond Corp', 'Monetario', 'Azionario', 'Illiquidi', 'Gov Bond'], datasets: [{ label: 'Target Direttiva', data: [80, 90, 20, 10, 85], borderColor: TARGET, borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0 }, { label: 'Portafoglio Attuale', data: [65, 80, 35, 15, 70], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.18)', borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { r: { suggestedMin: 0, suggestedMax: 100 } } } });
   
   } else if (view.value === 'cliente') {
-    mkChart('cFiducia', { type: 'line', data: { labels: Array.from({length:15}, (_,i)=>'R'+(i+1)), datasets: [{ data: Array.from({length:15}, ()=>Math.random()*40 + 20), borderColor: LLM, backgroundColor: 'rgba(124,58,237,.10)', fill: true, tension: 0.4 }] }, options: baseCfg });
+    // FIDUCIA
+    mkChart('cFiducia', { 
+      type: 'line', 
+      data: { 
+        labels: Array.from({length:200}, (_,i)=>'R'+(i+1)), // Cambiato anche qui a 200
+        datasets: [{ data: Array.from({length:200}, ()=>Math.random()*40 + 20), borderColor: LLM, backgroundColor: 'rgba(124,58,237,.10)', fill: true, tension: 0.4 }] 
+      }, 
+      options: { ...baseCfg, scales: { x: xAxisConfig.x } } 
+    });
+    
+    // RADAR CLIENTE
     mkChart('cRadar', { type: 'radar', data: { labels: ['Rischio', 'Orizz.', 'Liq.', 'Rend.', 'Conosc.'], datasets: [{ data: [30, 70, 80, 45, 55], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.16)' }, { data: [35, 68, 85, 50, 55], borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.16)' }] }, options: baseCfg });
   }
 };
@@ -767,17 +900,38 @@ const fetchData = async () => {
 };
 
 // --- FUNZIONE ADVISOR IA ---
-const inviaRichiestaAdvisor = async (messaggioUtente) => {
+const inviaRichiestaAdvisor = async (messaggioUtente, isRetry = false) => {
   if (!messaggioUtente.trim()) return;
 
   isAdvisorLoading.value = true;
   aiResponseBrief.value = '';
   aiResponseDetail.value = '';
+  aiResponseCharts.value = [];
+  aiRating.value = 0;
+  lastUserMessage = messaggioUtente;
 
   try {
+    let finalMessage = messaggioUtente;
+    if (isRetry) {
+      finalMessage = messaggioUtente + " [NOTA: L'utente ha valutato negativamente la risposta. Fornisci un'analisi completamente diversa, più chiara e focalizzati su altri aspetti strategici.]";
+    }
+
     const payload = {
-      metrics_data: datiPromotore.value,
-      user_message: messaggioUtente
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        churn_risk_count: datiPromotore.value.alerts?.churn_risk_count || 0,
+        mifid_alerts_count: datiPromotore.value.alerts?.mifid_alerts_count || 0,
+        nota: "Dati aggregati di sintesi. Non includere array di clienti o log estesi."
+      },
+      user_message: finalMessage
     };
 
     const res = await fetch('http://10.12.7.53:8000/api/advisor/chat', {
@@ -788,8 +942,9 @@ const inviaRichiestaAdvisor = async (messaggioUtente) => {
 
     if (res.ok) {
       const data = await res.json();
-      aiResponseBrief.value = data.brief || 'Analisi completata.';
-      aiResponseDetail.value = data.detail || '';
+      aiResponseBrief.value = data.suggerimento_breve || 'Analisi completata.';
+      aiResponseDetail.value = data.dettaglio_risposta || '';
+      aiResponseCharts.value = data.grafici_consigliati || [];
     } else {
       aiResponseBrief.value = 'Errore nella richiesta al Copilota. Riprovare.';
     }
@@ -799,6 +954,84 @@ const inviaRichiestaAdvisor = async (messaggioUtente) => {
   } finally {
     isAdvisorLoading.value = false;
     searchQuery.value = '';
+  }
+};
+
+const setAdvisorRating = async (stars) => {
+  aiRating.value = stars;
+  if (stars <= 2) {
+    alert('Risposta insoddisfacente. L\'IA sta rigenerando un\'analisi alternativa...');
+    await inviaRichiestaAdvisor(lastUserMessage, true);
+  }
+};
+
+const exportToPDF = async () => {
+  try {
+    const element = document.querySelector('.dashboard-grid');
+    if (!element) {
+      alert('❌ Dashboard grid non trovato');
+      return;
+    }
+
+    const opt = {
+      margin: 10,
+      filename: `FINsim_Dashboard_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+    alert('✅ PDF esportato con successo!');
+  } catch (error) {
+    console.error("Errore nell'esportazione PDF:", error);
+    alert('Errore di connessione. Verificare il backend.');
+  }
+};
+
+const exportToPPTX = async () => {
+  try {
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        churn_risk_count: datiPromotore.value.alerts?.churn_risk_count || 0,
+        mifid_alerts_count: datiPromotore.value.alerts?.mifid_alerts_count || 0,
+        nota: "Esportazione PPTX"
+      },
+      user_message: aiResponseBrief.value
+    };
+
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/export-pptx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `FINsim_Presentation_${new Date().toISOString().split('T')[0]}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('✅ Presentazione PPTX generata con successo!');
+    } else {
+      alert('❌ Errore nella generazione della presentazione');
+    }
+  } catch (error) {
+    console.error("Errore nella generazione PPTX:", error);
+    alert('Errore di connessione. Verificare il backend.');
   }
 };
 
@@ -1218,6 +1451,298 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
   line-height: 1.5;
   padding-top: 8px;
   border-top: 1px solid rgba(31, 164, 99, 0.1);
+}
+
+/* Didascalie Fisse ai Grafici */
+.chart-static-caption {
+  font-size: 12px;
+  color: #8593A8;
+  line-height: 1.6;
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: rgba(31, 164, 99, 0.05);
+  border-left: 2px solid #1FA463;
+  border-radius: 2px;
+}
+
+.chart-static-caption strong {
+  color: #1FA463;
+  font-weight: 600;
+}
+
+/* Grafici Consigliati dall'IA */
+.recommended-charts {
+  padding-top: 12px;
+  border-top: 1px solid rgba(31, 164, 99, 0.1);
+  margin-top: 12px;
+}
+
+.charts-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1FA463;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.charts-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-pill {
+  background: rgba(31, 164, 99, 0.08);
+  border: 1px solid rgba(31, 164, 99, 0.2);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart-code {
+  font-weight: 600;
+  color: #1FA463;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.chart-caption {
+  color: #C7D5E6;
+  font-size: 11px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Rating a 5 Stelle */
+.advisor-rating {
+  padding-top: 12px;
+  border-top: 1px solid rgba(31, 164, 99, 0.1);
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rating-label {
+  font-size: 12px;
+  color: #8593A8;
+  font-weight: 600;
+}
+
+.stars {
+  display: flex;
+  gap: 4px;
+}
+
+.star {
+  font-size: 18px;
+  color: #5C6F86;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.star:hover {
+  color: #FFD700;
+  transform: scale(1.2);
+}
+
+.star.active {
+  color: #FFD700;
+}
+
+/* Pulsante Guida nella Topbar */
+.help-btn {
+  background: rgba(31, 164, 99, 0.1);
+  border: 1px solid rgba(31, 164, 99, 0.2);
+  border-radius: 6px;
+  color: #1FA463;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.help-btn:hover {
+  background: rgba(31, 164, 99, 0.15);
+  border-color: rgba(31, 164, 99, 0.3);
+}
+
+/* Modal Overlay */
+.help-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  background: #111A24;
+  border: 1px solid #1C2B3A;
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 700px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #8593A8;
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.modal-close-btn:hover {
+  color: #FFFFFF;
+}
+
+.modal-title {
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  letter-spacing: 0.5px;
+}
+
+.modal-section {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(28, 43, 58, 0.5);
+}
+
+.modal-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.modal-section h3 {
+  color: #1FA463;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 12px;
+}
+
+.modal-section p {
+  color: #C7D5E6;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.modal-section ul {
+  list-style-position: inside;
+  margin-left: 12px;
+}
+
+.modal-section li {
+  color: #C7D5E6;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.modal-section strong {
+  color: #E2E8F0;
+  font-weight: 600;
+}
+
+.modal-close-main-btn {
+  width: 100%;
+  background: #1FA463;
+  border: none;
+  color: #000000;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 16px;
+  font-family: inherit;
+}
+
+.modal-close-main-btn:hover {
+  background: #16A34A;
+  transform: translateY(-1px);
+}
+
+/* Pulsanti di Esportazione */
+.export-buttons {
+  padding-top: 12px;
+  border-top: 1px solid rgba(31, 164, 99, 0.1);
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.export-btn {
+  flex: 1;
+  min-width: 120px;
+  background: rgba(31, 164, 99, 0.12);
+  border: 1px solid rgba(31, 164, 99, 0.25);
+  border-radius: 6px;
+  color: #1FA463;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.export-btn:hover {
+  background: rgba(31, 164, 99, 0.2);
+  border-color: rgba(31, 164, 99, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(31, 164, 99, 0.2);
+}
+
+.export-btn:active {
+  transform: translateY(0);
+}
+
+.export-btn.pdf-btn {
+  background: rgba(31, 164, 99, 0.12);
+  color: #1FA463;
+}
+
+.export-btn.pptx-btn {
+  background: rgba(255, 213, 0, 0.1);
+  border-color: rgba(255, 213, 0, 0.25);
+  color: #FFD700;
+}
+
+.export-btn.pptx-btn:hover {
+  background: rgba(255, 213, 0, 0.15);
+  border-color: rgba(255, 213, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(255, 213, 0, 0.2);
 }
 
 </style>

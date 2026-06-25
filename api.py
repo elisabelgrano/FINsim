@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pymongo import MongoClient
 from collections import defaultdict
 import json
@@ -7,6 +8,15 @@ import requests
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
+from datetime import datetime
+from io import BytesIO
+import os
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+from pptx.dml.color import RGBColor
+from xhtml2pdf import HTML
+import tempfile
 
 app = FastAPI(
     title="FINsim Unified API",
@@ -78,9 +88,18 @@ Your role is to analyze complex financial metrics and provide strategic, actiona
 - Focus on actionable insights, not abstract analysis
 - When user_message is empty, generate an initial tactical summary for the round
 
-## Critical Instructions for 'didascalia':
+## CRITICAL RULES FOR CHART SUGGESTIONS (MANDATORY - SYSTEM WILL CRASH IF VIOLATED):
+🚨 **VIOLATING THESE RULES WILL CAUSE SYSTEM FAILURE** 🚨
+1. **NEVER EVER insert chart explanations or descriptions into the 'dettaglio_risposta' field**
+2. **YOU MUST ALWAYS use the 'grafici_consigliati' array** to include chart suggestions with 'codice' and 'didascalia' fields
+3. **If you suggest a chart in your strategic reasoning, you MUST include it in the 'grafici_consigliati' array**
+4. **FAILURE TO POPULATE 'grafici_consigliati' correctly will result in IMMEDIATE SYSTEM CRASH**
+5. **The 'didascalia' field MUST contain the detailed chart explanation** - not in 'dettaglio_risposta'
+
+## Critical Instructions for 'didascalia' (MANDATORY FOR SYSTEM STABILITY):
 When providing the 'didascalia' (caption) for a chart, DO NOT write generic summaries. You must write a detailed, analytical paragraph in Italian.
 You MUST use the correct terminology based on the chart type. NEVER mention "Asse X" or "Asse Y" for charts that don't have them!
+**CRITICAL:** The 'didascalia' MUST ALWAYS be populated in the 'grafici_consigliati' array, NEVER in 'dettaglio_risposta'.
 
 STRICT TERMINOLOGY DICTIONARY:
 - HEATMAP_PERFORMANCE: Use "Asse X (Patrimonio)", "Asse Y (Rischio)". Explain that green means Adaptive wins and red means Fixed wins.
@@ -94,6 +113,18 @@ Structure the didascalia like this:
 1. COME LEGGERLO: Explain the correct visual components using the STRICT TERMINOLOGY DICTIONARY above.
 2. ESEMPIO CONCRETO: Highlight a specific visual finding based on the context (e.g., "Nota come il nastro che parte dal Cluster Alto Rischio e finisce in CHURN sia particolarmente spesso...").
 3. COLLEGAMENTO STRATEGICO: Connect this visual evidence directly to your 'suggerimento_breve'.
+
+## ENFORCEMENT: SEPARATION OF CONCERNS (FAILURE = CRASH):
+**YOU MUST STRICTLY SEPARATE:**
+- 'suggerimento_breve': Your tactical recommendation (strategic summary)
+- 'dettaglio_risposta': Your detailed reasoning and analysis (NO CHART DESCRIPTIONS HERE!)
+- 'grafici_consigliati': Array of objects with 'codice' and 'didascalia' ONLY
+
+**EXAMPLES OF VIOLATIONS THAT WILL CRASH THE SYSTEM:**
+❌ WRONG: "...Il grafico mostra che la conversione è aumentata..." (chart description in dettaglio_risposta)
+✅ RIGHT: Place that description in grafici_consigliati[].didascalia instead.
+❌ WRONG: 'grafici_consigliati' is empty even though you mentioned charts
+✅ RIGHT: Always populate 'grafici_consigliati' with the objects you recommended.
 
 ## Metrics Context (if present in input):
 - performance_metrics: Overall KPI performance vs benchmark
@@ -143,7 +174,7 @@ class OllamaAdvisor:
 
     OLLAMA_GENERATE_URL = "http://localhost:11434/api/generate"
     OLLAMA_TIMEOUT = 120  # seconds
-    MODEL_NAME = "gemma4:e4b"
+    MODEL_NAME = "qwen2.5:3b"
 
     @staticmethod
     def _format_metrics_context(metrics_data: Dict[str, Any]) -> str:
@@ -164,6 +195,9 @@ class OllamaAdvisor:
         Extract, clean, and validate JSON response from Ollama.
         Guarantees that required fields are always present with correct types to prevent Pydantic ValidationErrors.
         """
+        # 0. Rimuovi blocchi markdown che incapsulano il JSON (```json ... ```)
+        response_text = response_text.replace("```json", "").replace("```", "").strip()
+
         # 1. Pulizia: estraiamo solo quello che risiede tra le parentesi graffe più esterne
         start_idx = response_text.find('{')
         end_idx = response_text.rfind('}')
@@ -366,9 +400,9 @@ def get_trend_banca(scenario_id: str = "S0"):
     # Dati di fallback se il DB è vuoto o lo scenario non esiste
     if not doc or "rounds" not in doc:
         return {
-            "labels": [f"R{i}" for i in range(1, 21)],
-            "adattivo": [0]*20,
-            "fisso": [0]*20
+            "labels": [f"R{i}" for i in range(1, 201)],
+            "adattivo": [0]*200,
+            "fisso": [0]*200
         }
 
     storico_ia = []
@@ -611,11 +645,11 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
 
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {
-            "labels": [f"R{i}" for i in range(1, 21)],
-            "compliance_adapt": [0] * 20,
-            "compliance_fisso": [0] * 20,
-            "accettate_adapt": [0] * 20,
-            "accettate_fisso": [0] * 20
+            "labels": [f"R{i}" for i in range(1, 201)],
+            "compliance_adapt": [0] * 200,
+            "compliance_fisso": [0] * 200,
+            "accettate_adapt": [0] * 200,
+            "accettate_fisso": [0] * 200
         }
 
     compliance_adapt = []
@@ -730,6 +764,393 @@ async def chat_with_advisor(request: AdvisorRequest) -> AdvisorResponse:
         user_message=request.user_message
     )
     return response
+
+
+@app.post("/api/advisor/export-pdf", tags=["advisor"])
+async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
+    """Generate PDF report with advisor analysis and metrics."""
+    metrics = request.metrics_data
+    current_date = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    html_content = f"""
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
+            .header {{ border-bottom: 3px solid #1FA463; padding-bottom: 15px; margin-bottom: 30px; }}
+            .logo {{ font-size: 24px; font-weight: bold; color: #1FA463; }}
+            .subtitle {{ font-size: 12px; color: #666; margin-top: 5px; }}
+            .section {{ margin-bottom: 25px; }}
+            .section-title {{ font-size: 14px; font-weight: bold; color: #1FA463; text-transform: uppercase; border-left: 3px solid #1FA463; padding-left: 10px; margin-bottom: 10px; }}
+            .metric-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }}
+            .metric-label {{ font-weight: bold; color: #333; }}
+            .metric-value {{ color: #1FA463; font-weight: bold; }}
+            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+            th {{ background-color: #f5f5f5; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #ddd; }}
+            td {{ padding: 8px 10px; border: 1px solid #ddd; }}
+            .adapt-col {{ color: #1FA463; }}
+            .fisso-col {{ color: #2E6FD6; }}
+            .footer {{ margin-top: 40px; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 15px; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <div class="logo">FINsim</div>
+            <div class="subtitle">Financial Simulation Platform | Report Generato: {current_date}</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Scenario Corrente</div>
+            <div class="metric-row">
+                <span class="metric-label">Scenario:</span>
+                <span class="metric-value">{metrics.get('scenario_corrente', 'N/A')}</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">KPI Aggregati</div>
+            <table>
+                <tr>
+                    <th>Metrica</th>
+                    <th class="adapt-col">ADAPT (IA)</th>
+                    <th class="fisso-col">FISSO (Benchmark)</th>
+                    <th>Differenza</th>
+                </tr>
+                <tr>
+                    <td>Commissioni Cumulate (€)</td>
+                    <td class="adapt-col">{metrics.get('commissioni_cumulate_adapt', 0):,.0f}</td>
+                    <td class="fisso-col">{metrics.get('commissioni_cumulate_fisso', 0):,.0f}</td>
+                    <td>{metrics.get('commissioni_cumulate_adapt', 0) - metrics.get('commissioni_cumulate_fisso', 0):,.0f}</td>
+                </tr>
+                <tr>
+                    <td>Tasso di Conversione (%)</td>
+                    <td class="adapt-col">{metrics.get('tasso_conversione_adapt_pct', 0):.1f}%</td>
+                    <td class="fisso-col">{metrics.get('tasso_conversione_fisso_pct', 0):.1f}%</td>
+                    <td>{metrics.get('tasso_conversione_adapt_pct', 0) - metrics.get('tasso_conversione_fisso_pct', 0):.1f}%</td>
+                </tr>
+                <tr>
+                    <td>Fiducia Media (%)</td>
+                    <td class="adapt-col">{metrics.get('fiducia_media_adapt', 0):.1f}%</td>
+                    <td class="fisso-col">{metrics.get('fiducia_media_fisso', 0):.1f}%</td>
+                    <td>{metrics.get('fiducia_media_adapt', 0) - metrics.get('fiducia_media_fisso', 0):.1f}%</td>
+                </tr>
+                <tr>
+                    <td>Proposte Totali</td>
+                    <td class="adapt-col">{metrics.get('proposte_totali_adapt', 0)}</td>
+                    <td class="fisso-col">{metrics.get('proposte_totali_fisso', 0)}</td>
+                    <td>{metrics.get('proposte_totali_adapt', 0) - metrics.get('proposte_totali_fisso', 0)}</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Alert e Rischi</div>
+            <div class="metric-row">
+                <span class="metric-label">Rischio Churn:</span>
+                <span class="metric-value">{metrics.get('churn_risk_count', 0)} clienti</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Alert MIFID:</span>
+                <span class="metric-value">{metrics.get('mifid_alerts_count', 0)} anomalie</span>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Questo report è stato generato automaticamente dalla piattaforma FINsim in data {current_date}.</p>
+            <p>Per domande o chiarimenti, contattare l'amministratore di sistema.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        HTML(string=html_content).write_pdf(tmp.name)
+        tmp_path = tmp.name
+
+    return FileResponse(
+        path=tmp_path,
+        media_type="application/pdf",
+        filename=f"FINsim_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    )
+
+
+@app.post("/api/advisor/export-pptx", tags=["advisor"])
+async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
+    """Generate PowerPoint presentation with metrics and analysis."""
+    metrics = request.metrics_data or {}
+    user_message = request.user_message or "Analisi Scenario Automatica"
+
+    prs = Presentation()
+    prs.slide_width = Inches(10)
+    prs.slide_height = Inches(7.5)
+
+    # Colori tema Dark Luxury
+    COLOR_ADAPT = RGBColor(31, 164, 99)    # #1FA463
+    COLOR_FISSO = RGBColor(46, 111, 214)   # #2E6FD6
+    COLOR_NAVY = RGBColor(11, 17, 24)      # #0B1118
+    COLOR_GOLD = RGBColor(255, 213, 0)     # #FFD700
+    COLOR_TEXT = RGBColor(226, 232, 240)   # #E2E8F0
+
+    def add_title_slide():
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(2.5), Inches(9), Inches(1.5))
+        title_frame = title_box.text_frame
+        title_frame.text = "FINsim Financial Analysis"
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(54)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_GOLD
+        title_para.alignment = PP_ALIGN.CENTER
+
+        subtitle_box = slide.shapes.add_textbox(Inches(0.5), Inches(4.2), Inches(9), Inches(1))
+        subtitle_frame = subtitle_box.text_frame
+        subtitle_frame.text = f"Scenario {metrics.get('scenario_corrente', 'N/A')} | {datetime.now().strftime('%d/%m/%Y')}"
+        subtitle_para = subtitle_frame.paragraphs[0]
+        subtitle_para.font.size = Pt(20)
+        subtitle_para.font.color.rgb = COLOR_TEXT
+        subtitle_para.alignment = PP_ALIGN.CENTER
+
+    def add_kpi_dashboard_slide():
+        """Slide con KPI generali della dashboard."""
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
+        title_frame = title_box.text_frame
+        title_frame.text = "KPI Generali della Dashboard"
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(32)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_GOLD
+
+        line = slide.shapes.add_shape(1, Inches(0.5), Inches(1.1), Inches(9), Inches(0))
+        line.line.color.rgb = COLOR_ADAPT
+        line.line.width = Pt(2)
+
+        comm_adapt = metrics.get('commissioni_cumulate_adapt', 0)
+        comm_fisso = metrics.get('commissioni_cumulate_fisso', 0)
+        conv_adapt = metrics.get('tasso_conversione_adapt_pct', 0)
+        conv_fisso = metrics.get('tasso_conversione_fisso_pct', 0)
+        regime = metrics.get('scenario_corrente', 'Baseline')
+
+        content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8.6), Inches(5.5))
+        text_frame = content_box.text_frame
+        text_frame.word_wrap = True
+
+        kpi_lines = [
+            f"💰 Commissioni Cumulate (ADAPT): € {comm_adapt:,.0f}",
+            f"💰 Commissioni Cumulate (FISSO): € {comm_fisso:,.0f}",
+            f"📈 Differenziale: € {comm_adapt - comm_fisso:,.0f}",
+            "",
+            f"🎯 Tasso di Conversione ADAPT: {conv_adapt:.1f}%",
+            f"🎯 Tasso di Conversione FISSO: {conv_fisso:.1f}%",
+            f"📊 Delta Conversione: {conv_adapt - conv_fisso:.1f}%",
+            "",
+            f"📋 Regime di Mercato: {regime}",
+        ]
+
+        for idx, line_text in enumerate(kpi_lines):
+            if idx > 0:
+                text_frame.add_paragraph()
+            p = text_frame.paragraphs[idx]
+            p.text = line_text
+            p.font.size = Pt(14)
+            p.font.color.rgb = COLOR_TEXT
+            p.space_before = Pt(6)
+            p.space_after = Pt(6)
+
+    def add_content_slide(title: str, content_lines: List[str]):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        # Titolo
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
+        title_frame = title_box.text_frame
+        title_frame.text = title
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(32)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_GOLD
+
+        # Linea divisoria
+        line = slide.shapes.add_shape(1, Inches(0.5), Inches(1.1), Inches(9), Inches(0))
+        line.line.color.rgb = COLOR_ADAPT
+        line.line.width = Pt(2)
+
+        # Contenuto
+        content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.4), Inches(8.6), Inches(5.8))
+        text_frame = content_box.text_frame
+        text_frame.word_wrap = True
+
+        for idx, line_text in enumerate(content_lines):
+            if idx > 0:
+                text_frame.add_paragraph()
+            p = text_frame.paragraphs[idx]
+            p.text = line_text
+            p.font.size = Pt(14)
+            p.font.color.rgb = COLOR_TEXT
+            p.space_before = Pt(8)
+            p.space_after = Pt(8)
+            p.level = 0
+
+    def add_kpi_table_slide():
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
+        title_frame = title_box.text_frame
+        title_frame.text = "Tabella KPI Confronto"
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(32)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_GOLD
+
+        # Tabella
+        rows, cols = 5, 4
+        left = Inches(0.7)
+        top = Inches(1.3)
+        width = Inches(8.6)
+        height = Inches(5.5)
+
+        table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
+        table = table_shape.table
+
+        headers = ["Metrica", "ADAPT (IA)", "FISSO (Benchmark)", "Differenza"]
+
+        comm_adapt = metrics.get('commissioni_cumulate_adapt', 0) or 0
+        comm_fisso = metrics.get('commissioni_cumulate_fisso', 0) or 0
+        conv_adapt = metrics.get('tasso_conversione_adapt_pct', 0) or 0
+        conv_fisso = metrics.get('tasso_conversione_fisso_pct', 0) or 0
+        fid_adapt = metrics.get('fiducia_media_adapt', 0) or 0
+        fid_fisso = metrics.get('fiducia_media_fisso', 0) or 0
+        prop_adapt = metrics.get('proposte_totali_adapt', 0) or 0
+        prop_fisso = metrics.get('proposte_totali_fisso', 0) or 0
+
+        data = [
+            ["Commissioni (€)", f"{comm_adapt:,.0f}", f"{comm_fisso:,.0f}", f"{comm_adapt - comm_fisso:,.0f}"],
+            ["Conversione (%)", f"{conv_adapt:.1f}%", f"{conv_fisso:.1f}%", f"{conv_adapt - conv_fisso:.1f}%"],
+            ["Fiducia Media (%)", f"{fid_adapt:.1f}%", f"{fid_fisso:.1f}%", f"{fid_adapt - fid_fisso:.1f}%"],
+            ["Proposte", f"{prop_adapt}", f"{prop_fisso}", f"{prop_adapt - prop_fisso}"],
+        ]
+
+        # Riempimento header
+        for col_idx, header_text in enumerate(headers):
+            cell = table.cell(0, col_idx)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = COLOR_ADAPT
+            text_frame = cell.text_frame
+            text_frame.text = header_text
+            text_frame.paragraphs[0].font.bold = True
+            text_frame.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)
+
+        # Riempimento dati
+        for row_idx, row_data in enumerate(data, 1):
+            for col_idx, cell_text in enumerate(row_data):
+                cell = table.cell(row_idx, col_idx)
+                text_frame = cell.text_frame
+                text_frame.text = cell_text
+                if col_idx == 0:
+                    text_frame.paragraphs[0].font.bold = True
+                text_frame.paragraphs[0].font.size = Pt(12)
+                text_frame.paragraphs[0].font.color.rgb = COLOR_TEXT
+
+    # Generazione slide
+    add_title_slide()
+    add_kpi_dashboard_slide()
+
+    add_content_slide(
+        "Scenario Corrente",
+        [
+            f"Scenario: {metrics.get('scenario_corrente', 'N/A')}",
+            f"Data di Generazione: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            f"",
+            f"📊 Analisi basata su 200 round storici (5 scenari × 20 round × 100 clienti)",
+            f"🤖 Confronto Swarm Intelligence (ADAPT) vs Benchmark Fisso (FISSO)",
+        ]
+    )
+
+    add_kpi_table_slide()
+
+    add_content_slide(
+        "Performance ADAPT vs FISSO",
+        [
+            f"Commissioni Cumulate:",
+            f"  • ADAPT: € {comm_adapt:,.0f}",
+            f"  • FISSO: € {comm_fisso:,.0f}",
+            f"  • Vantaggio: € {comm_adapt - comm_fisso:,.0f}",
+            f"",
+            f"Tasso di Conversione:",
+            f"  • ADAPT: {conv_adapt:.1f}%",
+            f"  • FISSO: {conv_fisso:.1f}%",
+        ]
+    )
+
+    churn_count = metrics.get('churn_risk_count', 0) or 0
+    mifid_count = metrics.get('mifid_alerts_count', 0) or 0
+
+    add_content_slide(
+        "Commento Strategico",
+        [
+            f"Fiducia Media Clienti:",
+            f"  • ADAPT: {fid_adapt:.1f}%",
+            f"  • FISSO: {fid_fisso:.1f}%",
+            f"",
+            f"Metriche di Rischio:",
+            f"  • Clienti a Rischio Churn: {churn_count}",
+            f"  • Alert MIFID/CONSOB: {mifid_count} anomalie",
+        ]
+    )
+
+    add_content_slide(
+        "Raccomandazioni Operative",
+        [
+            f"Analisi Copilota: {user_message[:100]}..." if len(user_message) > 100 else f"Analisi Copilota: {user_message}",
+            f"",
+            f"✅ Azioni Consigliate:",
+            f"  1. Mantenere focus sulla personalizzazione (ADAPT)",
+            f"  2. Monitorare clienti a rischio churn ({churn_count} segnalati)",
+            f"  3. Ricalibrazione adeguatezza per {mifid_count} alert rilevati",
+            f"  4. Continuare raccolta netta: trend positivo osservato",
+        ]
+    )
+
+    add_content_slide(
+        "Note del Copilota",
+        [
+            f"📋 Deduzione Logica Automatica:",
+            f"",
+            f"Il sistema ADAPT sta generando un differenziale positivo di € {comm_adapt - comm_fisso:,.0f} in commissioni",
+            f"rispetto al benchmark FISSO, grazie a una strategia di personalizzazione basata su IA.",
+            f"",
+            f"Il tasso di fiducia medio è {'superiore' if fid_adapt > fid_fisso else 'inferiore'} al benchmark,",
+            f"indicando {'una percezione positiva della comunicazione adattiva' if fid_adapt > fid_fisso else 'la necessità di migliorare il messaggio'}.",
+        ]
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
+        prs.save(tmp.name)
+        tmp_path = tmp.name
+
+    return FileResponse(
+        path=tmp_path,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=f"FINsim_Presentation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
+    )
 
 
 # =====================================================================
