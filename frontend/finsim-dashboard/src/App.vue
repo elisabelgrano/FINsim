@@ -339,14 +339,14 @@
             <div style="display: flex; flex-direction: column; gap: 12px;">
               <div class="alarm-badge" :class="{ triggered: datiPromotore.alerts.churn_risk_count > 0 }">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>⚠️ Rischio Churn</span>
+                  <span>⚠️ Rischio Abbandono</span>
                   <span style="font-size: 18px; font-weight: bold;">{{ datiPromotore.alerts.churn_risk_count }}</span>
                 </div>
                 <p style="font-size: 11px; margin-top: 4px; opacity: 0.8;">Anomalie fiducia/delta rilevate</p>
               </div>
               <div class="alarm-badge" :class="{ triggered: datiPromotore.alerts.mifid_alerts_count > 0 }">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span>🔒 CONSOB/MIFID Alert</span>
+                  <span>🔒 Allerta Conformità Normativa</span>
                   <span style="font-size: 18px; font-weight: bold;">{{ datiPromotore.alerts.mifid_alerts_count }}</span>
                 </div>
                 <p style="font-size: 11px; margin-top: 4px; opacity: 0.8;">Scostamenti adeguatezza</p>
@@ -356,7 +356,7 @@
 
           <!-- ROW 2B: Heatmap Cluster Clienti -->
           <div class="panel" style="grid-column: span 6;">
-            <div class="panel-header"><h3>🔥 Heatmap Cluster Clienti (AUM vs Rischio)</h3></div>
+            <div class="panel-header"><h3>🔥 Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
             <div class="heatmap-grid" style="grid-template-columns: repeat(5, 1fr); gap: 4px;">
               <div v-for="(c, i) in clusterHeatmap" :key="i" class="heat-cell" :style="{ backgroundColor: c.bg, color: c.fg }">
                 {{ c.value }}
@@ -395,7 +395,7 @@
           <!-- ROW 3: Confronto Performance Globale -->
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>Confronto Performance: ADAPT (IA) vs FISSO (Benchmark)</h3>
+              <h3>Confronto Performance: Consulenza IA Dinamica vs Strategia Standard</h3>
             </div>
             <div class="comparison-grid">
               <div class="metric-card">
@@ -895,8 +895,8 @@ const renderCharts = () => {
   };
 
   if (view.value === 'promotore') {
-    // Helper: Media mobile per smussare i dati
-    const movingAverage = (arr, windowSize = 15) => arr.map((val, idx, list) => {
+    // Helper: Media mobile dinamica con finestra stretta per mantenere trend chiari
+    const movingAverage = (arr, windowSize = 10) => arr.map((val, idx, list) => {
       const start = Math.max(0, idx - windowSize + 1);
       const subset = list.slice(start, idx + 1);
       return subset.reduce((a, b) => a + b, 0) / subset.length;
@@ -929,20 +929,37 @@ const renderCharts = () => {
     const accettateAdapt = extendData(datiGraficiPromotore.value.accettate_adapt);
     const accettateFisso = extendData(datiGraficiPromotore.value.accettate_fisso);
 
-    // COMPLIANCE - con media mobile per smussare il rumore
+    // COMPLIANCE - con media mobile dinamica (windowSize=10) e zoom verticale
     const complianceAdaptSmoothed = movingAverage(complianceAdapt.length ? complianceAdapt : Array.from({length:200}, ()=>Math.random()*20 + 70));
     const complianceFissoSmoothed = movingAverage(complianceFisso.length ? complianceFisso : Array.from({length:200}, ()=>80));
+
+    // Configurazione asse X ogni 20 proposte
+    const complianceXConfig = {
+      ...xAxisConfig.x,
+      ticks: {
+        autoSkip: false,
+        callback: (val, index) => (index === 0) ? 'Prop. 1' : ((index + 1) % 20 === 0) ? 'Prop. ' + (index + 1) : (index === 199) ? 'Prop. 200' : '',
+        color: '#8593A8'
+      }
+    };
 
     mkChart('pCompliance', {
       type: 'line',
       data: {
         labels: promotoreLabels,
         datasets: [
-          { label: 'ADAPT (IA)', data: complianceAdaptSmoothed, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.3, borderWidth: 2 },
-          { label: 'FISSO (Benchmark)', data: complianceFissoSmoothed, borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.3, borderWidth: 2 }
+          { label: 'Consulenza IA Dinamica', data: complianceAdaptSmoothed, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 },
+          { label: 'Strategia Standard', data: complianceFissoSmoothed, borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 }
         ]
       },
-      options: { ...baseCfg, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { x: xAxisConfig.x, y: { min: 0, max: 100 } } }
+      options: {
+        ...baseCfg,
+        plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+        scales: {
+          x: complianceXConfig,
+          y: { suggestedMin: 40, suggestedMax: 95 }  // Zoom verticale dinamico
+        }
+      }
     });
 
     // ACCETTATE - aggregato in 10 blocchi da 20
@@ -1231,7 +1248,7 @@ const createAICharts = async () => {
         type: 'bar',
         data: {
           labels: ['Initial', 'Inflows', 'Outflows', 'Final'],
-          datasets: [{ label: 'AUM Change', data: [100, 50, -20, 130], backgroundColor: ['#1FA463', '#7DB85A', '#D64242', '#1FA463'] }]
+          datasets: [{ label: 'Variazione Patrimonio', data: [100, 50, -20, 130], backgroundColor: ['#1FA463', '#7DB85A', '#D64242', '#1FA463'] }]
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
       };
