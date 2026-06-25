@@ -1504,6 +1504,39 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
     return {"data": fig.to_json()}
 
 
+@app.post("/api/charts/sankey-flussi", tags=["charts"])
+async def get_sankey_flussi(request: AdvisorRequest) -> dict:
+    """Generate Sankey flow diagram for client migration as Plotly JSON"""
+    label = ["Cluster Basso Rischio", "Cluster Medio Rischio", "Cluster Alto Rischio", "Stabili", "Upgrade Profilo", "ABBANDONI"]
+    source = [0, 0, 0, 1, 1, 1, 2, 2, 2]
+    target = [3, 4, 5, 3, 4, 5, 3, 4, 5]
+    value = [120, 30, 5, 200, 80, 15, 90, 10, 45]
+    colori_link = ["rgba(5, 150, 105, 0.2)", "rgba(245, 158, 11, 0.2)", "rgba(225, 29, 72, 0.2)"] * 3
+
+    fig = go.Figure(data=[go.Sankey(
+        textfont=dict(size=13, color="#111827"),
+        node=dict(
+            pad=20,
+            thickness=25,
+            line=dict(color="#111827", width=1),
+            label=[f"<b>{l}</b>" for l in label],
+            color=["#3b82f6", "#f59e0b", "#ec4899", "#059669", "#10b981", "#e11d48"]
+        ),
+        link=dict(source=source, target=target, value=value, color=colori_link)
+    )])
+
+    fig.update_layout(
+        showlegend=False,
+    )
+
+    fig = applica_stile_premium(fig, "Mappa di Migrazione dei Clienti e Tasso di Abbandoni")
+
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+
+    return {"data": fig.to_json()}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

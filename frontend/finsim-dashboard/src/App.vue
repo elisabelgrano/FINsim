@@ -88,6 +88,11 @@
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
                     </div>
+                    <!-- Div per grafici Plotly on-demand -->
+                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                         :id="'plotly-ai-' + idx"
+                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                    </div>
                     <!-- Fallback per codici non supportati -->
                     <div v-else class="chart-widget-fallback">
                       <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
@@ -193,6 +198,31 @@
               <strong>Deduzione:</strong> Quando il blu è dentro il grigio, il portafoglio è allineato. Sporgenze indicano sovraesposizioni; rientranze indicano sottodimensionamenti rispetto alla strategia pianificata.
             </div>
           </div>
+
+          <!-- PLOTLY ADVANCED CHARTS -->
+          <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>📊 Visualizzazioni Avanzate Plotly</h3>
+            </div>
+          </div>
+
+          <div class="panel" style="grid-column: span 6;">
+            <div class="panel-header"><h3>Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
+            <div id="plotly-heatmap" style="height: 400px;"></div>
+            <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
+          </div>
+
+          <div class="panel" style="grid-column: span 6;">
+            <div class="panel-header"><h3>Analisi Contribuzione Patrimonio Gestito</h3></div>
+            <div id="plotly-waterfall" style="height: 400px;"></div>
+            <p class="chart-caption">Grafico a cascata che mostra la scomposizione del patrimonio finale: partendo da AUM iniziale, passando per nuova raccolta, effetto mercato, e abbandoni clienti, fino al patrimonio finale gestito.</p>
+          </div>
+
+          <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header"><h3>Evoluzione Performance Cumulata (200 Tentativi di Proposta)</h3></div>
+            <div id="plotly-lines" style="height: 400px;"></div>
+            <p class="chart-caption">Confronto delle linee di performance cumulate tra Consulenza IA Dinamica e Strategia Standard su tutti i 200 tentativi di proposta. Le divergenze evidenziano i vantaggi strategici dell'approccio personalizzato.</p>
+          </div>
         </div>
 
         <div v-if="view === 'promotore'" class="dashboard-grid">
@@ -237,6 +267,11 @@
                     <!-- Canvas dinamico per grafici Chart.js -->
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
+                    </div>
+                    <!-- Div per grafici Plotly on-demand -->
+                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                         :id="'plotly-ai-' + idx"
+                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
                     </div>
                     <!-- Fallback per codici non supportati -->
                     <div v-else class="chart-widget-fallback">
@@ -553,6 +588,11 @@
                     <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
                       <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
                     </div>
+                    <!-- Div per grafici Plotly on-demand -->
+                    <div v-else-if="['SANKEY_FLUSSI', 'SEMAFORO_ADEGUATEZZA'].includes(chart.codice)"
+                         :id="'plotly-ai-' + idx"
+                         style="height: 250px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px;">
+                    </div>
                     <!-- Fallback per codici non supportati -->
                     <div v-else class="chart-widget-fallback">
                       <div style="font-size: 12px; color: #8593A8; text-align: center; padding: 8px;">
@@ -687,6 +727,17 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import Chart from 'chart.js/auto';
 import html2pdf from 'html2pdf.js';
+
+// Carica Plotly dinamicamente via CDN
+const loadPlotly = async () => {
+  if (window.Plotly) return;
+  const script = document.createElement('script');
+  script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+  document.head.appendChild(script);
+  return new Promise(resolve => {
+    script.onload = () => resolve();
+  });
+};
 
 // --- STATO ---
 const view = ref('banca'); // Partiamo dalla vista banca
@@ -1186,6 +1237,85 @@ const shouldRenderChart = (codice) => {
 
 let aiChartInstances = [];
 
+const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
+  try {
+    await loadPlotly();
+
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario_id,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
+        matrice_performance: [[1.5, -0.4, 2.1], [-0.8, 0.0, 1.2], [0.5, -1.1, -0.2]],
+        aum_iniziale: 100000000,
+        nuova_raccolta_netta: 15500000,
+        effetto_mercato: -3200000,
+        patrimonio_perso_churn: -5800000
+      },
+      user_message: ""
+    };
+
+    const res = await fetch(`http://10.12.7.53:8000${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const figData = JSON.parse(data.data);
+      if (window.Plotly) {
+        Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+      }
+    }
+  } catch (error) {
+    console.error(`Errore nel rendering Plotly ${divId}:`, error);
+  }
+};
+
+const renderAIPlotlyCharts = async () => {
+  try {
+    await loadPlotly();
+
+    aiResponseCharts.value.forEach(async (chart, idx) => {
+      if (chart.codice === 'SANKEY_FLUSSI') {
+        const divId = `plotly-ai-${idx}`;
+        const el = document.getElementById(divId);
+        if (!el) return;
+
+        const payload = {
+          metrics_data: {
+            scenario_corrente: scenario.value,
+            commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+            commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0
+          },
+          user_message: ""
+        };
+
+        const res = await fetch('http://10.12.7.53:8000/api/charts/sankey-flussi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok && window.Plotly) {
+          const data = await res.json();
+          const figData = JSON.parse(data.data);
+          Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Errore nel rendering dei grafici Plotly IA:', error);
+  }
+};
+
 const createAICharts = async () => {
   // Pulisci istanze precedenti
   aiChartInstances.forEach(c => {
@@ -1196,6 +1326,9 @@ const createAICharts = async () => {
   aiChartInstances = [];
 
   await nextTick();
+
+  // Renderizza i grafici Plotly on-demand
+  await renderAIPlotlyCharts();
 
   aiResponseCharts.value.forEach((chart, idx) => {
     if (!shouldRenderChart(chart.codice)) return;
@@ -1409,6 +1542,17 @@ watch(aiResponseCharts, async () => {
   console.log('[FINsim] 📊 Grafici consigliati aggiornati, inizializzo Chart.js...');
   await createAICharts();
 }, { deep: true });
+
+// Watch sulla vista per renderizzare i grafici Plotly quando banca è attiva
+watch(view, async () => {
+  if (view.value === 'banca') {
+    console.log('[FINsim] 📈 Vista Banca attiva, renderizzando grafici Plotly...');
+    await nextTick();
+    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
+    await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
+    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
+  }
+});
 
 onBeforeUnmount(() => {
   chartInstances.forEach(c => c.destroy());
