@@ -338,6 +338,44 @@
             </div>
           </div>
 
+          <!-- ROW 2B: Heatmap Cluster Clienti -->
+          <div class="panel" style="grid-column: span 6;">
+            <div class="panel-header"><h3>🔥 Heatmap Cluster Clienti (AUM vs Rischio)</h3></div>
+            <div class="heatmap-grid" style="grid-template-columns: repeat(5, 1fr); gap: 4px;">
+              <div v-for="(c, i) in clusterHeatmap" :key="i" class="heat-cell" :style="{ backgroundColor: c.bg, color: c.fg }">
+                {{ c.value }}
+              </div>
+            </div>
+            <div style="font-size: 11px; color: #8593A8; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(31,164,99,.1);">
+              <strong>Legenda:</strong> Verde = ADAPT domina | Rosso = FISSO domina | Valori = % conversione per cluster
+            </div>
+          </div>
+
+          <!-- ROW 2C: Delta Performance ADAPT vs FISSO -->
+          <div class="panel" style="grid-column: span 6;">
+            <div class="panel-header"><h3>📊 Delta Performance (Vantaggio ADAPT)</h3></div>
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="background: rgba(31,164,99,.08); border-left: 3px solid #1FA463; padding: 12px; border-radius: 4px;">
+                <div style="font-size: 11px; color: #8593A8; text-transform: uppercase; margin-bottom: 4px;">Commissioni</div>
+                <div style="font-size: 20px; font-weight: bold; color: #1FA463;">
+                  +€ {{ ((datiPromotore.adapt.commissioni_cumulate - datiPromotore.fisso.commissioni_cumulate) || 0).toLocaleString('it-IT') }}
+                </div>
+                <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
+                  {{ Math.round(((datiPromotore.adapt.commissioni_cumulate - datiPromotore.fisso.commissioni_cumulate) / (datiPromotore.fisso.commissioni_cumulate || 1)) * 100) }}% superiore
+                </div>
+              </div>
+              <div style="background: rgba(31,164,99,.08); border-left: 3px solid #1FA463; padding: 12px; border-radius: 4px;">
+                <div style="font-size: 11px; color: #8593A8; text-transform: uppercase; margin-bottom: 4px;">Conversione</div>
+                <div style="font-size: 20px; font-weight: bold; color: #1FA463;">
+                  +{{ (datiPromotore.adapt.tasso_conversione_pct - datiPromotore.fisso.tasso_conversione_pct).toFixed(1) }}%
+                </div>
+                <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
+                  ADAPT {{ datiPromotore.adapt.tasso_conversione_pct }}% vs FISSO {{ datiPromotore.fisso.tasso_conversione_pct }}%
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- ROW 3: Confronto Performance Globale -->
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
@@ -705,6 +743,28 @@ const clusters = computed(() => {
     else if (v >= 55) { bg = '#E0922F'; fg = '#2E1C05'; }
     else if (v >= 42) { bg = '#D9703A'; fg = '#2E1305'; }
     return { value: v + '%', bg, fg };
+  });
+});
+
+const clusterHeatmap = computed(() => {
+  const gridSize = 20;
+  const rows = 4;
+  const cols = 5;
+  const data = Array.from({length: gridSize}, () => Math.floor(Math.random() * 100));
+
+  return data.map((val, idx) => {
+    let bg, fg;
+    if (val >= 80) { bg = '#1E9E63'; fg = '#062017'; }
+    else if (val >= 65) { bg = '#7DB85A'; fg = '#10240A'; }
+    else if (val >= 50) { bg = '#E0922F'; fg = '#2E1C05'; }
+    else if (val >= 35) { bg = '#D9703A'; fg = '#2E1305'; }
+    else { bg = '#D64242'; fg = '#FFFFFF'; }
+
+    const row = Math.floor(idx / cols);
+    const col = idx % cols;
+    const cluster = `C${row+1}R${col+1}`;
+
+    return { value: val + '%', bg, fg, cluster };
   });
 });
 

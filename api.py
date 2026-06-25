@@ -88,13 +88,15 @@ Your role is to analyze complex financial metrics and provide strategic, actiona
 - Focus on actionable insights, not abstract analysis
 - When user_message is empty, generate an initial tactical summary for the round
 
-## CRITICAL RULES FOR CHART SUGGESTIONS (MANDATORY - SYSTEM WILL CRASH IF VIOLATED):
-🚨 **VIOLATING THESE RULES WILL CAUSE SYSTEM FAILURE** 🚨
-1. **NEVER EVER insert chart explanations or descriptions into the 'dettaglio_risposta' field**
-2. **YOU MUST ALWAYS use the 'grafici_consigliati' array** to include chart suggestions with 'codice' and 'didascalia' fields
-3. **If you suggest a chart in your strategic reasoning, you MUST include it in the 'grafici_consigliati' array**
-4. **FAILURE TO POPULATE 'grafici_consigliati' correctly will result in IMMEDIATE SYSTEM CRASH**
-5. **The 'didascalia' field MUST contain the detailed chart explanation** - not in 'dettaglio_risposta'
+## ⚠️ TASSATIVO - NON DESCRIVERE MAI I GRAFICI NEL TESTO ⚠️
+**CRITICAL ENFORCEMENT RULES (VIOLATIONS CAUSE SYSTEM CRASH):**
+1. **TASSATIVO: Non inserire MAI descrizioni di grafici nel campo 'dettaglio_risposta'**
+2. **TASSATIVO: Usa ESCLUSIVAMENTE l'array JSON 'grafici_consigliati' per le descrizioni dei grafici**
+3. **TASSATIVO: Se menzioni un grafico nella strategia, DEVI aggiungerlo a 'grafici_consigliati'**
+4. **TASSATIVO: Ogni grafico DEVE avere 'codice' (es. HEATMAP_RISCHIO, COMPLIANCE_TREND) e 'didascalia'**
+5. **TASSATIVO: La 'didascalia' DEVE contenere Spiegazione e Deduzione SOLO nell'array, NEVER in 'dettaglio_risposta'**
+6. **Se 'grafici_consigliati' è vuoto mentre i grafici sono importanti → SISTEMA CRASHA**
+7. **Qualsiasi descrizione visiva (grafico, tabella, heatmap) DEVE stare in 'didascalia', NON nel testo libero**
 
 ## Critical Instructions for 'didascalia' (MANDATORY FOR SYSTEM STABILITY):
 When providing the 'didascalia' (caption) for a chart, DO NOT write generic summaries. You must write a detailed, analytical paragraph in Italian.
@@ -1130,15 +1132,28 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     )
 
     add_content_slide(
-        "Note del Copilota",
+        "Analisi Copilota IA",
         [
-            f"📋 Deduzione Logica Automatica:",
+            f"🤖 Insight Strategico Automatico:",
             f"",
-            f"Il sistema ADAPT sta generando un differenziale positivo di € {comm_adapt - comm_fisso:,.0f} in commissioni",
-            f"rispetto al benchmark FISSO, grazie a una strategia di personalizzazione basata su IA.",
+            f"Sintesi: {user_message if len(user_message) <= 150 else user_message[:150] + '...'}",
             f"",
-            f"Il tasso di fiducia medio è {'superiore' if fid_adapt > fid_fisso else 'inferiore'} al benchmark,",
-            f"indicando {'una percezione positiva della comunicazione adattiva' if fid_adapt > fid_fisso else 'la necessità di migliorare il messaggio'}.",
+            f"Il Copilota ha identificato opportunity di miglioramento nel posizionamento della strategia ADAPT.",
+            f"I grafici consigliati nella dashboard forniscono visualizzazione tattica per decisioni rapide.",
+        ]
+    )
+
+    add_content_slide(
+        "Conclusioni e Prossimi Passi",
+        [
+            f"✅ Situazione Competitiva:",
+            f"  • ADAPT mantiene leadership su {['Commissioni', 'Conversione'] if comm_adapt > comm_fisso or conv_adapt > conv_fisso else ['Benchmark FISSO competitivo']}",
+            f"  • Engagement cliente: {'Positivo' if fid_adapt > fid_fisso else 'Richiede attenzione'}",
+            f"",
+            f"📌 Azioni Prioritarie per il Prossimo Round:",
+            f"  1. Consolidare il vantaggio ADAPT su conversione (+{conv_adapt - conv_fisso:.1f}%)",
+            f"  2. Monitorare {churn_count} clienti a rischio churn",
+            f"  3. Scalare la strategia personalizzata nei cluster ad alta redditività",
         ]
     )
 
