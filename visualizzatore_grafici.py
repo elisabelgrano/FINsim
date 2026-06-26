@@ -2,6 +2,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
+import math 
 
 # Palette elegante e morbida (Light Mode Premium)
 COLORI_DIVERGENTI = ["#e11d48", "#f59e0b", "#059669"]
