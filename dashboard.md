@@ -344,130 +344,204 @@ Comparazione diretta su 4 dimensioni chiave:
 ---
 
 ### 📍 Regime di Mercato (Market Regime Card)
-*(Vedere sezione Dashboard del Promotore — è lo stesso, con `client_tip` al posto di `promoter_tip`)*
+**Tipo:** Status card  
+**Posizione:** Riga 1, colonna 1-12
+
+*(Uguale a quella della Promotore, ma con `client_tip` al posto di `promoter_tip` per fornire suggerimenti dal punto di vista direttivo bancario)*
+
+**A cosa serve dal lato Banca:**
+- Comprendere il contesto macroeconomico in cui operano i promotori
+- Informare le decisioni della Direttiva Bancaria su allocazione e compliance
+- Anticipare necessità di ricalibrazione strategica in base ai regimi di mercato
+
+**Client Tip Bancario Examples:**
+- **S0:** "Condizioni regolari. Mantenere la Direttiva standard con focus su acquisizione clienti e compliance"
+- **S1:** "Ciclo espansivo. Aumentare allocazione equity con vigilanza su adeguatezza"
+- **S2:** "Stress di mercato. Attivare protocolli di protezione capitale e monitoring di adeguatezza rafforzato"
 
 ---
 
 ### Matrice Vendite e Adeguatezza
 **Tipo:** Data table  
-**Posizione:** Riga 1, colonna 1-12
+**Posizione:** Riga 2, colonna 1-12
 
 **Cosa indica:**
-- Aggregazione delle vendite per categoria di prodotto e cluster clienti
-- **Prodotto Proposto:** Categoria (es: Bond Corporate, Azionario, etc.)
-- **Cluster Clienti:** Segmento demografico/economico
-- **Volume (M€):** Somma raccolta in milioni di euro
-- **Adeguatezza %:** Percentuale media di conformità MiFID per quel cluster
-- **Status:** Colore (verde/ambra/rosso) che riflette il risk compliance
+- Aggregazione consolidata delle vendite per categoria di prodotto e cluster clienti
+- **Prodotto Proposto:** Categoria (es: Bond Corporate, Azionario, Monetario, Illiquidi, Gov Bond)
+- **Cluster Clienti:** Segmento demografico/economico (es: Small HNI, Imprenditori, Privati Conservative)
+- **Volume (M€):** Somma raccolta in milioni di euro per quella combinazione prodotto-cluster
+- **Adeguatezza %:** Percentuale media di conformità MiFID per quel cluster (0-100%)
+- **Status:** Colore badge (verde/ambra/rosso) che riflette il risk compliance
 
 **A cosa serve:**
-- Consolidare la view sulle vendite dal livello direttivo
-- Monitorare il rischio di non-conformità per segmento
-- Identificare cluster a rischio che necessitano di ribilanciamento
+- Consolidare la view commerciale-compliance dal livello direttivo
+- Monitorare il rischio di non-conformità MiFID per segmento
+- Identificare cluster a rischio churn o inadeguatezza che necessitano di ribilanciamento
+- Tracciare allocazione effettiva vs target della Direttiva
 
 **Come leggerlo:**
-- Ordina per volume per capire dove è concentrata la raccolta
-- Leggi la barra di adeguatezza: se verde (>85%), è ok; se rosso (<70%), esiste rischio normativo
-- Cluster con status rosso richiedono intervento sulla Direttiva
+1. **Scorri per Volume:** Identifica dove è concentrata la raccolta (prodotto + cluster dominante)
+2. **Valuta Adeguatezza:** 
+   - Verde (≥85%): Conformità solida, nessun intervento
+   - Giallo (70-85%): Margine, monitorare prossime proposte
+   - Rosso (<70%): Rischio normativo, necessario intervento sulla Direttiva
+3. **Diagnostica:** Cluster con status rosso richiedono:
+   - Revisione delle proposte per quella categoria
+   - Possibile change della Direttiva Bancaria per quello specifico segmento
+   - Comunicazione aggiuntiva al cliente sul razionale
+
+**Interpretazione Tattica:**
+- Se un prodotto è sempre rosso, potrebbe essere inadatto al mercato (considerare ritiro)
+- Se solo certi cluster hanno problemi, la soluzione è segmentazione più granulare della Direttiva
+- Traccia le righe stesse nel tempo per identificare trend di deterioramento
 
 ---
 
 ### Raccolta Netta — Trend
 **Tipo:** Line chart (Chart.js)  
-**Posizione:** Riga 2, colonna 1-8
+**Posizione:** Riga 3, colonna 1-8
 
 **Cosa indica:**
 - Andamento della raccolta netta cumulata su 200 tentativi di proposta
-- Linea verde = ADAPT; Linea blu = FISSO
-- Raccolta netta = nuova raccolta - abbandoni
+- **Linea verde** = ADAPT (Consulenza IA Adattiva)
+- **Linea blu** = FISSO (Strategia Standard)
+- Raccolta netta = nuova raccolta da proposte accettate - patrimonio perso per churn
 
 **A cosa serve:**
-- Visualizzare il trend di crescita del patrimonio gestito
-- Misurare la divergenza tra le due strategie nel lungo periodo
-- Identificare se la strategia adattiva sta generando maggior valore sostenuto
+- Visualizzare il trend di crescita della base patrimoniale gestita dalla banca
+- Misurare la divergenza composta tra le due strategie nel lungo periodo
+- Identificare se la Consulenza Adattiva sta generando maggior valore sostenuto
+- Diagnosticare periodi di stagnazione o contrazione
 
 **Come leggerlo:**
-- Asse X = 200 tentativi
-- Asse Y = raccolta netta cumulata (milioni €)
-- Se ADAPT è sopra FISSO, la strategia personalizzata accumula più valore
-- Plateau suggerisce necessità di ricalibrazione della Direttiva
-- Trend in calo = recessione percepita o loss of trust, richiedere analisi
+- **Asse X:** 200 tentativi di proposta (sequenziali su 5 scenari)
+- **Asse Y:** Raccolta netta cumulata in milioni di euro
+- **Linea ADAPT sistematicamente sopra FISSO:** La personalizzazione accumula valore più velocemente
+- **Plateau (curva piatta):** Suggerisce necessità di ricalibrazione della Direttiva (stesso approccio non scalabile)
+- **Conversione (ADAPT scende sotto FISSO):** Anomalia — possibile degrado della strategia personalizzata
+- **Trend in calo:** Recessione percepita dai clienti o loss of trust, richiedere analisi dell'advisor
+
+**Interpretazione Bancaria:**
+- La pendenza della linea ADAPT indica la "velocità di crescita" della strategia
+- Una divergenza crescente tra ADAPT e FISSO indica effetto composto della personalizzazione (ottimo)
+- Se le due linee convergono, l'IA sta diventando simile al benchmark (perdita di valore aggiunto)
 
 ---
 
-### Target Direttiva vs Attuale
-**Tipo:** Radar chart (Chart.js)  
-**Posizione:** Riga 2, colonna 9-12
+### 🎯 Performance Strategica Banca
+**Tipo:** Radar chart (Plotly)  
+**Posizione:** Riga 3, colonna 9-12
 
 **Cosa indica:**
-- 5 dimensioni strategiche (Bond Corporate, Monetario, Azionario, Illiquidi, Gov Bond)
-- Linea grigia tratteggiata = Target della Direttiva (allocazione pianificata)
-- Linea blu = Portafoglio Effettivo (allocazione realizzata)
+- Valutazione multi-dimensionale della Consulenza Adattiva rispetto al target bancario
+- **5 Dimensioni Misurate:**
+  1. **Compliance:** % adeguatezza media proposte (target ≥85%)
+  2. **Raccolta:** Tasso conversione proposte (target ≥35%)
+  3. **Fiducia Cliente:** Sentiment medio post-proposta (target ≥70%)
+  4. **Aderenza Direttiva:** Quanto ADAPT segue la strategia dichiarata (target ≥80%)
+  5. **Redditività:** Commissioni generate per cliente (target ≥€1000)
+- **Linea verde** = Performance ADAPT effettiva
+- **Linea grigia tratteggiata** = Target bancario per quella dimensione
 
 **A cosa serve:**
-- Verificare l'esecuzione della Direttiva Bancaria
-- Identificare sovraeposizioni o sottodimensionamenti
-- Diagnosticare gap tra strategia pianificata e realtà operativa
+- Valutare la salute complessiva della Consulenza Adattiva in uno sguardo
+- Identificare quale dimensione è collo di bottiglia
+- Monitorare se la strategia personalizzata rispetta i vincoli bancari
+- Diagnosticare se serve ricalibrazione della Direttiva
 
 **Come leggerlo:**
-- Se il blu è dentro il grigio, l'allocazione è allineata
-- Sporgenze blu = sovraesposizione in quella classe di asset (possibile drift da risk)
-- Rientranze blu = sottodimensionamento (necessario aumentare proposte in quella categoria)
-- Il radar ideale vede il blu tutto dentro il grigio
+- **Se la linea verde è dentro il grigio:** Quella dimensione è conforme al target
+- **Se la linea verde sporge:** Superperformance in quella area (positivo)
+- **Se la linea verde è rientrante (dentro il grigio):** Underperformance, necessario intervento
+- **Lettura generale:** Un radar "stellato" (tutto dentro) = salute ottima. Un radar "bucherellato" = aree critiche
+
+**Dimensioni Critiche per Priorità:**
+1. **Compliance:** Prima priorità assoluta (implicazioni normative)
+2. **Raccolta:** Secondo (sostenibilità economica)
+3. **Fiducia:** Terzo (sostenibilità relazionale)
+4. **Aderenza & Redditività:** Indicatori di efficienza tattica
 
 ---
 
 ### 📊 Visualizzazioni Avanzate Plotly (Banca)
 
 #### Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)
-*(Uguale a quella della Promotore — vedere sezione Dashboard del Promotore)*
+**Tipo:** Heatmap Plotly interattiva  
+**Posizione:** Riga 4, colonna 1-6
+
+*(Uguale a quella della Promotore)*
+
+**Cosa indica:**
+- Grid di cluster clienti (es: 4×5 = 20 cluster)
+- Colore indica il vantaggio percentuale di ADAPT vs FISSO in quella zona
+- Rosso: FISSO domina; Giallo/Arancio: parità o piccoli vantaggi; Verde: ADAPT domina
+
+**Interpretazione dal Lato Banca:**
+- Identifica segmenti di clientela dove l'investimento in Consulenza Adattiva genera massimo ROI
+- Aree rosse sono "fortini" del benchmark — valutare se la Direttiva ha limitazioni di segmentazione
+- Aree verdi sono opportunità di focalizzazione commerciale
 
 ---
 
 #### Analisi Contribuzione Patrimonio Gestito
 **Tipo:** Waterfall chart Plotly  
-**Posizione:** Riga 3, colonna 7-12
+**Posizione:** Riga 4, colonna 7-12
 
 **Cosa indica:**
-- Scomposizione del patrimonio finale passo per passo:
-  1. **AUM Iniziale:** Patrimonio gestito al Round 1
-  2. **Nuova Raccolta:** Somma netti aggiunta
-  3. **Effetto Mercato:** Gain/Loss da performance di mercato
-  4. **Abbandoni Clienti:** Patrimonio perso per churn
-  5. **AUM Finale:** Patrimonio gestito al Round 20
+- Scomposizione del patrimonio gestito finale nei componenti contributivi:
+  1. **AUM Iniziale:** Patrimonio al Round 1 (baseline)
+  2. **Nuova Raccolta:** Somma dei netti da proposte accettate (positivo)
+  3. **Effetto Mercato:** Gain/Loss da performance di mercato sui portafogli (può essere negativo in recessione)
+  4. **Abbandoni Clienti:** Patrimonio perso per churn (sempre negativo)
+  5. **AUM Finale:** Patrimonio gestito al Round 20 (risultato netto)
 
 **A cosa serve:**
-- Capire quali fattori hanno contribuito alla crescita/contrazione
-- Diagnosticare se il problema è nel business (raccolta) o nei mercati (drawdown)
-- Quantificare l'impatto del churn sulla base patrimoniale
+- Diagnosticare quali fattori hanno guidato la crescita o contrazione patrimoniale
+- Capire se il problema è nel business (raccolta insufficiente) o nei mercati (drawdown)
+- Quantificare l'impatto relativo di ogni fattore sul risultato finale
+- Identificare il driver principale di performance: raccolta, mercato, o retention?
 
 **Come leggerlo:**
-- Barre verdi = contributi positivi
-- Barre rosse = contributi negativi
-- L'altezza della barra indica l'importanza relativa
-- Se "Abbandoni Clienti" è rosso scuro e grande, il churn è il principale problem
+- **Barre verdi:** Contributi positivi (Raccolta)
+- **Barre rosse:** Contributi negativi (Abbandoni, Effetto Mercato)
+- **Altezza della barra:** Importanza relativa del fattore (barra più alta = impatto maggiore)
+- **Sequenza:** Leggi da sinistra a destra per tracciare il "percorso" verso il risultato finale
+
+**Interpretazione Bancaria:**
+- Se "Abbandoni Clienti" è una barra rossa enorme, il churn è il principale limitante
+- Se "Effetto Mercato" è fortemente negativo, il mercato ha trascinato giù i portafogli (oltre controllo della banca)
+- Se "Nuova Raccolta" è insufficiente, le proposte non stanno convertendo a sufficienza
+- Il waterfall di ADAPT vs FISSO mostra quale strategia ha gestito meglio questi fattori
 
 ---
 
 #### Evoluzione Performance Cumulata (200 Tentativi di Proposta)
 **Tipo:** Multi-line chart Plotly  
-**Posizione:** Riga 4, colonna 1-12
+**Posizione:** Riga 5, colonna 1-12
 
 **Cosa indica:**
 - Trend di performance cumulata ADAPT vs FISSO su tutti i 200 tentativi
-- Ogni punto rappresenta la performance media sull'universo di clienti
-- Linea verde = ADAPT; Linea blu = FISSO
+- Ogni punto rappresenta il KPI aggregato (es: commissioni, raccolta, fiducia media) al tentativo N
+- **Linea verde** = ADAPT
+- **Linea blu** = FISSO
 
 **A cosa serve:**
-- Visualizzare la traiettoria della strategia nel tempo
-- Identificare inflection point dove una strategia comincia a vincere
-- Diagnosticare persistenza vs casualità delle performance differenziali
+- Visualizzare la traiettoria strategica complessiva della banca
+- Identificare "inflection points" dove una strategia inizia a vincere
+- Diagnosticare se la performance differenziale è persistente (real) o casuale (noise)
+- Misurare il "valore composto" della personalizzazione nel tempo
 
 **Come leggerlo:**
-- Se ADAPT è sempre sopra FISSO, la personalizzazione vince stabilmente
-- Se le linee si incrociano, significa che una strategia era vincente all'inizio ma ha perso momentum
-- La divergenza aumentante = effetto composto della personalizzazione (molto positivo)
-- Conversione = strategia standard sta recuperando terreno (anomalia)
+- **Se ADAPT è sempre sopra FISSO:** La Consulenza Adattiva vince stabilmente (scenario ideale)
+- **Se le linee si incrociano:** Una strategia era vincente all'inizio ma ha perso momentum (anomalia, richiede diagnosi)
+- **Se la divergenza aumenta:** L'effetto composto della personalizzazione si sta amplificando (excellente)
+- **Se la divergenza diminuisce:** Le due strategie stanno convergendo (personalizzazione sta perdendo efficacia)
+- **Picchi anomali:** Possono indicare shock di mercato (controllare Regime di Mercato nello stesso round)
+
+**Interpretazione Strategica:**
+- Una linea ADAPT che "fugge via" dal FISSO suggerisce che la Direttiva personalizzata è molto efficace
+- Un "canale" stretto tra ADAPT e FISSO (linee parallele) suggerisce che l'IA non sta aggiungendo valore differenziale
+- Incroci multipli suggeriscono volatilità nella strategia — potrebbe essere necessaria maggior stabilità
 
 ---
 
@@ -476,95 +550,229 @@ Comparazione diretta su 4 dimensioni chiave:
 ## Dashboard del Cliente
 
 ### 🤖 Copilota IA
-*(Vedere sezione Dashboard del Promotore)*
+*(Vedere sezione Dashboard del Promotore — è lo stesso componente)*
 
 ---
 
 ### 📍 Regime di Mercato (Market Regime Card)
-*(Vedere sezione Dashboard della Banca — qui include `client_tip` specifico per il cliente)*
+**Tipo:** Status card  
+**Posizione:** Riga 1, colonna 1-12
 
-**Client Tip Examples:**
-- **S0:** "Condizioni di mercato regolari. Il portafoglio segue l'asset allocation strategica programmata."
-- **S1:** "Ciclo favorevole ai mercati. Portafoglio allineato a risk-on moderato con diversificazione."
-- **S2:** "Fase di aggiustamento dei tassi di interesse. Monitoraggio attivo della componente obbligazionaria."
-- **S3:** "Fase di forte instabilità tecnica dei mercati. Si raccomanda stabilità emotiva e focus sul lungo termine."
+*(Uguale a quelle della Banca e Promotore, ma con `client_tip` specifico per il cliente finale)*
+
+**Cosa indica:**
+- Il regime macroeconomico attuale in cui il cliente opera
+- Contesto per interpretare la performance del suo portafoglio
+- Suggerimento personalizzato per il cliente su cosa aspettarsi
+
+**Client Tip Examples (Comunicazione al Cliente):**
+- **S0:** "Condizioni di mercato regolari. Il tuo portafoglio segue l'asset allocation strategica programmata. Continua a mantenere una prospettiva a lungo termine."
+- **S1:** "Ciclo favorevole ai mercati. Il tuo portafoglio è allineato a un risk-on moderato con diversificazione. Monitoraggio regolare mantiene il controllo."
+- **S2:** "Fase di aggiustamento dei tassi di interesse. Abbiamo aumentato il monitoraggio attivo della componente obbligazionaria. Questa è una strategia difensiva consigliata."
+- **S3:** "Fase di instabilità tecnica dei mercati. Ti consigliamo di mantenere stabilità emotiva e focus sul lungo termine. Le fluttuazioni sono normali in questo contesto."
+
+**A cosa serve:**
+- Rassicurare il cliente sul contesto della sua performance
+- Spiegare le decisioni di portafoglio in relazione al regime macroeconomico
+- Impostare aspettative realistiche sulla performance
 
 ---
 
-### Heatmap Propensione al Rischio
-**Tipo:** Grid di 20 celle colorate  
-**Posizione:** Riga 1, colonna 1-12
+### 📊 Intelligence Cliente — KPI Medi & Distribuzione Portafoglio
+**Tipo:** 4 KPI cards + Data table  
+**Posizione:** Riga 2, colonna 1-12
 
-**Cosa indica:**
-- Griglia 4x5 che rappresenta la propensione al rischio percepita del cliente nel tempo (20 round)
-- Colore riflette il % di propensione (verde intenso 85%+ = alto; rosso <40% = basso)
-- Evoluzione della risk tolerance del cliente lungo la simulazione
+**Cosa indica (4 KPI):**
+1. **Fiducia Media (ADAPT):** Sentiment medio del cliente con Consulenza Adattiva (0-100%)
+2. **Fiducia Media (FISSO):** Sentiment medio del cliente con Strategia Standard (0-100%)
+3. **Tasso Accettazione (ADAPT):** % proposte accettate dal cliente con Consulenza Adattiva
+4. **Tasso Accettazione (FISSO):** % proposte accettate dal cliente con Strategia Standard
+
+**Cosa indica (Tabella):**
+- **Profilo di Rischio:** Categoria del cliente (Conservative, Moderate, Growth, Aggressive, etc.)
+- **Accettazione ADAPT:** % di proposte accettate quando proposte con Consulenza Adattiva
+- **Accettazione FISSO:** % di proposte accettate quando proposte con Strategia Standard
+- **Dominanza:** Quale strategia il cliente preferisce (badge verde ADAPT o blu FISSO)
 
 **A cosa serve:**
-- Monitorare se il profilo di rischio del cliente sta evolvendo
-- Identificare cambiamenti di sentiment dovuti a market conditions
-- Diagnosticare se la comunicazione è efficace nel mantenere la fiducia
+- Capire immediatamente se il cliente è più felice con la Consulenza Adattiva o con il benchmark
+- Identificare quali profili di rischio beneficiano più dalla personalizzazione
+- Diagnosticare se la strategia personalizzata sta creando valore per quel segmento di clientela
 
 **Come leggerlo:**
-- Cella verde intenso = momento di risk-on forte
-- Cella gialla/arancio = moderazione del rischio percepito
-- Cella rossa = aversion al rischio aumentata (possibile shock di mercato)
-- Leggere riga per riga (round per round) per tracciare la traiettoria
-- Omogenea verde = cliente stabile e coerente
-- Alternanza rossa-verde = cliente volatile, necessita comunicazione più rassicurante
+- **KPI Cards:** Se ADAPT Fiducia > FISSO Fiducia, il cliente preferisce l'approccio personalizzato
+- **Tabella:** 
+  - Colore verde nella colonna ADAPT = strategia personalizzata più efficace per quel profilo
+  - "Dominanza: ADAPT" = personalizzazione sta pagando per quel segmento
+  - "Dominanza: FISSO" = il benchmark è più efficace (possibile sovra-personalizzazione o inadeguatezza)
+
+**Interpretazione Strategica:**
+- Se tutti i profili hanno "Dominanza: ADAPT", la Consulenza Adattiva è vincente su tutta la base
+- Se solo certi profili preferiscono ADAPT, la segmentazione della Direttiva è efficace
+- Se un profilo "Conservative" preferisce FISSO, potrebbe significare che ADAPT è troppo rischioso per quel segmento
+
+---
+
+### 🧠 Radar Sentiment Clienti
+**Tipo:** Radar chart Plotly  
+**Posizione:** Riga 3, colonna 1-12
+
+**Cosa indica:**
+- Profilo multi-dimensionale del sentiment del cliente medio
+- **5 Dimensioni Misurate:**
+  1. **Soddisfazione Comunicazione:** Quanto il cliente si sente ascoltato e compreso (0-100%)
+  2. **Alignment Aspettative:** Quanto il portafoglio rispecchia le aspettative iniziali (0-100%)
+  3. **Fiducia nel Promotore:** Livello di confidenza relazionale (0-100%)
+  4. **Percezione Performance:** Come il cliente percepisce la performance del suo portafoglio vs benchmark (0-100%)
+  5. **Comfort sulla Compliance:** Quanto il cliente si sente sicuro che il portafoglio sia conforme alle sue esigenze (0-100%)
+
+**A cosa serve:**
+- Diagnosticare "quali" aspetti della relazione stanno funzionando e quali no
+- Identificare leve di miglioramento della soddisfazione cliente
+- Comparare il profilo ADAPT vs FISSO per valutare l'impatto della personalizzazione
+
+**Come leggerlo:**
+- **Tutti i raggi verso l'esterno (stella ampia):** Cliente molto soddisfatto su più dimensioni
+- **Raggi irregolari (stella storta):** Alcune aree forti, altre critiche
+- **Raggi corti e rientranti:** Cliente insoddisfatto su molte dimensioni (allarme churn)
+- **ADAPT radar ampio vs FISSO radar stretto:** La personalizzazione sta migliorando il profilo di soddisfazione
+
+**Dimensioni Critiche per Priorità:**
+1. **Fiducia nel Promotore:** Se crolla, il cliente abbandona (assoluta priorità)
+2. **Alignment Aspettative:** Se non è allineato, il cliente percepisci un scostamento importante
+3. **Soddisfazione Comunicazione:** Se bassa, il promotore non sta comunicando efficacemente
+4. **Comfort Compliance:** Importante per la retention a lungo termine
+
+---
+
+### 🗺️ Heatmap Propensione al Rischio per Cluster
+**Tipo:** Grid di celle colorate (4 righe × 5 colonne)  
+**Posizione:** Riga 4, colonna 1-12
+
+**Cosa indica:**
+- Griglia che mostra la propensione al rischio media dei clienti in ogni cluster
+- **Assi:**
+  - **Righe:** Profilo di Rischio (Conservative, Moderate, Growth, Aggressive)
+  - **Colonne:** Segmento di Patrimonio (Basso, Medio-Basso, Medio, Medio-Alto, Alto)
+- **Colore cella:** Propensione al rischio media (0-100%) — verde chiaro, arancio, rosso scuro
+- Ogni cella rappresenta "l'incrocio" tra profilo e patrimonio
+
+**A cosa serve:**
+- Monitorare se il profilo di rischio dei clienti sta evolvendo nel tempo
+- Identificare cluster dove la propensione al rischio è crollata (possibile stress o shock)
+- Diagnosticare se la comunicazione della banca sta mantenendo stabile la risk tolerance
+- Identificare cluster "critici" dove il cliente è avverso al rischio ma il portafoglio potrebbe essere troppo aggressivo
+
+**Come leggerlo:**
+- **Cella verde intenso (85%+):** Cluster con alta propensione al rischio, opportunità per prodotti equity/growth
+- **Cella gialla/arancio (40-85%):** Cluster con rischio moderato, allocazione balanced appropriate
+- **Cella rossa (<40%):** Cluster avverso al rischio, prodotti conservativi necessari
+- **Pattern di riga:** Leggi per profilo — tutti green = segmento stabile e coerente; alternanza rosso-verde = volatilità
+- **Pattern di colonna:** Leggi per patrimonio — high-net-worth dovrebbe avere maggior propensione
+
+**Interpretazione Tattica:**
+- Celle rosse indicano cluster dove la proposta standard fallisce → priorità per la Consulenza Adattiva
+- Uniformità di colore lungo una riga = coerenza del profilo
+- Scatter colors lungo una riga = volatilità o incertezza del cliente su quel profilo
+- Comparazione ADAPT vs FISSO: se ADAPT ha meno celle rosse, la personalizzazione sta funzionando
+
+**Deduzione Pratica:**
+- Se "Aggressive + Alto Patrimonio" è rosso, i clienti ricchi stanno diventando avversi al rischio (anomalia, possibile shock di mercato)
+- Se "Conservative + Basso Patrimonio" è sempre rosso, è una caratteristica naturale di quel segmento
+- Se una cella era verde e diventa rossa, è un segnale di deterioramento della fiducia in quel cluster
 
 ---
 
 ### Evoluzione Fiducia
-**Tipo:** Area chart (Chart.js)  
-**Posizione:** Riga 2, colonna 1-6
+**Tipo:** Line chart (Chart.js)  
+**Posizione:** Riga 5, colonna 1-6
 
 **Cosa indica:**
-- Fiducia media del cliente su scala 0-100% lungo i 200 tentativi
-- Linea viola piena con area sottostante
-- Fiducia = quanto il cliente si fida della Direttiva e del Promotore
+- Fiducia media del cliente su scala 0-100% lungo i 200 tentativi di proposta
+- Curva è una media mobile a 15 periodi per eliminare il rumore giornaliero
+- **Linea solida viola** = valore effettivo
+- **Area sottostante** = banda di fiducia (per visualizzare il range)
 
 **A cosa serve:**
-- Tracciare la qualità della relazione nel tempo
-- Identificare momenti critici dove la fiducia crolla
-- Diagnosticare se la comunicazione sta funzionando
+- Tracciare il "polso" della qualità della relazione cliente nel tempo
+- Identificare momenti critici dove la fiducia crolla bruscamente
+- Diagnosticare se la comunicazione e le decisioni di portafoglio stanno funzionando
+- Anticipare churn analizzando il trend di fiducia
 
 **Come leggerlo:**
-- Asse X = 200 tentativi di proposta
-- Asse Y = fiducia % (0-100%)
-- Trend crescente = comunicazione efficace e soddisfazione aumentante
-- Cali improvvisi = perdita di confidenza da:
-  - Inadeguatezza percepita nel portafoglio
-  - Shock di mercato non comunicato bene
-  - Proposta difformi dal profilo del cliente
-- Trend decrescente costante = segnale di disallineamento cronico
+- **Asse X:** 200 tentativi di proposta (sequenziali nei 5 scenari)
+- **Asse Y:** Fiducia % (0-100%)
+- **Trend crescente:** Comunicazione efficace e soddisfazione aumentante (positivo)
+- **Trend piatto:** Stabilità nella relazione, mantenimento dello status quo
+- **Trend decrescente lento:** Graduale erosione della fiducia (allarme giallo)
+- **Calo improvviso (scalino verticale):** Perdita di fiducia acuta da evento specifico
 
-**Deduzione pratica:**
-- Se rimane sopra 75%, relazione è salda
-- Se scende sotto 50%, rischio concreto di abbandono
+**Cause di Crolli di Fiducia:**
+1. **Inadeguatezza percepita:** Cliente riceve una proposta non coerente con il suo profilo
+2. **Shock di mercato non comunicato:** Performance negativa che il cliente non si aspettava
+3. **Proposta conforme ma non desiderata:** Prodotto adatto ma non gradito (es: troppo conservativo)
+4. **Mancanza di comunicazione proattiva:** Promotore non spiega il razionale delle scelte
+
+**Interpretazione per Deduzione:**
+- Se rimane sopra 75%, relazione è salda — cliente tollerante
+- Se scende sotto 50%, rischio concreto e imminente di abbandono
+- Se rimane sotto 60%, cliente è insoddisfatto e probabilmente lascerà entro 1-2 mesi
+- Confronta ADAPT vs FISSO: se ADAPT fiducia > FISSO fiducia, la personalizzazione sta guadagnando fiducia
+
+**Azioni Consigliate:**
+- Se cala velocemente, contatta cliente proattivamente per capire le ragioni
+- Se rimane bassa, valuta ribilanciamento del portafoglio o cambio di promotore
+- Se sale velocemente, il promotore ha fatto un buon lavoro di comunicazione/rassicurazione
 
 ---
 
 ### Allineamento Profilo vs Portafoglio
 **Tipo:** Radar chart (Chart.js)  
-**Posizione:** Riga 2, colonna 7-12
+**Posizione:** Riga 5, colonna 7-12
 
 **Cosa indica:**
-- 5 dimensioni di preferenza cliente (Rischio, Orizzonte Temporale, Liquidità, Rendimento Atteso, Conoscenza Finanziaria)
-- Linea blu = profilo dichiarato del cliente (da assessment iniziale)
-- Linea verde = adattamento dinamico percepito nel portafoglio
+- Comparazione tra profilo dichiarato del cliente e portafoglio effettivo ricevuto
+- **5 Dimensioni di Preferenza Cliente:**
+  1. **Rischio:** Tolleranza al rischio (0-100%)
+  2. **Orizzonte Temporale:** Lunghezza dell'investimento (0-100%, dove 100%=lungo termine)
+  3. **Liquidità:** Necessità di accesso ai fondi (0-100%, dove 100%=bassa liquidità tollerata)
+  4. **Rendimento Atteso:** Aspettative di return (0-100%)
+  5. **Conoscenza Finanziaria:** Sofisticazione dell'investitore (0-100%)
+
+- **Linea blu:** Profilo dichiarato del cliente (da assessment iniziale/primo incontro)
+- **Linea verde:** Portafoglio effettivo riflesso nei prodotti proposti
 
 **A cosa serve:**
-- Verificare che il portafoglio rispecchi il profilo del cliente
-- Identificare aree di disallineamento che potrebbero causare insoddisfazione
-- Diagnosticare dove la comunicazione ha fallito
+- Verificare che le decisioni di portafoglio rispettino il profilo del cliente (compliance)
+- Identificare aree di disallineamento che potrebbero causare insoddisfazione o violazioni normative
+- Diagnosticare dove la comunicazione dei prodotti ha fallito
+- Comparare ADAPT vs FISSO per valutare quale strategia è più "conforme"
 
 **Come leggerlo:**
-- Se le aree coincidono = client è perfettamente soddisfatto
-- Se il blu è dentro il verde = il portafoglio è più conservativo del profilo (possibile underperformance percepita)
-- Se il verde sporge = il portafoglio è più rischioso del profilo (rischio compliance, insoddisfazione)
-- Discrepanze su "Rendimento" = aspettative non gestite correttamente
-- Discrepanze su "Rischio" = maggiore urgenza di intervento (compliance risk)
+- **Se le aree coincidono (blu = verde):** Cliente è perfettamente soddisfatto, portafoglio è allineato
+- **Se il blu è DENTRO il verde (verde sporge):** Portafoglio è più aggressivo/rischioso del profilo
+  - Possibile violazione MiFID (prodotto non adatto)
+  - Cliente potrebbe essere scontento (portafoglio oltre comfort)
+  - **Urgenza: ALTA** — necessario intervento per compliance e soddisfazione
+- **Se il verde è DENTRO il blu (blu sporge):** Portafoglio è più conservativo del profilo
+  - Cliente può percepirsene underserved (aspettative non incontrate)
+  - Possibile underperformance percepita (rendimento inferiore alle attese)
+  - **Urgenza: Media** — valutare se ribilanciare verso risk-on
+- **Discrepanze specifiche:**
+  - **Su "Rischio":** Urgenza massima (compliance + soddisfazione)
+  - **Su "Rendimento":** Necessità di gestione aspettative (comunicazione della banca)
+  - **Su "Liquidità":** Possibile lock-in sui prodotti illiquidi non graditi
+  - **Su "Orizzonte Temporale":** Cliente potrebbe ritirare fondi prima della scadenza pianificata
+
+**Interpretazione Radar per Cluster:**
+- Un radar "perfetto" è un cerchio regolare (tutte le aree uguali tra blu e verde)
+- Un radar "sbilanciato" suggerisce segmentazione incomplete della Direttiva
+- Se ADAPT radar è più simmetrico di FISSO radar, la personalizzazione sta migliorando l'allineamento
+
+**Azioni Consigliate:**
+- Se il verde sporge molto su "Rischio," contatta cliente per rassicurazione o ribilanciamento
+- Se il blu sporge su "Rendimento," comunica più chiaramente le attese di return realistiche
+- Se il radar è "storto" asimmetricamente, potrebbe essere necessaria una consulenza finanziaria aggiuntiva al cliente
 
 ---
 
