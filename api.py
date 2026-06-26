@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pymongo import MongoClient
@@ -40,6 +40,28 @@ app.add_middleware(
 client = MongoClient("mongodb://elisa:deepleey@10.12.7.53:27017/")
 db = client["finsim_analytics"]
 collection = db["simulation_history"]
+
+# =====================================================================
+# MAPPATURA SCENARI: Frontend UI → Database Code
+# =====================================================================
+# FINSIM-MOD: Traduce i nomi degli scenari inviati dal frontend ai codici del database
+MAPPA_SCENARI = {
+    "Base": "S0",
+    "Espansione": "S1",
+    "Rialzo tassi": "S2",
+    "Stress": "S3",
+    "Recessione": "S4"
+}
+
+def get_scenario_code(scenario_ui: str) -> str:
+    """
+    Converte il nome dello scenario dal frontend al codice database.
+    Esempio: "Base" → "S0_200", "Espansione" → "S1_200"
+    """
+    codice_base = MAPPA_SCENARI.get(scenario_ui, scenario_ui)
+    if codice_base.startswith("S") and codice_base.endswith("_200"):
+        return codice_base
+    return f"{codice_base}_200"
 
 # =====================================================================
 # PYDANTIC MODELS FOR ADVISOR
@@ -327,12 +349,8 @@ def get_dati_banca(scenario_id: str = "S0"):
     Endpoint che legge l'ultimo round da MongoDB, aggrega i dati dei prodotti
     e calcola i volumi, cluster e adeguatezza reale.
     """
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
-
+    # Mappa scenario_id dal frontend (Base, Espansione, etc.) al database (S0_200, S1_200, etc.)
+    db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
 
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
@@ -476,12 +494,8 @@ def get_dati_promotore(scenario_id: str = "S0"):
     spaccato delle conversioni per profilo di rischio, product breakdown,
     alerts (churn e mifid), e next best actions.
     """
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
-
+    # Mappa scenario_id dal frontend (Base, Espansione, etc.) al database (S0_200, S1_200, etc.)
+    db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {
@@ -663,12 +677,8 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
     - Compliance/Adeguatezza media per round (ADAPT vs FISSO)
     - Proposte Accettate per round (stacked bar)
     """
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
-
+    # Mappa scenario_id dal frontend (Base, Espansione, etc.) al database (S0_200, S1_200, etc.)
+    db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
 
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
@@ -741,12 +751,8 @@ def get_dati_cliente(scenario_id: str = "S0"):
     """
     Dati per il Cliente: Trasparenza, Fiducia e Discostamento (Adeguatezza).
     """
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
-
+    # Mappa scenario_id dal frontend (Base, Espansione, etc.) al database (S0_200, S1_200, etc.)
+    db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc or "rounds" not in doc or len(doc["rounds"]) == 0:
         return {"fiducia_media": 0, "scostamento_profilo": 0}
@@ -1308,12 +1314,8 @@ async def get_scenari():
 @app.get("/api/dashboard/scenario/{scenario_id}", tags=["dashboard"])
 async def get_scenario(scenario_id: str):
     """Get detailed scenario data"""
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
-
+    # Mappa scenario_id dal frontend (Base, Espansione, etc.) al database (S0_200, S1_200, etc.)
+    db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc:
         raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
@@ -1670,7 +1672,57 @@ async def get_andamento_guadagni(request: AdvisorRequest) -> dict:
 
     metrics = request.metrics_data or {}
 
-    fig = genera_andamento_guadagni(metrics)
+    # Leggi dati reali da MongoDB
+    scenario_id = metrics.get("scenario_corrente", "S0")
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    documento = collection.find_one({"scenario_id": db_scenario_id})
+
+    # Costruisci dati di guadagni per round
+    guadagni_adapt_per_round = []
+    guadagni_fisso_per_round = []
+
+    TICKET_MEDIO = 100000
+    COMMISSIONE = 0.01
+
+    if documento and "rounds" in documento:
+        print(f"[DEBUG guadagni] Scenario: {db_scenario_id}, Rounds trovati: {len(documento['rounds'])}")
+        if len(documento["rounds"]) > 0:
+            print(f"[DEBUG guadagni] Nomi campi primo round: {documento['rounds'][0].keys()}")
+
+        for r in sorted(documento.get("rounds", []), key=lambda x: x.get('round', 0)):
+            guadagni_round_adapt = 0.0
+            guadagni_round_fisso = 0.0
+
+            for promo in r.get("promoters_data", []):
+                pid = promo.get("promotore_id", "")
+                for strat in promo.get("strategies", []):
+                    if strat.get("accettato") == True:
+                        clienti = strat.get("clients_in_cluster", 0)
+                        commissione = (clienti * TICKET_MEDIO) * COMMISSIONE
+
+                        if "ADAPT" in pid:
+                            guadagni_round_adapt += commissione
+                        elif "FISSO" in pid:
+                            guadagni_round_fisso += commissione
+
+            guadagni_adapt_per_round.append(guadagni_round_adapt)
+            guadagni_fisso_per_round.append(guadagni_round_fisso)
+
+    # Fallback a sintetici se vuoti
+    if not guadagni_adapt_per_round:
+        guadagni_adapt_per_round = [i**1.15 * 1200 for i in range(1, 201)]
+        guadagni_fisso_per_round = [i * 1000 for i in range(1, 201)]
+
+    # Passa i dati corretti alla funzione
+    metrics_enriched = metrics.copy()
+    metrics_enriched["guadagni_adapt_per_round"] = guadagni_adapt_per_round
+    metrics_enriched["guadagni_fisso_per_round"] = guadagni_fisso_per_round
+
+    fig = genera_andamento_guadagni(metrics_enriched)
 
     # Dark mode styling
     fig.update_layout(
@@ -1691,7 +1743,58 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
 
     metrics = request.metrics_data or {}
 
-    fig = genera_linee_comparative(metrics)
+    # Leggi dati reali da MongoDB (raccolta cumulata per round)
+    scenario_id = metrics.get("scenario_corrente", "S0")
+    if not scenario_id.endswith("_200"):
+        db_scenario_id = f"{scenario_id}_200"
+    else:
+        db_scenario_id = scenario_id
+
+    documento = collection.find_one({"scenario_id": db_scenario_id})
+
+    storico_ia = []
+    storico_fisso = []
+
+    TICKET_MEDIO_MLN = 0.1
+
+    if documento and "rounds" in documento:
+        raccolta_cumulata_ia = 0.0
+        raccolta_cumulata_fisso = 0.0
+
+        for r in sorted(documento.get("rounds", []), key=lambda x: x.get('round', 0)):
+            raccolta_round_ia = 0.0
+            raccolta_round_fisso = 0.0
+
+            for promo in r.get("promoters_data", []):
+                pid = promo.get("promotore_id", "")
+                for strat in promo.get("strategies", []):
+                    if strat.get("accettato") == True:
+                        clienti_convertiti = strat.get("clients_in_cluster", 0)
+                        volume_generato = clienti_convertiti * TICKET_MEDIO_MLN
+
+                        if "ADAPT" in pid:
+                            raccolta_round_ia += volume_generato
+                        elif "FISSO" in pid:
+                            raccolta_round_fisso += volume_generato
+
+            raccolta_cumulata_ia += raccolta_round_ia
+            raccolta_cumulata_fisso += raccolta_round_fisso
+
+            storico_ia.append(round(raccolta_cumulata_ia, 2))
+            storico_fisso.append(round(raccolta_cumulata_fisso, 2))
+
+    # Fallback a sintetici se vuoti
+    if not storico_ia:
+        storico_ia = [i**1.2 * 10000 for i in range(1, 201)]
+    if not storico_fisso:
+        storico_fisso = [i * 9000 for i in range(1, 201)]
+
+    # Passa i dati corretti alla funzione
+    metrics_enriched = metrics.copy()
+    metrics_enriched["storico_raccolta_adattivo"] = storico_ia
+    metrics_enriched["storico_raccolta_fisso"] = storico_fisso
+
+    fig = genera_linee_comparative(metrics_enriched)
 
     # Dark mode styling
     fig.update_layout(
@@ -1840,3 +1943,228 @@ async def get_interesse_composto(request: AdvisorRequest) -> dict:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+@app.post("/api/charts/client-sentiment")
+async def get_client_sentiment(payload: dict):
+    from visualizzatore_grafici import genera_spider_sentiment_cluster
+    try:
+        metrics = payload.get("metrics_data", payload)
+        scenario_ui = metrics.get("scenario_corrente", "S0")
+
+        dizionario_scenari = {
+            "Base": "S0", "Espansione": "S1",
+            "Rialzo tassi": "S2", "Stress": "S3", "Recessione": "S4"
+        }
+        scenario_codice = dizionario_scenari.get(scenario_ui, scenario_ui)
+        db_scenario_id = f"{scenario_codice}_200" if not scenario_codice.endswith("_200") else scenario_codice
+
+        print(f"[Spider] Cercando scenario: {db_scenario_id}")
+        documento = collection.find_one({"scenario_id": db_scenario_id})
+
+        if not documento:
+            print(f"[Spider] Documento non trovato per {db_scenario_id}")
+            fig = go.Figure()
+            fig.add_annotation(text=f"Scenario '{db_scenario_id}' non trovato nel DB", x=0.5, y=0.5, showarrow=False, font=dict(color="white", size=12))
+            fig.update_layout(paper_bgcolor='rgba(30,41,59,0.5)', plot_bgcolor='rgba(30,41,59,0.5)')
+            return Response(content=fig.to_json(), media_type="application/json")
+
+        rounds_data = documento.get("rounds", [])
+        business_metrics = documento.get("business_metrics", {})
+
+        business_metrics.update({
+            "tasso_conversione_adapt_pct": metrics.get("tasso_conversione_adapt_pct", 46),
+            "tasso_conversione_fisso_pct": metrics.get("tasso_conversione_fisso_pct", 92),
+            "fiducia_media_adapt_pct": metrics.get("fiducia_media_adapt", 29),
+            "fiducia_media_fisso_pct": metrics.get("fiducia_media_fisso", 55),
+        })
+
+        print(f"[Spider] business_metrics keys: {list(business_metrics.keys())}")
+        print(f"[Spider] fiducia_adapt={business_metrics.get('fiducia_media_adapt_pct')}, conv_adapt={business_metrics.get('tasso_conversione_adapt_pct')}")
+
+        fig = genera_spider_sentiment_cluster(rounds_data, business_metrics)
+        return Response(content=fig.to_json(), media_type="application/json")
+
+    except Exception as e:
+        print(f"[Spider] Errore: {str(e)}")
+        fig = go.Figure()
+        fig.add_annotation(text=f"Errore: {str(e)}", x=0.5, y=0.5, showarrow=False, font=dict(color="red", size=11))
+        fig.update_layout(paper_bgcolor='rgba(30,41,59,0.5)', plot_bgcolor='rgba(30,41,59,0.5)')
+        return Response(content=fig.to_json(), media_type="application/json")
+    
+@app.get("/api/dati-banca-direttiva")
+def get_dati_banca_direttiva(scenario_id: str = "S0"):
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"direttiva": [], "scostamenti": []}
+        
+    rounds = sorted(doc["rounds"], key=lambda x: x.get("round", 0))
+    
+    fisso_totale = defaultdict(int)
+    fisso_count = 0
+    adapt_totale = defaultdict(int)
+    adapt_count = 0
+    
+    scostamenti_per_round = []
+    
+    for r in rounds:
+        round_fisso = defaultdict(int)
+        round_adapt = defaultdict(int)
+        round_fisso_count = 0
+        round_adapt_count = 0
+        
+        for promo in r.get("promoters_data", []):
+            pid = promo.get("promotore_id", "")
+            for s in promo.get("strategies", []):
+                prod = s.get("prodotto_suggerito", "Altro")
+                if "FISSO" in pid:
+                    fisso_totale[prod] += 1
+                    fisso_count += 1
+                    round_fisso[prod] += 1
+                    round_fisso_count += 1
+                elif "ADAPT" in pid:
+                    adapt_totale[prod] += 1
+                    adapt_count += 1
+                    round_adapt[prod] + 1
+                    round_adapt_count += 1
+                    
+        if round_fisso_count > 0 and round_adapt_count > 0:
+            scostamento_round = 0
+            for prod in set(list(round_fisso.keys()) + list(round_adapt.keys())):
+                pct_fisso = round_fisso.get(prod, 0) / round_fisso_count
+                pct_adapt = round_adapt.get(prod, 0) / round_adapt_count
+                scostamento_round += abs(pct_adapt - pct_fisso)
+            scostamenti_per_round.append({
+                "round": r.get("round"),
+                "scostamento": round(scostamento_round * 100, 1)
+            })
+            
+    direttiva = []
+    tutti_prodotti = set(list(fisso_totale.keys()) + list(adapt_totale.keys()))
+    for prod in tutti_prodotti:
+        pct_fisso = round(fisso_totale.get(prod, 0) / fisso_count * 100, 1) if fisso_count > 0 else 0
+        pct_adapt = round(adapt_totale.get(prod, 0) / adapt_count * 100, 1) if adapt_count > 0 else 0
+        delta =round(pct_adapt - pct_fisso, 1)
+        direttiva.append({
+            "prodotto": prod.replace("_", " "),
+            "pct_fisso": pct_fisso,
+            "pct_adapt": pct_adapt,
+            "delta": delta
+        })
+        
+    direttiva.sort(key=lambda x: abs(x["delta"]), reverse=True)
+    
+    return {
+        "direttiva": direttiva,
+        "scostamenti": scostamenti_per_round
+    }
+    
+@app.get("/api/dati-banca-flusso-clienti")
+def get_dati_banca_flusso_clienti(scenario_id: str = "S0"):
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"attratti": 0, "arrabbiati": 0, "trend": []}
+
+    rounds = sorted(doc["rounds"], key=lambda x: x.get("round", 0))
+
+    attratti_totale = 0
+    arrabbiati_totale = 0
+    trend = []
+
+    for r in rounds:
+        attratti_round = 0
+        arrabbiati_round = 0
+
+        for promo in r.get("promoters_data", []):
+            for s in promo.get("strategies", []):
+                delta = s.get("delta_fiducia_medio", 0)
+                clienti = s.get("clients_in_cluster", 0)
+                if delta > 0:
+                    attratti_round += clienti
+                elif delta < -0.05:
+                    arrabbiati_round += clienti
+
+        attratti_totale += attratti_round
+        arrabbiati_totale += arrabbiati_round
+        trend.append({
+            "round": r.get("round"),
+            "attratti": attratti_round,
+            "arrabbiati": arrabbiati_round
+        })
+
+    return {
+        "attratti": attratti_totale,
+        "arrabbiati": arrabbiati_totale,
+        "trend": trend
+    }
+    
+@app.get("/api/dati-banca-spider")
+def get_dati_banca_spider(scenario_id: str = "S0"):
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"adapt": [0,0,0,0,0], "target": [100,100,100,100,100]}
+
+    rounds = sorted(doc["rounds"], key=lambda x: x.get("round", 0))
+
+    # Accumulatori
+    adapt_adeguatezza, adapt_conversione, adapt_fiducia = [], [], []
+    adapt_commissioni = []
+    fisso_prodotti = defaultdict(int)
+    adapt_prodotti = defaultdict(int)
+    fisso_count = adapt_count = 0
+
+    TICKET_MEDIO = 100000
+    COMMISSIONE = 0.01
+
+    for r in rounds:
+        for promo in r.get("promoters_data", []):
+            pid = promo.get("promotore_id", "")
+            for s in promo.get("strategies", []):
+                adeq = s.get("adeguatezza_score", 0)
+                acc = s.get("accettato", False)
+                fid = s.get("fiducia_media_post", 0)
+                clienti = s.get("clients_in_cluster", 0)
+                prod = s.get("prodotto_suggerito", "Altro")
+
+                if "ADAPT" in pid:
+                    adapt_adeguatezza.append(adeq)
+                    adapt_conversione.append(1 if acc else 0)
+                    adapt_fiducia.append(fid)
+                    adapt_commissioni.append((clienti * TICKET_MEDIO * COMMISSIONE) if acc else 0)
+                    adapt_prodotti[prod] += 1
+                    adapt_count += 1
+                elif "FISSO" in pid:
+                    fisso_prodotti[prod] += 1
+                    fisso_count += 1
+
+    # 1. Compliance (adeguatezza media 0-100)
+    compliance = round(sum(adapt_adeguatezza) / len(adapt_adeguatezza) * 100, 1) if adapt_adeguatezza else 0
+
+    # 2. Raccolta (tasso conversione 0-100)
+    raccolta = round(sum(adapt_conversione) / len(adapt_conversione) * 100, 1) if adapt_conversione else 0
+
+    # 3. Fiducia cliente (media 0-100)
+    fiducia = round(sum(adapt_fiducia) / len(adapt_fiducia) * 100, 1) if adapt_fiducia else 0
+
+    # 4. Aderenza direttiva (100 - scostamento medio dalla distribuzione FISSO)
+    scostamento = 0
+    if fisso_count > 0 and adapt_count > 0:
+        tutti = set(list(fisso_prodotti.keys()) + list(adapt_prodotti.keys()))
+        for prod in tutti:
+            pct_f = fisso_prodotti.get(prod, 0) / fisso_count
+            pct_a = adapt_prodotti.get(prod, 0) / adapt_count
+            scostamento += abs(pct_a - pct_f)
+    aderenza = round(max(0, 100 - scostamento * 100), 1)
+
+    # 5. Redditività (commissioni normalizzate 0-100 rispetto al max teorico)
+    comm_totale = sum(adapt_commissioni)
+    comm_max_teorico = adapt_count * TICKET_MEDIO * COMMISSIONE if adapt_count > 0 else 1
+    redditivita = round(min(100, comm_totale / comm_max_teorico * 100), 1) if comm_max_teorico > 0 else 0
+
+    return {
+        "adapt": [compliance, raccolta, fiducia, aderenza, redditivita],
+        "target": [90, 80, 75, 70, 85],
+        "labels": ["Compliance", "Raccolta", "Fiducia Cliente", "Aderenza Direttiva", "Redditività"]
+    }

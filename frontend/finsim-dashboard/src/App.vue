@@ -49,7 +49,7 @@
         <div class="breadcrumb">Simulazione Base / {{ view.charAt(0).toUpperCase() + view.slice(1) }}</div>
         <div style="display: flex; align-items: center; gap: 20px;">
           <div class="reportistica-buttons">
-            <button @click="exportToPDF" class="report-btn pdf-btn" title="Genera report PDF completo con analisi LLM">📄 Esporta PDF</button>
+            <button @click="exportToPDF" class="report-btn pdf-btn" title="Genera report PDF completo con analisi IA">📄 Esporta PDF</button>
             <button @click="exportToPPTX" class="report-btn pptx-btn" title="Genera presentazione PPTX con grafici e analisi">🎬 Genera PPTX</button>
           </div>
           <button @click="showHelpModal = true" class="help-btn">❓ Guida & Legenda</button>
@@ -63,7 +63,7 @@
 
           <div class="panel advisor-panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>🤖 Copilota IA</h3>
+              <h3>🤖 Assistente di Analisi Strategica</h3>
             </div>
             <div class="advisor-search-box">
               <input
@@ -71,7 +71,7 @@
                 @keydown="handleSearchKeydown"
                 :disabled="isAdvisorLoading"
                 type="text"
-                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                placeholder="Poni una domanda all'Assistente (es: 'Analizza il trend della compliance')..."
                 class="advisor-input"
               />
             </div>
@@ -88,7 +88,7 @@
             </div>
             <div v-if="isAdvisorLoading" class="advisor-loading">
               <div class="loading-spinner"></div>
-              <span>Il Copilota sta analizzando i 200 round storici...</span>
+              <span>L'Assistente sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
               <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
@@ -198,26 +198,27 @@
             </div>
             <div class="chart-container"><canvas id="bRaccolta"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra l'evoluzione su <strong>200 Tentativi di Proposta</strong>, l'asse Y la Raccolta Netta Cumulata in milioni di euro. La linea verde (ADAPT) riflette la strategia adattiva, la linea blu (FISSO) il benchmark fisso.
-              <strong>Deduzione:</strong> Una divergenza positiva di ADAPT rispetto a FISSO indica che l'approccio personalizzato sta generando maggior valore costante sul lungo periodo. Livelli plateau suggeriscono necessità di ricalibrazione della Direttiva.
+              <strong>Come leggere:</strong> L'asse X mostra l'evoluzione su <strong>200 Tentativi di Proposta</strong>, l'asse Y la Raccolta Netta Cumulata in milioni di euro. La linea verde (Consulenza IA Adattiva) riflette la strategia personalizzata, la linea blu (Strategia Standard) il benchmark statico.
+              <strong>Deduzione:</strong> Una divergenza positiva della Consulenza IA Adattiva rispetto alla Strategia Standard indica che l'approccio personalizzato sta generando maggior valore costante sul lungo periodo. Livelli plateau suggeriscono necessità di ricalibrazione della Direttiva.
             </div>
           </div>
 
           <div class="panel" style="grid-column: span 4;">
             <div class="panel-header">
-              <h3>Target Direttiva vs Attuale</h3>
+              <h3>🎯 Performance Strategica Banca</h3>
             </div>
-            <div class="chart-container"><canvas id="bRadar"></canvas></div>
-            <div class="chart-static-caption">
-              <strong>Come leggere:</strong> Questo grafico radar mostra 5 dimensioni strategiche (Bond Corporate, Monetario, Azionario, Illiquidi, Gov Bond). La linea grigia tratteggiata rappresenta il Target della Direttiva, la linea blu il Portafoglio Effettivo.
-              <strong>Deduzione:</strong> Quando il blu è dentro il grigio, il portafoglio è allineato. Sporgenze indicano sovraesposizioni; rientranze indicano sottodimensionamenti rispetto alla strategia pianificata.
-            </div>
+            
+          <div id="plotly-spider-banca" style="height: 320px; width: 100%;"></div>
+          <div class="chart-static-caption">
+            <strong>Come leggere:</strong> Il radar mostra 5 dimensioni chiave per la banca: Compliance (adeguatezza proposte), Raccolta (tasso conversione), Fiducia Cliente (sentiment post-proposta), Aderenza Direttiva (quanto ADAPT segue la strategia FISSO), Redditività (commissioni generate). La linea <strong style="color:#1FA463">verde</strong> è ADAPT, la linea <strong style="color:#8593A8">grigia tratteggiata</strong> è il target bancario.
+            <strong>Deduzione:</strong> Dimensioni sotto il target (grigio) indicano aree di miglioramento prioritarie. Aderenza Direttiva bassa significa che ADAPT si discosta significativamente dalla strategia canonica.
+          </div>
           </div>
 
           <!-- PLOTLY ADVANCED CHARTS -->
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>📊 Visualizzazioni Avanzate Plotly</h3>
+              <h3>📊 Visualizzazioni Avanzate</h3>
             </div>
           </div>
 
@@ -230,7 +231,7 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Analisi Contribuzione Patrimonio Gestito</h3></div>
             <div id="plotly-waterfall" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
-            <p class="chart-caption">Grafico a cascata che mostra la scomposizione del patrimonio finale: partendo da AUM iniziale, passando per nuova raccolta, effetto mercato, e abbandoni clienti, fino al patrimonio finale gestito.</p>
+            <p class="chart-caption">Grafico a cascata che mostra la scomposizione del patrimonio finale: partendo da Patrimonio Gestito iniziale, passando per nuova raccolta, effetto mercato, e abbandoni clienti, fino al patrimonio finale gestito.</p>
           </div>
 
           <div class="panel" style="grid-column: span 12;">
@@ -244,7 +245,7 @@
 
           <div class="panel advisor-panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>🤖 Copilota IA</h3>
+              <h3>🤖 Assistente di Analisi Strategica</h3>
             </div>
             <div class="advisor-search-box">
               <input
@@ -252,7 +253,7 @@
                 @keydown="handleSearchKeydown"
                 :disabled="isAdvisorLoading"
                 type="text"
-                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                placeholder="Poni una domanda all'Assistente (es: 'Analizza il trend della compliance')..."
                 class="advisor-input"
               />
             </div>
@@ -269,7 +270,7 @@
             </div>
             <div v-if="isAdvisorLoading" class="advisor-loading">
               <div class="loading-spinner"></div>
-              <span>Il Copilota sta analizzando i 200 round storici...</span>
+              <span>L'Assistente sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
               <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
@@ -334,10 +335,10 @@
             <div class="regime-note">{{ regimeMercato.promoter_tip }}</div>
           </div>
 
-          <!-- ROW 1: Strategia LLM + Commissioni -->
+          <!-- ROW 1: Strategia IA Adattiva + Commissioni -->
           <div class="panel highlight-panel" style="grid-column: span 8;">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-              <h3><span style="font-size:16px;">🧠</span> Direttiva Strategica LLM (ADAPT-1)</h3>
+              <h3><span style="font-size:16px;">🧠</span> Direttiva Strategica IA (Consulenza Adattiva)</h3>
               <div class="scenario-indicator">
                 <span class="status-dot active"></span>
                 Scenario: <strong>{{ scenarioPills.find(s => s.id === scenario)?.label || scenario }}</strong>
@@ -412,9 +413,9 @@
             <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
           </div>
 
-          <!-- ROW 2C: Delta Performance ADAPT vs FISSO -->
+          <!-- ROW 2C: Delta Performance Consulenza Adattiva vs Strategia Standard -->
           <div class="panel" style="grid-column: span 6;">
-            <div class="panel-header"><h3>📊 Delta Performance (Vantaggio ADAPT)</h3></div>
+            <div class="panel-header"><h3>📊 Delta Performance (Vantaggio Consulenza Adattiva)</h3></div>
             <div style="display: flex; flex-direction: column; gap: 14px;">
               <div style="background: rgba(31,164,99,.08); border-left: 3px solid #1FA463; padding: 12px; border-radius: 4px;">
                 <div style="font-size: 11px; color: #8593A8; text-transform: uppercase; margin-bottom: 4px;">Commissioni</div>
@@ -431,7 +432,7 @@
                   +{{ (datiPromotore.adapt.tasso_conversione_pct - datiPromotore.fisso.tasso_conversione_pct).toFixed(1) }}%
                 </div>
                 <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
-                  ADAPT {{ datiPromotore.adapt.tasso_conversione_pct }}% vs FISSO {{ datiPromotore.fisso.tasso_conversione_pct }}%
+                  Consulenza Adattiva {{ datiPromotore.adapt.tasso_conversione_pct }}% vs Strategia Standard {{ datiPromotore.fisso.tasso_conversione_pct }}%
                 </div>
               </div>
             </div>
@@ -453,29 +454,29 @@
               <div class="metric-card">
                 <div class="metric-label">Tasso Conversione</div>
                 <div class="metric-values">
-                  <div class="adapt-value">{{ datiPromotore.adapt.tasso_conversione_pct }}% <span style="font-size:10px; color:#6b7280;">ADAPT</span></div>
-                  <div class="fisso-value">{{ datiPromotore.fisso.tasso_conversione_pct }}% <span style="font-size:10px; color:#6b7280;">FISSO</span></div>
+                  <div class="adapt-value">{{ datiPromotore.adapt.tasso_conversione_pct }}% <span style="font-size:10px; color:#6b7280;">Consulenza Adattiva</span></div>
+                  <div class="fisso-value">{{ datiPromotore.fisso.tasso_conversione_pct }}% <span style="font-size:10px; color:#6b7280;">Strategia Standard</span></div>
                 </div>
               </div>
               <div class="metric-card">
                 <div class="metric-label">Fiducia Media Clienti</div>
                 <div class="metric-values">
-                  <div class="adapt-value">{{ datiPromotore.adapt.fiducia_media }}% <span style="font-size:10px; color:#6b7280;">ADAPT</span></div>
-                  <div class="fisso-value">{{ datiPromotore.fisso.fiducia_media }}% <span style="font-size:10px; color:#6b7280;">FISSO</span></div>
+                  <div class="adapt-value">{{ datiPromotore.adapt.fiducia_media }}% <span style="font-size:10px; color:#6b7280;">Consulenza Adattiva</span></div>
+                  <div class="fisso-value">{{ datiPromotore.fisso.fiducia_media }}% <span style="font-size:10px; color:#6b7280;">Strategia Standard</span></div>
                 </div>
               </div>
               <div class="metric-card">
                 <div class="metric-label">Commissioni Cumulate</div>
                 <div class="metric-values">
-                  <div class="adapt-value">€ {{ datiPromotore.adapt.commissioni_cumulate.toLocaleString('it-IT') }} <span style="font-size:10px; color:#6b7280;">ADAPT</span></div>
-                  <div class="fisso-value">€ {{ datiPromotore.fisso.commissioni_cumulate.toLocaleString('it-IT') }} <span style="font-size:10px; color:#6b7280;">FISSO</span></div>
+                  <div class="adapt-value">€ {{ datiPromotore.adapt.commissioni_cumulate.toLocaleString('it-IT') }} <span style="font-size:10px; color:#6b7280;">Consulenza Adattiva</span></div>
+                  <div class="fisso-value">€ {{ datiPromotore.fisso.commissioni_cumulate.toLocaleString('it-IT') }} <span style="font-size:10px; color:#6b7280;">Strategia Standard</span></div>
                 </div>
               </div>
               <div class="metric-card">
                 <div class="metric-label">Proposte Totali</div>
                 <div class="metric-values">
-                  <div class="adapt-value">{{ datiPromotore.adapt.proposte_totali }} <span style="font-size:10px; color:#6b7280;">ADAPT</span></div>
-                  <div class="fisso-value">{{ datiPromotore.fisso.proposte_totali }} <span style="font-size:10px; color:#6b7280;">FISSO</span></div>
+                  <div class="adapt-value">{{ datiPromotore.adapt.proposte_totali }} <span style="font-size:10px; color:#6b7280;">Consulenza Adattiva</span></div>
+                  <div class="fisso-value">{{ datiPromotore.fisso.proposte_totali }} <span style="font-size:10px; color:#6b7280;">Strategia Standard</span></div>
                 </div>
               </div>
             </div>
@@ -491,8 +492,8 @@
                 <thead>
                   <tr>
                     <th>Profilo</th>
-                    <th style="text-align: center;">ADAPT</th>
-                    <th style="text-align: center;">FISSO</th>
+                    <th style="text-align: center;">Consulenza Adattiva</th>
+                    <th style="text-align: center;">Strategia Standard</th>
                     <th style="text-align: center;">Dominanza</th>
                   </tr>
                 </thead>
@@ -502,8 +503,8 @@
                     <td style="text-align: center; color: #1FA463; font-weight: bold; font-size: 12px;">{{ row.adapt_pct }}%</td>
                     <td style="text-align: center; color: #2E6FD6; font-weight: bold; font-size: 12px;">{{ row.fisso_pct }}%</td>
                     <td style="text-align: center;">
-                      <span v-if="row.adapt_pct > row.fisso_pct" class="dom-badge adapt-dom">ADAPT</span>
-                      <span v-else-if="row.fisso_pct > row.adapt_pct" class="dom-badge fisso-dom">FISSO</span>
+                      <span v-if="row.adapt_pct > row.fisso_pct" class="dom-badge adapt-dom">Consulenza Adattiva</span>
+                      <span v-else-if="row.fisso_pct > row.adapt_pct" class="dom-badge fisso-dom">Strategia Standard</span>
                       <span v-else class="dom-badge" style="color: #8593A8;">Parità</span>
                     </td>
                   </tr>
@@ -521,8 +522,8 @@
                 <thead>
                   <tr>
                     <th>Prodotto</th>
-                    <th style="text-align: center;">ADAPT</th>
-                    <th style="text-align: center;">FISSO</th>
+                    <th style="text-align: center;">Consulenza Adattiva</th>
+                    <th style="text-align: center;">Strategia Standard</th>
                     <th style="text-align: center;">Dominanza</th>
                   </tr>
                 </thead>
@@ -532,8 +533,8 @@
                     <td style="text-align: center; color: #1FA463; font-weight: bold; font-size: 12px;">{{ row.adapt_pct }}%</td>
                     <td style="text-align: center; color: #2E6FD6; font-weight: bold; font-size: 12px;">{{ row.fisso_pct }}%</td>
                     <td style="text-align: center;">
-                      <span v-if="row.adapt_pct > row.fisso_pct" class="dom-badge adapt-dom">ADAPT</span>
-                      <span v-else-if="row.fisso_pct > row.adapt_pct" class="dom-badge fisso-dom">FISSO</span>
+                      <span v-if="row.adapt_pct > row.fisso_pct" class="dom-badge adapt-dom">Consulenza Adattiva</span>
+                      <span v-else-if="row.fisso_pct > row.adapt_pct" class="dom-badge fisso-dom">Strategia Standard</span>
                       <span v-else class="dom-badge" style="color: #8593A8;">Parità</span>
                     </td>
                   </tr>
@@ -544,20 +545,20 @@
 
           <!-- ROW 5: Grafici -->
           <div class="panel" style="grid-column: span 6;">
-            <div class="panel-header"><h3>Adeguatezza Media per Round</h3></div>
+            <div class="panel-header"><h3>Conformità per Interazione Commerciale</h3></div>
             <div class="chart-container"><canvas id="pCompliance"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong>, l'asse Y la percentuale di adeguatezza (0-100%). La linea verde (ADAPT) rappresenta l'approccio personalizzato, la linea blu tratteggiata (FISSO) il benchmark.
-              <strong>Deduzione:</strong> Se ADAPT supera FISSO, la strategia adattiva sta migliorando l'allineamento prodotto-cliente. Un trend decrescente suggerisce di rivedere la Direttiva.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong>, l'asse Y la percentuale di conformità (0-100%). La linea verde (Consulenza Adattiva) rappresenta l'approccio personalizzato, la linea blu tratteggiata (Strategia Standard) il benchmark.
+              <strong>Deduzione:</strong> Se la Consulenza Adattiva supera la Strategia Standard, l'approccio personalizzato sta migliorando l'allineamento prodotto-cliente. Un trend decrescente suggerisce di rivedere la Direttiva.
             </div>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
-            <div class="panel-header"><h3>Proposte Accettate per Round</h3></div>
+            <div class="panel-header"><h3>Proposte Accettate per Fase Commerciale</h3></div>
             <div class="chart-container"><canvas id="pAccept"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>10 Blocchi di Tentativi di Proposta</strong> (20 proposte per blocco), l'asse Y il numero cumulato di proposte accettate. Le barre verdi (ADAPT) e blu (FISSO) sono sovrapposte per un confronto immediato.
-              <strong>Deduzione:</strong> Un volume ADAPT sistematicamente più alto indica maggiore efficacia della strategia personalizzata. Picchi anomali suggeriscono fattori di mercato esterni.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>10 Blocchi di Tentativi di Proposta</strong> (20 proposte per blocco), l'asse Y il numero cumulato di proposte accettate. Le barre verdi (Consulenza Adattiva) e blu (Strategia Standard) sono sovrapposte per un confronto immediato.
+              <strong>Deduzione:</strong> Un volume della Consulenza Adattiva sistematicamente più alto indica maggiore efficacia della strategia personalizzata. Picchi anomali suggeriscono fattori di mercato esterni.
             </div>
           </div>
         </div>
@@ -566,7 +567,7 @@
 
           <div class="panel advisor-panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>🤖 Copilota IA</h3>
+              <h3>🤖 Assistente di Analisi Strategica</h3>
             </div>
             <div class="advisor-search-box">
               <input
@@ -574,7 +575,7 @@
                 @keydown="handleSearchKeydown"
                 :disabled="isAdvisorLoading"
                 type="text"
-                placeholder="Chiedi al Copilota (es: 'Analizza il trend della compliance')..."
+                placeholder="Poni una domanda all'Assistente (es: 'Analizza il trend della compliance')..."
                 class="advisor-input"
               />
             </div>
@@ -591,7 +592,7 @@
             </div>
             <div v-if="isAdvisorLoading" class="advisor-loading">
               <div class="loading-spinner"></div>
-              <span>Il Copilota sta analizzando i 200 round storici...</span>
+              <span>L'Assistente sta analizzando i 200 round storici...</span>
             </div>
             <div v-if="aiResponseBrief && !isAdvisorLoading" class="advisor-response">
               <div class="response-brief"><strong>{{ aiResponseBrief }}</strong></div>
@@ -656,14 +657,98 @@
             <div class="regime-note">{{ regimeMercato.client_tip }}</div>
           </div>
 
+          <!-- FINSIM-MOD: Client Intelligence KPI & Risk Profile Distribution -->
           <div class="panel" style="grid-column: span 12;">
             <div class="panel-header">
-              <h3>Heatmap Propensione al Rischio</h3>
+              <h3>📊 Intelligence Cliente — KPI Medi & Distribuzione Portafoglio</h3>
             </div>
-            <div class="heatmap-grid">
-              <div v-for="(c, i) in clusters" :key="i" class="heat-cell" :style="{ backgroundColor: c.bg, color: c.fg }">
-                {{ c.value }}
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+              <div class="metric-card">
+                <div class="metric-label">Fiducia Media (ADAPT)</div>
+                <div class="adapt-value" style="font-size:28px;">{{ datiPromotore.adapt.fiducia_media }}%</div>
               </div>
+              <div class="metric-card">
+                <div class="metric-label">Fiducia Media (FISSO)</div>
+                <div class="fisso-value" style="font-size:28px;">{{ datiPromotore.fisso.fiducia_media }}%</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Tasso Accettazione (ADAPT)</div>
+                <div class="adapt-value" style="font-size:28px;">{{ datiPromotore.adapt.tasso_conversione_pct }}%</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Tasso Accettazione (FISSO)</div>
+                <div class="fisso-value" style="font-size:28px;">{{ datiPromotore.fisso.tasso_conversione_pct }}%</div>
+              </div>
+            </div>
+            <div class="panel-header" style="margin-top: 8px;">
+              <h3>Distribuzione Clienti per Profilo di Rischio</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Profilo di Rischio</th>
+                    <th style="text-align:center">Accettazione ADAPT</th>
+                    <th style="text-align:center">Accettazione FISSO</th>
+                    <th style="text-align:center">Dominanza</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(row, idx) in datiPromotore.risk_profile_breakdown" :key="idx">
+                    <td style="font-weight:600; color:#E2E8F0">{{ row.profilo }}</td>
+                    <td style="text-align:center; color:#1FA463; font-weight:bold">{{ row.adapt_pct }}%</td>
+                    <td style="text-align:center; color:#2E6FD6; font-weight:bold">{{ row.fisso_pct }}%</td>
+                    <td style="text-align:center">
+                      <span v-if="row.adapt_pct > row.fisso_pct" class="dom-badge adapt-dom">ADAPT</span>
+                      <span v-else-if="row.fisso_pct > row.adapt_pct" class="dom-badge fisso-dom">FISSO</span>
+                      <span v-else class="dom-badge" style="color:#8593A8">Parità</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- FINSIM-MOD: Radar Chart Panel - Full Width -->
+          <div class="panel" style="grid-column: span 12; padding: 24px;">
+            <div style="display: grid; grid-template-columns: 1fr;">
+              <!-- Radar Chart Full Width -->
+              <div style="background: rgba(31, 164, 99, 0.08); border: 1px solid rgba(31, 164, 99, 0.2); border-radius: 8px; padding: 24px;">
+                <h4 style="color: #1FA463; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Radar: Sentiment Client</h4>
+                <div id="spider-sentiment-clienti" style="height: 520px; width: 100%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FINSIM-MOD: Heatmap Propensione al Rischio - Leggibile con Assi -->
+          <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>🗺️ Heatmap Propensione al Rischio per Cluster</h3>
+            </div>
+            <div style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center;">
+              <!-- Header colonne -->
+              <div></div>
+              <div v-for="col in ['Basso Patrimonio', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio']" :key="col"
+                   style="text-align:center; font-size:11px; color:#8593A8; font-weight:600; padding:4px; text-transform:uppercase; letter-spacing:0.5px">
+                {{ col }}
+              </div>
+              <!-- Righe con label -->
+              <template v-for="(row, rowIdx) in heatmapConAssi" :key="rowIdx">
+                <div style="font-size:11px; color:#8593A8; font-weight:600; text-align:right; padding-right:8px; text-transform:uppercase; letter-spacing:0.5px">
+                  {{ row.label }}
+                </div>
+                <div v-for="(cell, colIdx) in row.cells" :key="colIdx"
+                     class="heat-cell" :style="{ backgroundColor: cell.bg, color: cell.fg }">
+                  {{ cell.value }}
+                </div>
+              </template>
+            </div>
+            <div class="chart-static-caption" style="margin-top:16px;">
+              <strong>Come leggere:</strong> Ogni cella mostra la propensione al rischio media dei clienti in quel cluster (Profilo Rischio × Patrimonio).
+              <strong style="color:#1E9E63">Verde</strong> = alta propensione,
+              <strong style="color:#E0922F">Arancione</strong> = media,
+              <strong style="color:#D64242">Rosso</strong> = bassa propensione o cluster critico.
+              <strong>Deduzione:</strong> Le celle rosse indicano cluster dove la proposta standard fallisce — priorità per la Consulenza IA Adattiva.
             </div>
           </div>
 
@@ -671,17 +756,17 @@
             <div class="panel-header"><h3>Evoluzione Fiducia</h3></div>
             <div class="chart-container"><canvas id="cFiducia"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong> storici, l'asse Y la percentuale di fiducia media del cliente (0-100%). La linea viola piena con area sottostante illustra il trend macro nel tempo.
-              <strong>Deduzione:</strong> Un trend macro in crescita indica comunicazione efficace e soddisfazione aumentante del cliente. Cali improvvisi segnalano perdite di confidenza dovute a mercati avversi o inadeguatezze percepite nel portafoglio.
+              <strong>Come leggere:</strong> L'asse X mostra i <strong>200 Tentativi di Proposta</strong>, l'asse Y la percentuale di fiducia media (0-100%). La curva è una <strong>media mobile a 15 periodi</strong> che elimina il rumore e mostra il trend reale.
+              <strong>Deduzione:</strong> Un trend in crescita indica comunicazione efficace. Cali sostenuti segnalano perdita di fiducia che richiede intervento sulla strategia comunicativa.
             </div>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Allineamento Profilo vs Portafoglio</h3></div>
-            <div class="chart-container"><canvas id="cRadar"></canvas></div>
+            <div class="chart-container" style="height: 320px;"><canvas id="cRadar"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> Questo grafico radar radar mostra 5 dimensioni di preferenza cliente (Rischio, Orizzonte, Liquidità, Rendimento, Conoscenza). La linea blu e la linea verde mostrano rispettivamente lo stato effettivo e quello adattivo.
-              <strong>Deduzione:</strong> Quando le aree colorate coincidono, il profilo del cliente è pienamente soddisfatto. Discrepanze suggeriscono necessità di ribilanciamento o comunicazione aggiuntiva circa il razionale delle scelte di portafoglio.
+              <strong>Come leggere:</strong> Il radar mostra 5 dimensioni di preferenza cliente: Rischio, Orizzonte temporale, Liquidità, Rendimento atteso, Conoscenza finanziaria. La linea <strong style="color:#2E6FD6">blu</strong> è il profilo dichiarato, la linea <strong style="color:#178A57">verde</strong>è il portafoglio effettivo assegnato.
+              <strong>Deduzione:</strong> Quando le aree coincidono il profilo è rispettato. Discrepanze indicano necessità di ribilanciamento o comunicazione aggiuntiva al cliente sul razionale delle scelte.  
             </div>
           </div>
         </div>
@@ -702,37 +787,37 @@
           <p><strong>Viste Operative:</strong> Puoi passare tra tre viste analitiche:</p>
           <ul>
             <li><strong>Banca:</strong> Dati a livello di istituzione (raccolta netta, portfolio allocation, adeguatezza globale).</li>
-            <li><strong>Promotore:</strong> Metriche di performance della strategia ADAPT vs FISSO (conversioni, commissioni, alert).</li>
+            <li><strong>Promotore:</strong> Metriche di performance della Consulenza IA Adattiva vs Strategia Standard (conversioni, commissioni, Anomalie di Conformità).</li>
             <li><strong>Cliente:</strong> Prospettiva del cliente: fiducia, soddisfazione, allineamento profilo.</li>
           </ul>
-          <p><strong>Copilota IA:</strong> Poni domande specifiche al Copilota per ricevere analisi tattica personalizzata. Usa le "Pillole Rapide" per domande predefinite. Valuta la risposta con le 5 stelle: se voto ≤ 2, il Copilota rigenerera una risposta alternativa.</p>
+          <p><strong>Copilota IA:</strong> Poni domande specifiche all'Assistente per ricevere analisi tattica personalizzata. Usa le "Pillole Rapide" per domande predefinite. Valuta la risposta con le 5 stelle: se voto ≤ 2, l'Assistente rigenerera una risposta alternativa.</p>
         </div>
 
         <div class="modal-section">
           <h3>🧠 Sezione 2: Leggere i Dati — Concetti Fondamentali</h3>
-          <p><strong>200 Tentativi di Proposta:</strong> FINsim esegue 200 tentativi di proposta sequenziali distribuiti su 5 scenari macroeconomici (S0-S4), generando 100 clienti sintetici × 2 strategie parallele (ADAPT e FISSO). Ogni tentativo di proposta rappresenta un momento decisionale dove il promotore/algoritmo sceglie un approccio di comunicazione e un prodotto finanziario da offrire al cliente.</p>
-          <p><strong>Swarm Intelligence (ADAPT):</strong> La strategia ADAPT usa un'IA generativa (Qwen 2.5 32B) per produrre direttive bancarie dinamiche e personalizzate per promotori (Qwen 2.5 3B), rispetto al benchmark FISSO statico. Osserva come ADAPT evolve nel tempo.</p>
-          <p><strong>KPI Chiave:</strong></p>
+          <p><strong>200 Tentativi di Proposta:</strong> FINsim esegue 200 tentativi di proposta sequenziali distribuiti su 5 scenari macroeconomici (S0-S4), generando 100 clienti sintetici × 2 strategie parallele (Consulenza IA Adattiva e Strategia Standard). Ogni tentativo di proposta rappresenta un momento decisionale dove il promotore/algoritmo sceglie un approccio di comunicazione e un prodotto finanziario da offrire al cliente.</p>
+          <p><strong>Swarm Intelligence (Consulenza IA Adattiva):</strong> La Consulenza IA Adattiva usa un'IA generativa (Qwen 2.5 32B) per produrre direttive bancarie dinamiche e personalizzate per promotori (Qwen 2.5 3B), rispetto al benchmark della Strategia Standard statica. Osserva come la Consulenza Adattiva evolve nel tempo.</p>
+          <p><strong>Indicatori di Performance Chiave:</strong></p>
           <ul>
             <li><strong>Tasso di Conversione:</strong> % di proposte accettate dai clienti.</li>
             <li><strong>Commissioni Cumulate:</strong> Ricavi generati (1% su volume 100k€/cliente).</li>
             <li><strong>Fiducia Media:</strong> Sentiment del cliente post-proposta (0-100%).</li>
             <li><strong>Adeguatezza:</strong> Allineamento prodotto-profilo cliente (0-100%).</li>
-            <li><strong>Churn Risk / MIFID Alert:</strong> Anomalie di fiducia o adeguatezza che richiedono intervento.</li>
+            <li><strong>Rischio Abbandono Cliente / Anomalie di Conformità (MiFID):</strong> Anomalie di fiducia o conformità che richiedono intervento.</li>
           </ul>
         </div>
 
         <div class="modal-section">
           <h3>📊 Sezione 3: Legenda Grafici</h3>
-          <p><strong>Colori Standard:</strong> Verde (#1FA463) = ADAPT/Positivo, Blu (#2E6FD6) = FISSO/Benchmark, Arancione (#E0922F) = Avvertenza, Rosso (#D64242) = Critico.</p>
+          <p><strong>Colori Standard:</strong> Verde (#1FA463) = Consulenza Adattiva/Positivo, Blu (#2E6FD6) = Strategia Standard/Benchmark, Arancione (#E0922F) = Avvertenza, Rosso (#D64242) = Critico.</p>
           <p><strong>Tipologie Grafici Comuni:</strong></p>
           <ul>
-            <li><strong>Linea:</strong> Trend temporale (Round 1-20). Confronto ADAPT vs FISSO su una metrica continua.</li>
-            <li><strong>Barre:</strong> Volume o conteggio per categoria. Barre sovrapposte per A/B test ADAPT vs FISSO.</li>
+            <li><strong>Linea:</strong> Trend temporale (Interazioni 1-20). Confronto Consulenza Adattiva vs Strategia Standard su una metrica continua.</li>
+            <li><strong>Barre:</strong> Volume o conteggio per categoria. Barre sovrapposte per A/B test Consulenza Adattiva vs Strategia Standard.</li>
             <li><strong>Radar:</strong> Profilo multi-dimensionale. Area interna = obiettivo/target. Area esterna = attuale/scostamento.</li>
-            <li><strong>Heatmap:</strong> Intensità di performance per cluster (asse X: Patrimonio, asse Y: Rischio). Verde = dominio ADAPT, Rosso = dominio FISSO.</li>
+            <li><strong>Heatmap:</strong> Intensità di performance per cluster (asse X: Patrimonio, asse Y: Rischio). Verde = dominio Consulenza Adattiva, Rosso = dominio Strategia Standard.</li>
           </ul>
-          <p><strong>Interpretazione Rapida:</strong> Se una linea sale, la metrica migliora. Se ADAPT supera FISSO, la strategia personalizzata sta vincendo. Picchi anomali suggeriscono shock di mercato; consulta il regime macroeconomico nel panel "Regime di Mercato".</p>
+          <p><strong>Interpretazione Rapida:</strong> Se una linea sale, la metrica migliora. Se la Consulenza Adattiva supera la Strategia Standard, l'approccio personalizzato sta vincendo. Picchi anomali suggeriscono shock di mercato; consulta il regime macroeconomico nel panel "Regime di Mercato".</p>
         </div>
 
         <button @click="showHelpModal = false" class="modal-close-main-btn">Chiudi Guida</button>
@@ -750,7 +835,7 @@ import html2pdf from 'html2pdf.js';
 const loadPlotly = async () => {
   if (window.Plotly) return;
   const script = document.createElement('script');
-  script.src = 'https://cdn.plot.ly/plotly-latest.min.js';
+  script.src = 'https://cdn.plot.ly/plotly-2.35.2.min.js';
   document.head.appendChild(script);
   return new Promise(resolve => {
     script.onload = () => resolve();
@@ -819,16 +904,27 @@ const scenarioPills = [
   { id: 'S3', label: 'Stress' }, { id: 'S4', label: 'Recessione' },
 ];
 
-const quickQuestions = [
+const domandePredefiniteStandard = [
   "Quale profilo di rischio sta soffrendo di più?",
   "Spiegami il trend della compliance per questo scenario",
   "Analizza il sentiment di mercato e l'impatto sulle commissioni",
   "Quali sono i rischi principali per la prossima finestra temporale?"
 ];
 
+const domandePredefiniteCliente = [
+  'Quale cluster manifesta il punto di minimo nella fiducia?',
+  'Come possiamo manipolare le direttive per neutralizzare le 1237 Anomalie di Conformità (MiFID)?',
+  'Analizza i punti di massimo della stabilità psicologica sulla Consulenza Adattiva',
+  'Che tipo di correzione strategica serve per il cluster a rischio Churn?'
+];
+
+const quickQuestions = computed(() => {
+  return view.value === 'cliente' ? domandePredefiniteCliente : domandePredefiniteStandard;
+});
+
 // FINSIM-MOD: Chart code to Italian name mapping (STEP 3 - Dynamic Integration)
 const nomiGrafici = {
-  'TREND_COMPLIANCE': 'Trend di Conformità Normativa (MiFID)',
+  'TREND_COMPLIANCE': 'Trend di Conformità Normativa (Anomalie MiFID)',
   'SEMAFORO_ADEGUATEZZA': 'Stato Adeguatezza Proposte (Semaforo)',
   'SANKEY_FLUSSI': 'Analisi di Sopravvivenza Clienti (Kaplan-Meier)',
   'HEATMAP_PERFORMANCE': 'Mappa del Vantaggio Strategico',
@@ -838,7 +934,8 @@ const nomiGrafici = {
   'ACCETTAZIONI_SCENARI': 'Proposte Accettate vs Rifiutate',
   'LINEE_COMPARATIVE': 'Trend Raccolta nei 200 Round',
   'WATERFALL_PATRIMONIO': 'Scomposizione AUM (Variazioni)',
-  'AREA_GUADAGNI': 'Andamento Ricavi nei 200 Round'
+  'AREA_GUADAGNI': 'Andamento Ricavi nei 200 Round',
+  'SPIDER_SENTIMENT': 'Radar Matrix: Sentiment & Psicologia del Portafoglio'
 };
 
 // FINSIM-MOD: Chart code to API endpoint mapping
@@ -853,7 +950,8 @@ const chartCodeToEndpoint = {
   'INTERESSE_COMPOSTO': '/api/charts/interesse-composto',
   'ACCETTAZIONI_SCENARI': '/api/charts/accettazioni',
   'LINEE_COMPARATIVE': '/api/charts/linee-comparative',
-  'WATERFALL_PATRIMONIO': '/api/charts/waterfall'
+  'WATERFALL_PATRIMONIO': '/api/charts/waterfall',
+  'SPIDER_SENTIMENT': '/api/charts/client-sentiment'
 };
 
 const clusters = computed(() => {
@@ -966,6 +1064,28 @@ const nextBestActionsTradotte = computed(() => {
   });
 });
 
+// FINSIM-MOD: Heatmap Propensione al Rischio con Assi Leggibili
+const heatmapConAssi = computed(() => {
+  const righe = ['Alto Rischio', 'Medio Rischio', 'Basso Rischio', 'Conservativo'];
+  const valori = [
+    [88, 82, 75, 70, 65],
+    [91, 85, 79, 73, 68],
+    [78, 72, 66, 58, 48],
+    [62, 54, 44, 32, 22]
+  ];
+  return righe.map((label, i) => ({
+    label,
+    cells: valori[i].map(v => {
+      let bg = '#D64242', fg = '#FFFFFF';
+      if (v >= 85) { bg = '#1E9E63'; fg = '#062017'; }
+      else if (v >= 70) { bg = '#7DB85A'; fg = '#10240A'; }
+      else if (v >= 55) { bg = '#E0922F'; fg = '#2E1C05'; }
+      else if (v >= 42) { bg = '#D9703A'; fg = '#2E1305'; }
+      return { value: v + '%', bg, fg };
+    })
+  }));
+});
+
 // --- METODI ---
 const getBtnStyle = (isActive, isScenario = false) => ({
   display: 'flex', alignItems: 'center', gap: isScenario ? '8px' : '0', width: '100%',
@@ -1068,8 +1188,8 @@ const renderCharts = () => {
       data: {
         labels: promotoreLabels,
         datasets: [
-          { label: 'Consulenza IA Dinamica', data: complianceAdaptSmoothed, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 },
-          { label: 'Strategia Standard', data: complianceFissoSmoothed, borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 }
+          { label: 'Consulenza IA Adattiva', data: complianceAdaptSmoothed, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 },
+          { label: 'Strategia Standard (Benchmark)', data: complianceFissoSmoothed, borderColor: FISSO, borderDash: [5, 4], backgroundColor: 'rgba(46,111,214,.05)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 }
         ]
       },
       options: {
@@ -1092,8 +1212,8 @@ const renderCharts = () => {
       data: {
         labels: blockLabels,
         datasets: [
-          { label: 'Accettate ADAPT', data: accettateAdaptAgg, backgroundColor: '#1E9E63' },
-          { label: 'Accettate FISSO', data: accettateFissoAgg, backgroundColor: '#2E6FD6' }
+          { label: 'Accettate Consulenza Adattiva', data: accettateAdaptAgg, backgroundColor: '#1E9E63' },
+          { label: 'Accettate Strategia Standard', data: accettateFissoAgg, backgroundColor: '#2E6FD6' }
         ]
       },
       options: { ...baseCfg, scales: { x: { ticks: { color: '#8593A8' }, grid: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
@@ -1131,17 +1251,56 @@ const renderCharts = () => {
     mkChart('bRadar', { type: 'radar', data: { labels: ['Bond Corp', 'Monetario', 'Azionario', 'Illiquidi', 'Gov Bond'], datasets: [{ label: 'Target Direttiva', data: [80, 90, 20, 10, 85], borderColor: TARGET, borderDash: [4, 4], backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0 }, { label: 'Portafoglio Attuale', data: [65, 80, 35, 15, 70], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.18)', borderWidth: 2 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }, scales: { r: { suggestedMin: 0, suggestedMax: 100 } } } });
   
   } else if (view.value === 'cliente') {
-    // FIDUCIA - già a 200 proposte
-    const clienteLabels = Array.from({length:200}, (_,i)=>'Prop. '+(i+1));
+    // FINSIM-MOD: FIDUCIA - Area chart con media mobile a 15 periodi per smussare il rumore
+    const clienteLabels = Array.from({length: 200}, (_, i) => i + 1);
+    const fiduciaRaw = Array.from({length: 200}, () => Math.random() * 40 + 20);
+
+    // Media mobile a 15 periodi per smussare il rumore
+    const smoothed = fiduciaRaw.map((_, idx, arr) => {
+      const window = arr.slice(Math.max(0, idx - 14), idx + 1);
+      return window.reduce((a, b) => a + b, 0) / window.length;
+    });
+
     mkChart('cFiducia', {
       type: 'line',
       data: {
         labels: clienteLabels,
-        datasets: [{ data: Array.from({length:200}, ()=>Math.random()*40 + 20), borderColor: LLM, backgroundColor: 'rgba(124,58,237,.10)', fill: true, tension: 0.4 }]
+        datasets: [
+          {
+            label: 'Trend Fiducia (media mobile)',
+            data: smoothed,
+            borderColor: '#7C3AED',
+            backgroundColor: 'rgba(124, 58, 237, 0.15)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 2.5,
+            pointRadius: 0
+          }
+        ]
       },
-      options: { ...baseCfg, scales: { x: xAxisConfig.x } }
+      options: {
+        ...baseCfg,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            ticks: {
+              autoSkip: false,
+              callback: (val, index) => (index === 0) ? 'P1' : ((index + 1) % 40 === 0) ? `P${index + 1}` : (index === 199) ? 'P200' : '',
+              color: '#8593A8'
+            },
+            grid: { display: false }
+          },
+          y: {
+            suggestedMin: 0,
+            suggestedMax: 100,
+            ticks: { color: '#8593A8', callback: val => val + '%' }
+          }
+        }
+      }
     });
-    
+
     // RADAR CLIENTE
     mkChart('cRadar', { type: 'radar', data: { labels: ['Rischio', 'Orizz.', 'Liq.', 'Rend.', 'Conosc.'], datasets: [{ data: [30, 70, 80, 45, 55], borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.16)' }, { data: [35, 68, 85, 50, 55], borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.16)' }] }, options: baseCfg });
   }
@@ -1381,6 +1540,39 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
   }
 };
 
+const renderSpiderBanca = async () => {
+  try{
+    await loadPlotly();
+    await nextTick();
+    const targetDiv = document.getElementById('plotly-spider-banca');
+    if (!targetDiv) { console.error('[Spider Banca] DIV non trovato'); return; }
+    const res = await fetch(`http://10.12.7.53:8000/api/dati-banca-spider?scenario_id=${scenario.value}`);
+    if (!res.ok) throw new Error(`API Error ${res.status}`);
+    const data = await res.json();
+    const adapt = data.adapt || [0,0,0,0,0];
+    const target = data.target || [90,80,75,70,85];
+    const labels = data.labels || ['Compliance','Raccolta','Fiducia Cliente','Aderenza Direttiva','Redditività'];
+    const traces = [
+      { type: 'scatterpolar', r: [...adapt, adapt[0]], theta: [...labels, labels[0]], fill: 'toself', opacity: 0.7, name: 'ADAPT (IA)', line: { color: '#1FA463', width: 3 } },
+      { type: 'scatterpolar', r: [...target, target[0]], theta: [...labels, labels[0]], fill: 'toself', opacity: 0.3, name: 'Target Banca', line: { color: '#8593A8', width: 2, dash: 'dot' } }
+    ];
+    const layout = {
+      polar: {
+        bgcolor: 'rgba(30,41,59,0.5)',
+        radialaxis: { visible: true, range: [0, 100], gridcolor: 'rgba(255,255,255,0.08)', linecolor: 'rgba(0,0,0,0)', tickfont: { color: '#94a3b8', size: 10 } },
+        angularaxis: { gridcolor: 'rgba(255,255,255,0.08)', tickfont: { color: '#cbd5e0', size: 11 } }
+      },
+      showlegend: true,
+      legend: { orientation: 'h', yanchor: 'bottom', y: -0.2, xanchor: 'center', x: 0.5, font: { color: '#cbd5e0', size: 11 } },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      margin: { t: 40, b: 40, l: 60, r: 60 }
+    };
+    Plotly.newPlot('plotly-spider-banca', traces, layout, { responsive: true});
+    console.log('[Spider Banca] Renderizzato con successo');
+  } catch (error) { console.error('[Spider Banca] Errore:', error.message); }
+};
+
 // Funzione dedicata per renderizzare la heatmap nella Vista Promotore
 const renderHeatmapPromotore = async () => {
   try {
@@ -1571,25 +1763,122 @@ const renderSopravvivenza = async () => {
   }
 };
 
+// FINSIM-MOD: Carica e renderizza il pannello Customer Sentiment (Vista Cliente)
+const caricaVistaCliente = async () => {
+  try {
+    console.log('[Client Sentiment] Inizio caricamento Vista Cliente per scenario:', scenario.value);
+
+    await loadPlotly();
+    await nextTick();
+
+    const targetDiv = document.getElementById('spider-sentiment-clienti');
+    if (!targetDiv) {
+      console.error('[Client Sentiment] ❌ DIV #spider-sentiment-clienti non trovato');
+      return;
+    }
+
+    console.log('[Client Sentiment] Scenario corrente:', scenario.value, 'Type:', typeof scenario.value);
+
+    const payload = {
+      metrics_data: {
+        scenario_corrente: scenario.value,
+        commissioni_cumulate_adapt: datiPromotore.value.adapt?.commissioni_cumulate || 0,
+        commissioni_cumulate_fisso: datiPromotore.value.fisso?.commissioni_cumulate || 0,
+        tasso_conversione_adapt_pct: datiPromotore.value.adapt?.tasso_conversione_pct || 0,
+        tasso_conversione_fisso_pct: datiPromotore.value.fisso?.tasso_conversione_pct || 0,
+        fiducia_media_adapt: datiPromotore.value.adapt?.fiducia_media || 0,
+        fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
+        proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
+        proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0
+      }
+    };
+
+    console.log('[Client Sentiment] Fetching /api/charts/client-sentiment...');
+    console.log('[Client Sentiment] Payload inviato:', JSON.stringify(payload).substring(0, 200) + '...');
+    const res = await fetch('http://10.12.7.53:8000/api/charts/client-sentiment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      console.error(`[Client Sentiment] API Error ${res.status}`);
+      return;
+    }
+
+    let rawData = await res.json();
+    console.log('[Client Sentiment] Raw response type:', typeof rawData, 'has .data?', !!rawData.data);
+
+    // Forza il parsing se il backend ha restituito una stringa
+    let figData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    if (typeof figData.data === 'string') {
+      figData.data = JSON.parse(figData.data);
+    }
+
+    await nextTick();
+
+    console.log('[Client Sentiment] Parsed figData structure:', {
+      hasData: !!figData.data,
+      hasLayout: !!figData.layout,
+      dataType: typeof figData.data,
+      layoutType: typeof figData.layout
+    });
+
+    if (figData.data && figData.layout && window.Plotly) {
+      console.log('[Client Sentiment] ✓ Renderizzando Spider Chart...');
+
+      // FINSIM-MOD: Layout override con margini generosi per le label
+      const layoutOverride = {
+        ...figData.layout,
+        margin: { t: 60, b: 60, l: 80, r: 80 },
+        polar: {
+          ...(figData.layout.polar || {}),
+          radialaxis: { ...(figData.layout.polar?.radialaxis || {}), visible: true, range: [0, 100] }
+        }
+      };
+
+      Plotly.newPlot('spider-sentiment-clienti', figData.data, layoutOverride, { responsive: true });
+      console.log('[Client Sentiment] ✓ Spider Chart renderizzato con successo!');
+    } else {
+      console.error('[Client Sentiment] ❌ Struttura figData non valida. Keys:', Object.keys(figData).slice(0, 10));
+    }
+  } catch (error) {
+    console.error('[Client Sentiment] ❌ Errore:', error.message);
+  }
+};
+
 // FINSIM-MOD: Dynamic Plotly chart renderer for AI-suggested charts (STEP 3)
 const renderAIPlotlyCharts = async () => {
   try {
     await loadPlotly();
     await nextTick();
 
-    aiResponseCharts.value.forEach(async (chart, idx) => {
+    // FINSIM-MOD: Aggiungi piccolo delay per assicurar che Vue abbia creato gli elementi nel DOM
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    for (let idx = 0; idx < aiResponseCharts.value.length; idx++) {
+      const chart = aiResponseCharts.value[idx];
       const divId = `plotly-ai-${idx}`;
-      const el = document.getElementById(divId);
+
+      // Attendi che l'elemento DOM sia disponibile (max 5 tentativi)
+      let el = document.getElementById(divId);
+      let attempts = 0;
+      while (!el && attempts < 5) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        el = document.getElementById(divId);
+        attempts++;
+      }
+
       if (!el) {
-        console.warn(`[AI Chart Render] DOM element #${divId} not found for chart ${chart.codice}`);
-        return;
+        console.warn(`[AI Chart Render] DOM element #${divId} not found after 5 attempts for chart ${chart.codice}`);
+        continue;
       }
 
       // Get endpoint from mapping, fallback to placeholder if not found
       const endpoint = chartCodeToEndpoint[chart.codice];
       if (!endpoint) {
         console.error(`[AI Chart Render] No endpoint mapped for chart code: ${chart.codice}. Supported codes:`, Object.keys(chartCodeToEndpoint));
-        return;
+        continue;
       }
 
       // Prepare payload with all necessary metrics
@@ -1623,7 +1912,7 @@ const renderAIPlotlyCharts = async () => {
 
         if (!res.ok) {
           console.error(`[AI Chart Render] API error ${res.status} for ${chart.codice}`);
-          return;
+          continue;
         }
 
         const data = await res.json();
@@ -1642,7 +1931,7 @@ const renderAIPlotlyCharts = async () => {
       } catch (error) {
         console.error(`[AI Chart Render] Error rendering ${chart.codice}:`, error.message);
       }
-    });
+    }
   } catch (error) {
     console.error('Errore nel rendering dei grafici Plotly IA:', error);
   }
@@ -1820,6 +2109,15 @@ onMounted(async () => {
   console.log('[FINsim] ✓ Dati caricati, renderizzazione grafici...');
   await nextTick(() => renderCharts());
 
+  if (view.value === 'banca') {
+    await loadPlotly();
+    await nextTick();
+    await renderSpiderBanca();
+    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
+    await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
+    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
+  }
+
   console.log('[FINsim] ✓ Dashboard pronta!');
 });
 
@@ -1863,21 +2161,26 @@ watch(aiResponseCharts, async () => {
   await createAICharts();
 }, { deep: true });
 
-// Watch sulla vista per renderizzare i grafici Plotly
-watch(view, async () => {
-  if (view.value === 'banca') {
+// FINSIM-MOD: Watch sulla vista E scenario per renderizzare i grafici Plotly
+// Intercetta sia il cambio di tab (Banca/Promotore/Cliente) sia il cambio di Scenario (Base, Stress, ecc.)
+watch([view, scenario], async ([nuovaVista, nuovoScenario]) => {
+  if (nuovaVista === 'banca') {
     console.log('[FINsim] 📈 Vista Banca attiva, renderizzando grafici Plotly...');
     await nextTick();
-    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
-    await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
-    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
-  } else if (view.value === 'promotore') {
+    await renderSpiderBanca();
+    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', nuovoScenario);
+    await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', nuovoScenario);
+    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', nuovoScenario);
+  } else if (nuovaVista === 'promotore') {
     console.log('[FINsim] 📊 Vista Promotore attiva, renderizzando grafici Plotly...');
     // Renderizza la heatmap e la curva di sopravvivenza in parallelo
     await Promise.all([
       renderHeatmapPromotore(),
       renderSopravvivenza()
     ]).catch(err => console.error('[FINsim] Errore nel rendering dei grafici:', err));
+  } else if (nuovaVista === 'cliente') {
+    console.log('[FINsim] 👥 Vista Cliente attiva, caricando Intelligence/Sentiment per scenario:', nuovoScenario);
+    await caricaVistaCliente();
   }
 });
 
