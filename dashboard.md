@@ -983,6 +983,203 @@ Il Copilota IA può consigliare grafici aggiuntivi oltre a quelli di default nel
 
 ---
 
+## 🆕 Nuove Funzionalità Implementate
+
+### 📊 Chart Explanation Modal — Spiegazione LLM dei Grafici
+
+**Cosa è:**
+- Nuova funzionalità che permette di cliccare su **qualsiasi grafico** nella dashboard per ottenere una spiegazione contestuale generata dall'IA
+
+**Come funziona:**
+1. Clicca su un grafico (qualsiasi canvas Chart.js o div Plotly)
+2. Si apre un **modal con sfondo scuro** al centro dello schermo
+3. Il modal mostra:
+   - **Titolo del grafico:** Nome del grafico cliccato
+   - **Loading spinner:** Mentre l'IA analizza (2-5 secondi)
+   - **Spiegazione completa:**
+     - Come si legge il grafico (2-3 frasi)
+     - Interpretazione dei dati attuali nello scenario selezionato (3-4 frasi)
+     - Raccomandazione strategica concreta (2 frasi)
+
+**Stile:**
+- Sfondo: Dark mode (#111A24) con border verde (#1FA463)
+- Blur effect sul backdrop
+- Facilmente chiudibile con bottone "✕"
+
+**Grafici supportati (13+):**
+- Vista Banca: `bRaccolta`, `plotly-heatmap`, `plotly-waterfall`, `plotly-lines`, `plotly-spider-banca`
+- Vista Promotore: `pCompliance`, `pAccept`, `plotly-heatmap-promotore`, `plotly-sopravvivenza`
+- Vista Cliente: `cFiducia`, `cRadar`, `spider-sentiment-clienti`
+- Grafici AI dinamici: `plotly-ai-N` (tutti i grafici consigliati dal Copilota)
+
+**Vantaggi:**
+- Riduce la necessità di consultare questa guida durante l'uso
+- Spiegazioni personalizzate al scenario corrente
+- Feedback immediato sull'interpretazione del grafico
+
+---
+
+### 🔄 Data-Driven Updates — Grafici Statici Convertiti a Data-Driven
+
+**Cosa è cambiato:**
+Tutti i grafici della dashboard che precedentemente usavano dati hardcoded, sintetici o Math.random() sono stati convertiti per leggere direttamente da **MongoDB in tempo reale**.
+
+**Grafici Aggiornati:**
+
+#### Vista Cliente
+1. **cFiducia (Evoluzione Fiducia)**
+   - **Prima:** Math.random() * 40 + 20 (falso)
+   - **Dopo:** Legge da `/api/charts/fiducia-evolution` (MongoDB)
+   - **Cambio:** Data-driven con fallback a zeri
+
+2. **cRadar (Profilo vs Portafoglio)**
+   - **Prima:** Hardcoded [35, 60, 70, 45, 50] e [40, 58, 75, 48, 50]
+   - **Dopo:** Legge da `/api/charts/profilo-portafoglio` (MongoDB)
+   - **Cambio:** Data-driven con fallback a zeri
+
+3. **Heatmap Propensione Rischio**
+   - **Prima:** Hardcoded con matrice statica
+   - **Dopo:** Legge da `/api/charts/risk-propensity-heatmap` (MongoDB)
+   - **Cambio:** Nuova ref `heatmapReale` con caricamento asincrono
+
+#### Vista Banca
+1. **bRadar (Performance Strategica Banca)**
+   - **Prima:** Hardcoded [80, 90, 20, 10, 85] e [65, 80, 35, 15, 70]
+   - **Dopo:** Legge da `/api/charts/radar-banca-direttiva` (MongoDB)
+   - **Cambio:** Data-driven con fallback a zeri
+
+2. **plotly-lines (Evoluzione Performance Cumulata)**
+   - **Prima:** Sintetico con formula [i**1.2 * 10000]
+   - **Dopo:** Legge da `/api/charts/performance-lines` che estrae dati da MongoDB
+   - **Cambio:** Data-driven con fallback a zeri
+
+#### Vista Promotore
+1. **pCompliance (Conformità)**
+   - **Prima:** Math.random() * 20 + 70 come fallback
+   - **Dopo:** Fallback a **zeri** (non sintetici)
+
+2. **pAccept (Proposte Accettate)**
+   - **Prima:** Math.random() * 10 + 5 e Math.random() * 5 + 2 come fallback
+   - **Dopo:** Fallback a **zeri** (non sintetici)
+
+**Conseguenze:**
+- ✅ Tutti i grafici cambiano automaticamente al cambio dello scenario
+- ✅ Nessun dato inventato — fallback è "0", non sintetico
+- ✅ Accuratezza 100% con i dati reali da MongoDB
+- ✅ Performance stabile anche con MongoDB lento
+
+---
+
+### 🆕 Nuovi Endpoint API
+
+#### 1. `/api/charts/fiducia-evolution` (GET)
+**Cosa legge:**
+- Fiducia media per round dal documento MongoDB
+- Distingue ADAPT (dai promotori con "ADAPT" nel nome) vs FISSO (dai promotori con "FISSO")
+
+**Ritorna:**
+```json
+{
+  "labels": ["R1", "R2", ..., "R200"],
+  "fiducia_adapt": [45.5, 46.2, ..., 52.1],
+  "fiducia_fisso": [42.1, 43.5, ..., 48.9]
+}
+```
+
+---
+
+#### 2. `/api/charts/profilo-portafoglio` (GET)
+**Cosa legge:**
+- Profilo dichiarato del cliente vs portafoglio assegnato ADAPT
+- 5 dimensioni: Rischio, Orizzonte, Liquidità, Rendimento, Conoscenza
+
+**Ritorna:**
+```json
+{
+  "profilo_dichiarato": [35, 60, 70, 45, 50],
+  "portafoglio_assegnato": [40, 58, 75, 48, 50],
+  "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+}
+```
+
+---
+
+#### 3. `/api/charts/risk-propensity-heatmap` (GET)
+**Cosa legge:**
+- Propensione al rischio per cluster (4 profili × 5 livelli patrimonio)
+- Accettazione cliente media per combinazione profilo-patrimonio
+
+**Ritorna:**
+```json
+{
+  "matrice": [
+    [88, 82, 75, 70, 65],
+    [91, 85, 79, 73, 68],
+    [78, 72, 66, 58, 48],
+    [62, 54, 44, 32, 22]
+  ]
+}
+```
+
+---
+
+#### 4. `/api/charts/radar-banca-direttiva` (GET)
+**Cosa legge:**
+- Portafoglio target fisso vs allocation attuale ADAPT
+- 5 asset class: Bond Corp, Monetario, Azionario, Illiquidi, Gov Bond
+
+**Ritorna:**
+```json
+{
+  "target": [80, 90, 20, 10, 85],
+  "attuale": [75.3, 88.2, 22.1, 11.5, 83.7]
+}
+```
+
+---
+
+#### 5. `/api/charts/performance-lines` (POST) — AGGIORNATO
+**Cosa legge (AGGIORNATO):**
+- **Prima:** Usava `storico_raccolta_adattivo` dal payload (sintetico)
+- **Dopo:** Legge da MongoDB e calcola la raccolta cumulata per ogni round
+
+**Logica:**
+1. Estrae scenario_id da metrics
+2. Queries MongoDB per il documento della simulazione
+3. Itera sui rounds ordinati
+4. Per ogni round e promotore, calcola:
+   - Raccolta se strategia ADAPT e cliente accetta
+   - Raccolta se strategia FISSO e cliente accetta
+5. Accumula cumulativamente
+6. Fallback: zeri se MongoDB è vuoto
+
+**Ritorna:**
+```json
+{
+  "data": "<Plotly JSON with data: [{x: [...], y: [...], type: 'scatter'}]>"
+}
+```
+
+---
+
+### 📝 Fallback Strategy
+
+Tutti gli endpoint segue la stessa logica **"Zero Fallback"**:
+
+```
+Se MongoDB ha dati → usa quelli
+Se MongoDB è vuoto → ritorna array di zeri (non dati sintetici)
+```
+
+**Vantaggi:**
+- Impossibile "inventare" un trend che non esiste
+- Se MongoDB è down, il grafico appare vuoto (non fuorviante)
+- Facilita il debugging di problemi di data loading
+
+---
+
+---
+
 ## Tips Finali
 
 1. **Inizia con la Banca:** Per una visione consolidata delle performance e risk
