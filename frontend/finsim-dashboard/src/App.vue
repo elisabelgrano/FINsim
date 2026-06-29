@@ -98,12 +98,8 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
-                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
-                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
-                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
-                    </div>
                     <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
-                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
+                    <div v-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
                          @click="apriSpiegazioneGrafico('plotly-ai-' + idx, nomiGrafici[chart.codice] || chart.codice)"
                          style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;">
@@ -281,12 +277,8 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
-                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
-                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
-                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
-                    </div>
                     <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
-                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
+                    <div v-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
                          @click="apriSpiegazioneGrafico('plotly-ai-' + idx, nomiGrafici[chart.codice] || chart.codice)"
                          style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;">
@@ -611,12 +603,8 @@
                 <div class="charts-pills">
                   <div v-for="(chart, idx) in aiResponseCharts" :key="idx" class="chart-pill">
                     <span class="chart-code">{{ nomiGrafici[chart.codice] || chart.codice }}</span>
-                    <!-- FINSIM-MOD: Canvas for Chart.js charts -->
-                    <div class="ai-chart-wrapper" v-if="shouldRenderChart(chart.codice)">
-                      <canvas :id="'ai-chart-' + idx" style="max-height: 120px;"></canvas>
-                    </div>
                     <!-- FINSIM-MOD: Dynamic Plotly rendering for all mapped chart codes -->
-                    <div v-else-if="chartCodeToEndpoint[chart.codice]"
+                    <div v-if="chartCodeToEndpoint[chart.codice]"
                          :id="'plotly-ai-' + idx"
                          @click="apriSpiegazioneGrafico('plotly-ai-' + idx, nomiGrafici[chart.codice] || chart.codice)"
                          style="height: 350px; margin: 8px 0; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;">
@@ -1314,7 +1302,7 @@ const renderCharts = () => {
       let radarAttuale = [0, 0, 0, 0, 0];
 
       try {
-        const rr = await fetch(`/api-backend/api/charts/radar-banca-direttiva?scenario_id=${scenario.value}`);
+        const rr = await fetch(`http://10.12.7.53:8000/api/charts/radar-banca-direttiva?scenario_id=${scenario.value}`);
         if (rr.ok) {
           const rd = await rr.json();
           radarTarget = rd.target || radarTarget;
@@ -1344,7 +1332,7 @@ const renderCharts = () => {
       let fiduciaAdapt = [], fiduciaFisso = [], fiduciaLabels = [];
 
       try {
-        const res = await fetch(`/api-backend/api/charts/fiducia-evolution?scenario_id=${scenario.value}`);
+        const res = await fetch(`http://10.12.7.53:8000/api/charts/fiducia-evolution?scenario_id=${scenario.value}`);
         if (res.ok) {
           const data = await res.json();
           fiduciaAdapt = data.fiducia_adapt || [];
@@ -1429,7 +1417,7 @@ const renderCharts = () => {
       let portagifolioAssegnato = [40, 58, 75, 48, 50];
 
       try {
-        const res = await fetch(`/api-backend/api/charts/profilo-portafoglio?scenario_id=${scenario.value}`);
+        const res = await fetch(`http://10.12.7.53:8000/api/charts/profilo-portafoglio?scenario_id=${scenario.value}`);
         if (res.ok) {
           const data = await res.json();
           profiloLabels = data.labels || profiloLabels;
@@ -1492,7 +1480,7 @@ const fetchWithTimeout = async (url, timeout = 5000) => {
 const fetchData = async () => {
   console.log(`[FINsim] Caricamento dati per scenario: ${scenario.value}`);
   const currentScenario = scenario.value;
-  const baseURL = '/api-backend';
+  const baseURL = 'http://10.12.7.53:8000';
 
   try {
     // 1. Fetch dati tabella banca (prodotti)
@@ -1648,7 +1636,7 @@ const inviaRichiestaAdvisor = async (messaggioUtente, isRetry = false) => {
       user_message: finalMessage
     };
 
-    const res = await fetch('/api-backend/api/advisor/chat', {
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1729,7 +1717,7 @@ const apriSpiegazioneGrafico = async (chartId, chartTitle) => {
       user_message: `Spiega in modo chiaro e professionale questo grafico: ${descrizione}. Fornisci: 1) Come si legge il grafico (2-3 frasi), 2) Cosa indicano i dati attuali per lo scenario ${scenario.value} (3-4 frasi), 3) Raccomandazione strategica concreta (2 frasi). Usa linguaggio da consulente finanziario senior italiano, mai gergo informatico.`
     };
 
-    const res = await fetch('/api-backend/api/advisor/chat', {
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1750,7 +1738,7 @@ const apriSpiegazioneGrafico = async (chartId, chartTitle) => {
 };
 
 const shouldRenderChart = (codice) => {
-  return ['SEMAFORO_ADEGUATEZZA', 'AREA_GUADAGNI', 'WATERFALL_PATRIMONIO'].includes(codice);
+  return false;
 };
 
 let aiChartInstances = [];
@@ -1781,7 +1769,7 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
     // Fetch dati specifici per tipo di grafico
     if (endpoint.includes('waterfall')) {
       try {
-        const r = await fetch(`/api-backend/api/charts/waterfall-data?scenario_id=${scenario_id}`);
+        const r = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario_id}`);
         if (r.ok) {
           const d = await r.json();
           metricsReali.aum_iniziale = d.aum_iniziale;
@@ -1794,7 +1782,7 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
 
     if (endpoint.includes('heatmap')) {
       try {
-        const r = await fetch(`/api-backend/api/charts/heatmap-data?scenario_id=${scenario_id}`);
+        const r = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario_id}`);
         if (r.ok) {
           const d = await r.json();
           metricsReali.matrice_performance = d.matrice;
@@ -1804,7 +1792,7 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
 
     const payload = { metrics_data: metricsReali, user_message: "" };
 
-    const res = await fetch(`/api-backend${endpoint}`, {
+    const res = await fetch(`http://10.12.7.53:8000${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1835,7 +1823,7 @@ const renderSpiderBanca = async () => {
     await nextTick();
     const targetDiv = document.getElementById('plotly-spider-banca');
     if (!targetDiv) { console.error('[Spider Banca] DIV non trovato'); return; }
-    const res = await fetch(`/api-backend/api/dati-banca-spider?scenario_id=${scenario.value}`);
+    const res = await fetch(`http://10.12.7.53:8000/api/dati-banca-spider?scenario_id=${scenario.value}`);
     if (!res.ok) throw new Error(`API Error ${res.status}`);
     const data = await res.json();
     const adapt = data.adapt || [0,0,0,0,0];
@@ -1876,7 +1864,7 @@ const renderHeatmapPromotore = async () => {
     console.log('[Heatmap Promotore] nextTick completato');
     let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
     try {
-      const r = await fetch(`/api-backend/api/charts/heatmap-data?scenario_id=${scenario.value}`);
+      const r = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
       if (r.ok) {
         const d = await r.json();
         matriceReale = d.matrice;
@@ -1914,7 +1902,7 @@ const renderHeatmapPromotore = async () => {
 
     // Fetch dai dati della heatmap
     console.log('[Heatmap Promotore] Fetching /api/charts/heatmap...');
-    const res = await fetch('/api-backend/api/charts/heatmap', {
+    const res = await fetch('http://10.12.7.53:8000/api/charts/heatmap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -2014,7 +2002,7 @@ const renderSopravvivenza = async () => {
 
     // Fetch dai dati della curva di sopravvivenza
     console.log('[Sopravvivenza] Fetching /api/charts/sopravvivenza...');
-    const res = await fetch('/api-backend/api/charts/sopravvivenza', {
+    const res = await fetch('http://10.12.7.53:8000/api/charts/sopravvivenza', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -2092,7 +2080,7 @@ const caricaVistaCliente = async () => {
 
     console.log('[Client Sentiment] Fetching /api/charts/client-sentiment...');
     console.log('[Client Sentiment] Payload inviato:', JSON.stringify(payload).substring(0, 200) + '...');
-    const res = await fetch('/api-backend/api/charts/client-sentiment', {
+    const res = await fetch('http://10.12.7.53:8000/api/charts/client-sentiment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -2147,7 +2135,7 @@ const caricaVistaCliente = async () => {
 // FINSIM-MOD: Carica Heatmap Propensione Rischio da API
 const caricaHeatmapRischio = async () => {
   try {
-    const res = await fetch(`/api-backend/api/charts/risk-propensity-heatmap?scenario_id=${scenario.value}`);
+    const res = await fetch(`http://10.12.7.53:8000/api/charts/risk-propensity-heatmap?scenario_id=${scenario.value}`);
     if (res.ok) {
       const data = await res.json();
       const righeLabel = ['Alto Rischio', 'Medio Rischio', 'Basso Rischio', 'Conservativo'];
@@ -2208,15 +2196,15 @@ const renderAIPlotlyCharts = async () => {
 
       if (chart.codice === 'HEATMAP_PERFORMANCE') {
         try {
-          const r = await fetch(`/api-backend/api/charts/heatmap-data?scenario_id=${scenario.value}`);
+          const r = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
           if (r.ok) { const d = await r.json(); matriceReale = d.matrice; }
         } catch (e) {console.warn ('[AI Heatmap] Fallback', e.message); }
       }
 
       if (chart.codice === 'WATERFALL_PATRIMONIO') {
         try {
-          const r = await fetch(`/api-backend/api/charts/waterfall-data?scenario_id=${scenario.value}`);
-          if(r.ok) { const d = await r.josn(); waterfallData = d; }
+          const r = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario.value}`);
+          if(r.ok) { const d = await r.json(); waterfallData = d; }
         } catch (e) { console.warn('[AI Waterfall] Fallback:', e.message);}
       }
       // Prepare payload with all necessary metrics
@@ -2242,7 +2230,7 @@ const renderAIPlotlyCharts = async () => {
 
       try {
         console.log(`[AI Chart Render] Fetching ${chart.codice} from ${endpoint}...`);
-        const res = await fetch(`/api-backend${endpoint}`, {
+        const res = await fetch(`http://10.12.7.53:8000${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -2288,61 +2276,6 @@ const createAICharts = async () => {
 
   // Renderizza i grafici Plotly on-demand
   await renderAIPlotlyCharts();
-
-  aiResponseCharts.value.forEach((chart, idx) => {
-    if (!shouldRenderChart(chart.codice)) return;
-
-    const canvasId = `ai-chart-${idx}`;
-    const el = document.getElementById(canvasId);
-    if (!el) return;
-
-    let config = null;
-
-    if (chart.codice === 'SEMAFORO_ADEGUATEZZA') {
-      config = {
-        type: 'doughnut',
-        data: {
-          labels: ['Adeguato', 'Parziale', 'Inadeguato'],
-          datasets: [{ data: [60, 25, 15], backgroundColor: ['#16A34A', '#D97706', '#DC2626'] }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-      };
-    } else if (chart.codice === 'AREA_GUADAGNI') {
-      config = {
-        type: 'line',
-        data: {
-          labels: ['R1', 'R50', 'R100', 'R150', 'R200'],
-          datasets: [{
-            label: 'Cumulative Gains',
-            data: [10, 45, 78, 92, 120],
-            borderColor: '#1FA463',
-            backgroundColor: 'rgba(31,164,99,0.2)',
-            fill: true,
-            tension: 0.4
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-      };
-    } else if (chart.codice === 'WATERFALL_PATRIMONIO') {
-      config = {
-        type: 'bar',
-        data: {
-          labels: ['Initial', 'Inflows', 'Outflows', 'Final'],
-          datasets: [{ label: 'Variazione Patrimonio', data: [100, 50, -20, 130], backgroundColor: ['#1FA463', '#7DB85A', '#D64242', '#1FA463'] }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-      };
-    }
-
-    if (config) {
-      try {
-        const instance = new Chart(el, config);
-        aiChartInstances.push(instance);
-      } catch (e) {
-        console.error(`Errore nella creazione di ${canvasId}:`, e);
-      }
-    }
-  });
 };
 
 const exportToPDF = async () => {
@@ -2350,9 +2283,9 @@ const exportToPDF = async () => {
     let waterfallReale = { aum_iniziale: 100000000, nuova_raccolta: 15500000, effetto_mercato: -3200000, churn: -5800000 };
     let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
     try {
-      const rw = await fetch(`/api-backend/api/charts/waterfall-data?scenario_id=${scenario.value}`);
+      const rw = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario.value}`);
       if (rw.ok) { const d = await rw.json(); waterfallReale = d; }
-      const rh = await fetch(`/api-backend/api/charts/heatmap-data?scenario_id=${scenario.value}`);
+      const rh = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
       if (rh.ok) { const d = await rh.json(); matriceReale = d.matrice; }
     } catch (e) { console.warn('[Export PDF] Fallback dati statici:', e.message); }
 
@@ -2379,7 +2312,7 @@ const exportToPDF = async () => {
       user_message: aiResponseBrief.value || ""
     };
 
-    const res = await fetch('/api-backend/api/advisor/export-pdf', {
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/export-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -2410,9 +2343,9 @@ const exportToPPTX = async () => {
     let waterfallReale = { aum_iniziale: 100000000, nuova_raccolta: 15500000, effetto_mercato: -3200000, churn: -5800000 };
     let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
     try {
-      const rw = await fetch(`/api-backend/api/charts/waterfall-data?scenario_id=${scenario.value}`);
+      const rw = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario.value}`);
       if (rw.ok) { const d = await rw.json(); waterfallReale = d; }
-      const rh = await fetch(`/api-backend/api/charts/heatmap-data?scenario_id=${scenario.value}`);
+      const rh = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
       if (rh.ok) { const d = await rh.json(); matriceReale = d.matrice; }
     } catch (e) { console.warn('[Export PPTX] Fallback dati statici:', e.message); }
 
@@ -2439,7 +2372,7 @@ const exportToPPTX = async () => {
       user_message: aiResponseBrief.value || ""
     };
 
-    const res = await fetch('/api-backend/api/advisor/export-pptx', {
+    const res = await fetch('http://10.12.7.53:8000/api/advisor/export-pptx', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

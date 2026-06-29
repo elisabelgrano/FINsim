@@ -567,6 +567,11 @@ def genera_semaforo_adeguatezza(summary: dict):
     )
     fig.update_layout(showlegend=False)
 
+    fig.add_trace(go.Bar(x=[None], y=[None], orientation='h', marker_color='#059669', name='Adeguato(>80%)', showlegend=True))
+    fig.add_trace(go.Bar(x=[None], y=[None], orientation='h', marker_color='#f59e0b', name='Parzialmente adeguato (70-80%)', showlegend=True))
+    fig.add_trace(go.Bar(x=[None], y=[None], orientation='h', marker_color='#e11d48', name='Inadeguato (<70%)', showlegend=True))
+    fig.update_layout(showlegend=True, legend=dict(orientation='h', yanchor='bottom', y=-0.3, xanchor='center', x=0.5))
+
     return applica_stile_premium(
         fig,
         "Semaforo Adeguatezza — Prodotti proposti ai clienti"
