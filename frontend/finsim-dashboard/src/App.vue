@@ -222,7 +222,7 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
             <div id="plotly-heatmap" @click="apriSpiegazioneGrafico('plotly-heatmap', 'Mappa di Valore')" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
-            <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
+            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie per ogni segmento di clientela (profilo di rischio × patrimonio). <strong style="color:#059669">Verde</strong> = la Consulenza Adattiva converte meglio in quel segmento. <strong style="color:#e11d48">Rosso</strong> = la Strategia Standard è più efficace. Il valore numerico indica la differenza percentuale tra le due strategie.</p>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
@@ -404,8 +404,8 @@
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>🔥 Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
             <div id="plotly-heatmap-promotore" @click="apriSpiegazioneGrafico('plotly-heatmap-promotore', 'Mappa di Valore Promotore')" style="width: 100%; height: 400px; min-height: 400px; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
-            <p class="chart-caption">Questa mappa evidenzia le aree di clientela in cui la Consulenza IA Dinamica genera più valore rispetto alla Strategia Standard. Le aree verdi indicano dominanza dell'IA, le rosse della strategia standard.</p>
-          </div>
+            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie per ogni segmento di clientela (profilo di rischio × patrimonio). <strong style="color:#059669">Verde</strong> = la Consulenza Adattiva converte meglio in quel segmento. <strong style="color:#e11d48">Rosso</strong> = la Strategia Standard è più efficace. Il valore numerico indica la differenza percentuale tra le due strategie.</p> 
+           </div>
 
           <!-- ROW 2C: Delta Performance Consulenza Adattiva vs Strategia Standard -->
           <div class="panel" style="grid-column: span 6;">
@@ -787,45 +787,69 @@
       <div class="modal-content">
         <button @click="showHelpModal = false" class="modal-close-btn">✕</button>
 
-        <h2 class="modal-title">📚 Guida & Legenda FINsim</h2>
+        <h2 class="modal-title">📚 Guida alla Dashboard FINsim</h2>
 
         <div class="modal-section">
-          <h3>🎯 Sezione 1: Come Usare la Piattaforma</h3>
-          <p><strong>Selezione Scenario:</strong> Usa i pulsanti nella sidebar sinistra per passare tra S0 (Baseline), S1 (Espansione), S2 (Rialzo Tassi), S3 (Stress) e S4 (Biforcazione). Ogni scenario modella un regime macroeconomico diverso.</p>
-          <p><strong>Viste Operative:</strong> Puoi passare tra tre viste analitiche:</p>
+          <h3>🎯 Come navigare la dashboard</h3>
+          <p><strong>Viste operative:</strong> Usa i pulsanti nella sidebar sinistra per passare tra tre prospettive di analisi:</p>
           <ul>
-            <li><strong>Banca:</strong> Dati a livello di istituzione (raccolta netta, portfolio allocation, adeguatezza globale).</li>
-            <li><strong>Promotore:</strong> Metriche di performance della Consulenza IA Adattiva vs Strategia Standard (conversioni, commissioni, Anomalie di Conformità).</li>
-            <li><strong>Cliente:</strong> Prospettiva del cliente: fiducia, soddisfazione, allineamento profilo.</li>
+            <li><strong>Banca:</strong> Visione consolidata delle performance commerciali, raccolta netta e adeguatezza del portafoglio a livello istituzionale.</li>
+            <li><strong>Promotore:</strong> Metriche di performance della Consulenza Adattiva rispetto alla Strategia Standard — conversioni, commissioni, conformità normativa.</li>
+            <li><strong>Cliente:</strong> Prospettiva del cliente finale — fiducia, soddisfazione, allineamento tra profilo di rischio e portafoglio assegnato.</li>
           </ul>
-          <p><strong>Copilota IA:</strong> Poni domande specifiche all'Assistente per ricevere analisi tattica personalizzata. Usa le "Pillole Rapide" per domande predefinite. Valuta la risposta con le 5 stelle: se voto ≤ 2, l'Assistente rigenerera una risposta alternativa.</p>
-        </div>
-
-        <div class="modal-section">
-          <h3>🧠 Sezione 2: Leggere i Dati — Concetti Fondamentali</h3>
-          <p><strong>200 Tentativi di Proposta:</strong> FINsim esegue 200 tentativi di proposta sequenziali distribuiti su 5 scenari macroeconomici (S0-S4), generando 100 clienti sintetici × 2 strategie parallele (Consulenza IA Adattiva e Strategia Standard). Ogni tentativo di proposta rappresenta un momento decisionale dove il promotore/algoritmo sceglie un approccio di comunicazione e un prodotto finanziario da offrire al cliente.</p>
-          <p><strong>Swarm Intelligence (Consulenza IA Adattiva):</strong> La Consulenza IA Adattiva usa un'IA generativa (Qwen 2.5 32B) per produrre direttive bancarie dinamiche e personalizzate per promotori (Qwen 2.5 3B), rispetto al benchmark della Strategia Standard statica. Osserva come la Consulenza Adattiva evolve nel tempo.</p>
-          <p><strong>Indicatori di Performance Chiave:</strong></p>
+          <p><strong>Scenari di mercato:</strong> Seleziona uno dei cinque scenari macroeconomici per vedere come cambiano le performance in contesti diversi:</p>
           <ul>
-            <li><strong>Tasso di Conversione:</strong> % di proposte accettate dai clienti.</li>
-            <li><strong>Commissioni Cumulate:</strong> Ricavi generati (1% su volume 100k€/cliente).</li>
-            <li><strong>Fiducia Media:</strong> Sentiment del cliente post-proposta (0-100%).</li>
-            <li><strong>Adeguatezza:</strong> Allineamento prodotto-profilo cliente (0-100%).</li>
-            <li><strong>Rischio Abbandono Cliente / Anomalie di Conformità (MiFID):</strong> Anomalie di fiducia o conformità che richiedono intervento.</li>
+            <li><strong>Base:</strong> Mercato stabile, bassa volatilità, condizioni neutrali.</li>
+            <li><strong>Espansione:</strong> Ciclo favorevole, opportunità di crescita.</li>
+            <li><strong>Rialzo tassi:</strong> Pressione sui prodotti obbligazionari, duration risk.</li>
+            <li><strong>Stress:</strong> Alta volatilità, shock di mercato.</li>
+            <li><strong>Recessione:</strong> Contrazione economica, approccio difensivo.</li>
           </ul>
         </div>
 
         <div class="modal-section">
-          <h3>📊 Sezione 3: Legenda Grafici</h3>
-          <p><strong>Colori Standard:</strong> Verde (#1FA463) = Consulenza Adattiva/Positivo, Blu (#2E6FD6) = Strategia Standard/Benchmark, Arancione (#E0922F) = Avvertenza, Rosso (#D64242) = Critico.</p>
-          <p><strong>Tipologie Grafici Comuni:</strong></p>
+          <h3>🤖 Assistente di Analisi Strategica</h3>
+          <p>L'assistente analizza i dati della simulazione e risponde a domande specifiche in linguaggio da consulente finanziario. Per ogni risposta suggerisce automaticamente i grafici più rilevanti.</p>
+          <p><strong>Come usarlo:</strong> Scrivi una domanda nel campo di testo oppure clicca su una delle pillole rapide predefinite. Dopo la risposta, valuta l'utilità con le stelle — se la risposta è insufficiente (1-2 stelle), l'assistente rigenera automaticamente un'analisi alternativa.</p>
+          <p><strong>Esempi di domande utili:</strong></p>
           <ul>
-            <li><strong>Linea:</strong> Trend temporale (Interazioni 1-20). Confronto Consulenza Adattiva vs Strategia Standard su una metrica continua.</li>
-            <li><strong>Barre:</strong> Volume o conteggio per categoria. Barre sovrapposte per A/B test Consulenza Adattiva vs Strategia Standard.</li>
-            <li><strong>Radar:</strong> Profilo multi-dimensionale. Area interna = obiettivo/target. Area esterna = attuale/scostamento.</li>
-            <li><strong>Heatmap:</strong> Intensità di performance per cluster (asse X: Patrimonio, asse Y: Rischio). Verde = dominio Consulenza Adattiva, Rosso = dominio Strategia Standard.</li>
+            <li>"Quale profilo di clientela sta soffrendo di più in questo scenario?"</li>
+            <li>"Analizza il trend della conformità normativa"</li>
+            <li>"Dove stiamo perdendo clienti e perché?"</li>
+            <li>"Confronta le commissioni generate nei diversi scenari"</li>
           </ul>
-          <p><strong>Interpretazione Rapida:</strong> Se una linea sale, la metrica migliora. Se la Consulenza Adattiva supera la Strategia Standard, l'approccio personalizzato sta vincendo. Picchi anomali suggeriscono shock di mercato; consulta il regime macroeconomico nel panel "Regime di Mercato".</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>📊 Grafici interattivi</h3>
+          <p><strong>Spiegazione al click:</strong> Clicca su qualsiasi grafico per ricevere una spiegazione generata dall'assistente su come leggere il grafico e cosa indicano i dati nel contesto dello scenario attivo.</p>
+          <p><strong>Come leggere i colori:</strong></p>
+          <ul>
+            <li><strong style="color:#1FA463">Verde</strong> — Consulenza Adattiva / valore positivo / adeguatezza alta</li>
+            <li><strong style="color:#2E6FD6">Blu</strong> — Strategia Standard / valore di riferimento</li>
+            <li><strong style="color:#E0922F">Arancione</strong> — Situazione di attenzione / adeguatezza parziale</li>
+            <li><strong style="color:#D64242">Rosso</strong> — Situazione critica / adeguatezza bassa / valore negativo</li>
+          </ul>
+          <p><strong>Heatmap:</strong> I colori indicano il differenziale di conversione tra le due strategie. Verde = la Consulenza Adattiva converte meglio in quel segmento. Rosso = la Strategia Standard è più efficace. Il numero indica la differenza percentuale.</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>📄 Esportazione report</h3>
+          <p><strong>PDF:</strong> Genera un report completo con analisi esecutiva scritta dall'assistente, tabella KPI e grafici principali. Ideale per la condivisione con il management.</p>
+          <p><strong>PPTX:</strong> Genera una presentazione pronta da proiettare, con slide che combinano grafici e analisi testuali. Struttura ottimizzata per presentazioni al board.</p>
+          <p>Entrambi i documenti riflettono lo scenario e i dati attualmente selezionati nella dashboard.</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>📈 Indicatori chiave</h3>
+          <ul>
+            <li><strong>Tasso di accettazione:</strong> Percentuale di proposte commerciali accettate dal cliente sul totale formulate.</li>
+            <li><strong>Commissioni cumulate:</strong> Ricavi totali generati — calcolati all'1% sul volume medio di 100.000€ per cliente.</li>
+            <li><strong>Fiducia media:</strong> Livello di soddisfazione e confidenza del cliente dopo ogni proposta (scala 0-100%).</li>
+            <li><strong>Conformità normativa:</strong> Grado di adeguatezza del prodotto proposto rispetto al profilo di rischio del cliente (scala 0-100%). Valori sotto il 70% richiedono attenzione.</li>
+            <li><strong>Rischio abbandono:</strong> Numero di clienti con segnali di insoddisfazione che potrebbero lasciare il portafoglio.</li>
+            <li><strong>Segnalazioni di non conformità:</strong> Proposte che presentano scostamenti rispetto ai requisiti normativi di adeguatezza.</li>
+          </ul>
         </div>
 
         <button @click="showHelpModal = false" class="modal-close-main-btn">Chiudi Guida</button>

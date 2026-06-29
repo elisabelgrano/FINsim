@@ -145,7 +145,9 @@ Ogni didascalia deve essere analitica e specifica, strutturata in 3 parti:
 3. COLLEGAMENTO STRATEGICO: collega il grafico alla raccomandazione operativa
 
 Dizionario terminologia per le didascalie:
-- HEATMAP_PERFORMANCE: usa "asse orizzontale (patrimonio del cliente)" e "asse verticale (profilo di rischio)". Verde = Consulenza Adattiva domina, Rosso = Strategia Standard domina.
+- HEATMAP_PERFORMANCE: usa "asse orizzontale (patrimonio del cliente)" e "asse verticale (profilo di rischio)". La scala cromatica indica il differenziale percentuale di conversione tra 
+le due strategie: il colore verde indica che la Consulenza Adattiva converte meglio in quel segmento di clientela, il colore rosso indica che la Strategia Standard è più efficace.
+I valori numerici mostrano il differenziale percentuale. NON dire che i colori rappresentano i due promotori separatamente.
 - BAR_PRODOTTI: usa "asse orizzontale (categorie di prodotto)" e "asse verticale (livello di soddisfazione)".
 - LINEE_COMPARATIVE: usa "asse orizzontale (sequenza delle 200 proposte)" e "asse verticale (raccolta cumulata in euro)".
 - WATERFALL_PATRIMONIO: NON usare asse X/Y. Usa "mattoncini di variazione" e "fattori di composizione". Spiega il percorso dal patrimonio iniziale a quello finale.
@@ -954,13 +956,24 @@ Rispondi ESCLUSIVAMENTE in italiano, formato testo puro, senza markdown, senza b
     return "Analisi non disponibile"
 
 
+def _map_scenario_code_to_name(scenario_code: str) -> str:
+    """Mappa codice scenario a nome completo per presentazioni."""
+    scenario_map = {
+        "S0": "Scenario Base",
+        "S1": "Scenario Espansione",
+        "S2": "Scenario Rialzo Tassi",
+        "S3": "Scenario Stress",
+        "S4": "Scenario Recessione"
+    }
+    return scenario_map.get(scenario_code, scenario_code)
+
 @app.post("/api/advisor/export-pptx", tags=["advisor"])
 async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
-    """Generate PowerPoint presentation with metrics and analysis."""
+    """Generate PowerPoint presentation with 7 slides (compact structure)."""
     metrics = request.metrics_data or {}
     user_message = request.user_message or "Analisi Automatica"
 
-    # Estrai metriche principali una volta per tutto il documento
+    # Estrai metriche principali
     comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
     comm_fisso = float(metrics.get('commissioni_cumulate_fisso') or 0)
     conv_adapt = float(metrics.get('tasso_conversione_adapt_pct') or 0)
@@ -969,8 +982,10 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     fid_fisso = float(metrics.get('fiducia_media_fisso') or 0)
     prop_adapt = int(metrics.get('proposte_totali_adapt') or 0)
     prop_fisso = int(metrics.get('proposte_totali_fisso') or 0)
+    churn_count = metrics.get('churn_risk_count', 0) or 0
+    mifid_count = metrics.get('mifid_alerts_count', 0) or 0
 
-    # Genera analisi esecutiva tramite LLM (indipendente dalla chat dell'utente)
+    # Genera analisi esecutiva tramite LLM
     llm_analysis = _generate_executive_analysis(metrics)
 
     prs = Presentation()
@@ -978,13 +993,19 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     prs.slide_height = Inches(7.5)
 
     # Colori tema Dark Luxury
-    COLOR_ADAPT = RGBColor(31, 164, 99)    # #1FA463
-    COLOR_FISSO = RGBColor(46, 111, 214)   # #2E6FD6
-    COLOR_NAVY = RGBColor(11, 17, 24)      # #0B1118
-    COLOR_GOLD = RGBColor(255, 213, 0)     # #FFD700
-    COLOR_TEXT = RGBColor(226, 232, 240)   # #E2E8F0
+    COLOR_ADAPT = RGBColor(31, 164, 99)    # Verde per Consulenza Adattiva
+    COLOR_FISSO = RGBColor(46, 111, 214)   # Blu per Strategia Standard
+    COLOR_NAVY = RGBColor(11, 17, 24)      # Sfondo
+    COLOR_BLUE = RGBColor(52, 152, 219)    # Azzurro per titoli
+    COLOR_TEXT = RGBColor(226, 232, 240)   # Testo principale
+    COLOR_DARK_BG = RGBColor(241, 245, 250) # Sfondo tabelle
+
+    # Mappa scenario a nome completo
+    scenario_code = metrics.get('scenario_corrente', 'S0')
+    scenario_name = _map_scenario_code_to_name(scenario_code)
 
     def add_title_slide():
+        """Slide 1: Titolo con nome scenario completo"""
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         background = slide.background
         fill = background.fill
@@ -997,66 +1018,19 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         title_para = title_frame.paragraphs[0]
         title_para.font.size = Pt(54)
         title_para.font.bold = True
-        title_para.font.color.rgb = COLOR_GOLD
+        title_para.font.color.rgb = COLOR_BLUE
         title_para.alignment = PP_ALIGN.CENTER
 
         subtitle_box = slide.shapes.add_textbox(Inches(0.5), Inches(4.2), Inches(9), Inches(1))
         subtitle_frame = subtitle_box.text_frame
-        subtitle_frame.text = f"Scenario {metrics.get('scenario_corrente', 'N/A')} | {datetime.now().strftime('%d/%m/%Y')}"
+        subtitle_frame.text = f"{scenario_name} | {datetime.now().strftime('%d/%m/%Y')}"
         subtitle_para = subtitle_frame.paragraphs[0]
         subtitle_para.font.size = Pt(20)
         subtitle_para.font.color.rgb = COLOR_TEXT
         subtitle_para.alignment = PP_ALIGN.CENTER
 
-    def add_kpi_dashboard_slide():
-        """Slide con KPI generali della dashboard."""
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        background = slide.background
-        fill = background.fill
-        fill.solid()
-        fill.fore_color.rgb = COLOR_NAVY
-
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
-        title_frame = title_box.text_frame
-        title_frame.text = "KPI Generali della Dashboard"
-        title_para = title_frame.paragraphs[0]
-        title_para.font.size = Pt(32)
-        title_para.font.bold = True
-        title_para.font.color.rgb = COLOR_GOLD
-
-        line = slide.shapes.add_shape(1, Inches(0.5), Inches(1.1), Inches(9), Inches(0))
-        line.line.color.rgb = COLOR_ADAPT
-        line.line.width = Pt(2)
-
-        regime = metrics.get('scenario_corrente', 'Baseline')
-
-        content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), Inches(8.6), Inches(5.5))
-        text_frame = content_box.text_frame
-        text_frame.word_wrap = True
-
-        kpi_lines = [
-            f"💰 Commissioni Cumulate (ADAPT): € {comm_adapt:,.0f}",
-            f"💰 Commissioni Cumulate (FISSO): € {comm_fisso:,.0f}",
-            f"📈 Differenziale: € {comm_adapt - comm_fisso:,.0f}",
-            "",
-            f"🎯 Tasso di Conversione ADAPT: {conv_adapt:.1f}%",
-            f"🎯 Tasso di Conversione FISSO: {conv_fisso:.1f}%",
-            f"📊 Delta Conversione: {conv_adapt - conv_fisso:.1f}%",
-            "",
-            f"📋 Regime di Mercato: {regime}",
-        ]
-
-        for idx, line_text in enumerate(kpi_lines):
-            if idx > 0:
-                text_frame.add_paragraph()
-            p = text_frame.paragraphs[idx]
-            p.text = line_text
-            p.font.size = Pt(14)
-            p.font.color.rgb = COLOR_TEXT
-            p.space_before = Pt(6)
-            p.space_after = Pt(6)
-
-    def add_content_slide(title: str, content_lines: List[str]):
+    def add_kpi_and_table_slide():
+        """Slide 2: KPI (sinistra) + Tabella (destra) affiancati"""
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         background = slide.background
         fill = background.fill
@@ -1064,62 +1038,58 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         fill.fore_color.rgb = COLOR_NAVY
 
         # Titolo
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
+        title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.2), Inches(9.4), Inches(0.5))
         title_frame = title_box.text_frame
-        title_frame.text = title
+        title_frame.text = "KPI Principali"
         title_para = title_frame.paragraphs[0]
-        title_para.font.size = Pt(32)
+        title_para.font.size = Pt(28)
         title_para.font.bold = True
-        title_para.font.color.rgb = COLOR_GOLD
+        title_para.font.color.rgb = COLOR_BLUE
 
-        # Linea divisoria
-        line = slide.shapes.add_shape(1, Inches(0.5), Inches(1.1), Inches(9), Inches(0))
-        line.line.color.rgb = COLOR_ADAPT
-        line.line.width = Pt(2)
+        # Sinistra: 3 box KPI compatti
+        kpi_data = [
+            ("💰 Commissioni", f"€ {comm_adapt - comm_fisso:,.0f}"),
+            ("🎯 Conversione", f"{conv_adapt - conv_fisso:.1f}%"),
+            ("💭 Fiducia", f"{fid_adapt - fid_fisso:.1f}%")
+        ]
 
-        # Contenuto
-        content_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.4), Inches(8.6), Inches(5.8))
-        text_frame = content_box.text_frame
-        text_frame.word_wrap = True
+        box_height = 1.4
+        box_y = 0.9
+        for idx, (label, value) in enumerate(kpi_data):
+            y_pos = box_y + idx * (box_height + 0.2)
+            box = slide.shapes.add_shape(1, Inches(0.3), Inches(y_pos), Inches(4.8), Inches(box_height))
+            box.fill.solid()
+            box.fill.fore_color.rgb = COLOR_ADAPT
+            box.line.color.rgb = COLOR_BLUE
+            box.line.width = Pt(2)
 
-        for idx, line_text in enumerate(content_lines):
-            if idx > 0:
-                text_frame.add_paragraph()
-            p = text_frame.paragraphs[idx]
-            p.text = line_text
-            p.font.size = Pt(14)
-            p.font.color.rgb = COLOR_TEXT
-            p.space_before = Pt(8)
-            p.space_after = Pt(8)
-            p.level = 0
+            txt = box.text_frame
+            txt.word_wrap = True
+            txt.clear()
+            p1 = txt.paragraphs[0]
+            p1.text = label
+            p1.font.size = Pt(12)
+            p1.font.bold = True
+            p1.font.color.rgb = RGBColor(255, 255, 255)
 
-    def add_kpi_table_slide():
-        slide = prs.slides.add_slide(prs.slide_layouts[6])
-        background = slide.background
-        fill = background.fill
-        fill.solid()
-        fill.fore_color.rgb = COLOR_NAVY
+            txt.add_paragraph()
+            p2 = txt.paragraphs[1]
+            p2.text = value
+            p2.font.size = Pt(16)
+            p2.font.bold = True
+            p2.font.color.rgb = COLOR_BLUE
 
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.4), Inches(9), Inches(0.6))
-        title_frame = title_box.text_frame
-        title_frame.text = "Tabella KPI Confronto"
-        title_para = title_frame.paragraphs[0]
-        title_para.font.size = Pt(32)
-        title_para.font.bold = True
-        title_para.font.color.rgb = COLOR_GOLD
-
-        # Tabella
+        # Destra: Tabella KPI
         rows, cols = 5, 4
-        left = Inches(0.7)
-        top = Inches(1.3)
-        width = Inches(8.6)
+        left = Inches(5.3)
+        top = Inches(0.85)
+        width = Inches(4.4)
         height = Inches(5.5)
 
         table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
         table = table_shape.table
 
-        headers = ["Metrica", "ADAPT (IA)", "FISSO (Benchmark)", "Differenza"]
-
+        headers = ["Metrica", "Consult. Adattiva", "Strat. Standard", "Delta"]
         data = [
             ["Commissioni (€)", f"{comm_adapt:,.0f}", f"{comm_fisso:,.0f}", f"{comm_adapt - comm_fisso:,.0f}"],
             ["Conversione (%)", f"{conv_adapt:.1f}%", f"{conv_fisso:.1f}%", f"{conv_adapt - conv_fisso:.1f}%"],
@@ -1127,150 +1097,175 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
             ["Proposte", f"{prop_adapt}", f"{prop_fisso}", f"{prop_adapt - prop_fisso}"],
         ]
 
-        # Riempimento header
+        # Header con colore verde (Consulenza Adattiva)
         for col_idx, header_text in enumerate(headers):
             cell = table.cell(0, col_idx)
             cell.fill.solid()
             cell.fill.fore_color.rgb = COLOR_ADAPT
-            text_frame = cell.text_frame
-            text_frame.text = header_text
-            text_frame.paragraphs[0].font.bold = True
-            text_frame.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)
+            tf = cell.text_frame
+            tf.text = header_text
+            tf.paragraphs[0].font.bold = True
+            tf.paragraphs[0].font.size = Pt(9)
+            tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
 
-        # Riempimento dati
+        # Dati con testo nero su sfondo chiaro
         for row_idx, row_data in enumerate(data, 1):
             for col_idx, cell_text in enumerate(row_data):
                 cell = table.cell(row_idx, col_idx)
-                text_frame = cell.text_frame
-                text_frame.text = cell_text
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = COLOR_DARK_BG
+                tf = cell.text_frame
+                tf.text = cell_text
+                tf.paragraphs[0].font.size = Pt(9)
+                tf.paragraphs[0].font.color.rgb = RGBColor(0, 0, 0)  # Nero per leggibilità
                 if col_idx == 0:
-                    text_frame.paragraphs[0].font.bold = True
-                text_frame.paragraphs[0].font.size = Pt(12)
-                text_frame.paragraphs[0].font.color.rgb = COLOR_TEXT
+                    tf.paragraphs[0].font.bold = True
 
-    # Generazione slide
-    add_title_slide()
-    add_kpi_dashboard_slide()
-
-    add_content_slide(
-        "Analisi Esecutiva",
-        [
-            f"Scenario: {metrics.get('scenario_corrente', 'N/A')}",
-            f"Data Analisi: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-            f"",
-            llm_analysis,
-        ]
-    )
-
-    add_content_slide(
-        "Contesto della Simulazione",
-        [
-            f"Scenario Attivo: {metrics.get('scenario_corrente', 'N/A')}",
-            f"Data di Generazione: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-            f"",
-            f"📊 Analisi basata su 200 round storici (5 scenari × 20 round × 100 clienti sintetici)",
-            f"🤖 Confronto Swarm Intelligence (ADAPT con IA) vs Benchmark Fisso (FISSO statico)",
-            f"🎯 Metodologia: Simulazione Monte Carlo con agenti autonomi",
-        ]
-    )
-
-    add_kpi_table_slide()
-
-    add_content_slide(
-        "Performance ADAPT vs FISSO",
-        [
-            f"Commissioni Cumulate:",
-            f"  • ADAPT: € {comm_adapt:,.0f}",
-            f"  • FISSO: € {comm_fisso:,.0f}",
-            f"  • Vantaggio: € {comm_adapt - comm_fisso:,.0f}",
-            f"",
-            f"Tasso di Conversione:",
-            f"  • ADAPT: {conv_adapt:.1f}%",
-            f"  • FISSO: {conv_fisso:.1f}%",
-        ]
-    )
-
-    churn_count = metrics.get('churn_risk_count', 0) or 0
-    mifid_count = metrics.get('mifid_alerts_count', 0) or 0
-
-    add_content_slide(
-        "Commento Strategico",
-        [
-            f"Fiducia Media Clienti:",
-            f"  • ADAPT: {fid_adapt:.1f}%",
-            f"  • FISSO: {fid_fisso:.1f}%",
-            f"",
-            f"Metriche di Rischio:",
-            f"  • Clienti a Rischio Churn: {churn_count}",
-            f"  • Alert MIFID/CONSOB: {mifid_count} anomalie",
-        ]
-    )
-
-    add_content_slide(
-        "Raccomandazioni Operative",
-        [
-            f"Analisi Copilota: {user_message[:100]}..." if len(user_message) > 100 else f"Analisi Copilota: {user_message}",
-            f"",
-            f"✅ Azioni Consigliate:",
-            f"  1. Mantenere focus sulla personalizzazione (ADAPT)",
-            f"  2. Monitorare clienti a rischio churn ({churn_count} segnalati)",
-            f"  3. Ricalibrazione adeguatezza per {mifid_count} alert rilevati",
-            f"  4. Continuare raccolta netta: trend positivo osservato",
-        ]
-    )
-
-    add_content_slide(
-        "Analisi Copilota IA",
-        [
-            f"🤖 Insight Strategico Automatico:",
-            f"",
-            f"Sintesi: {user_message if len(user_message) <= 150 else user_message[:150] + '...'}",
-            f"",
-            f"Il Copilota ha identificato opportunity di miglioramento nel posizionamento della strategia ADAPT.",
-            f"I grafici consigliati nella dashboard forniscono visualizzazione tattica per decisioni rapide.",
-        ]
-    )
-
-    add_content_slide(
-        "Conclusioni e Prossimi Passi",
-        [
-            f"✅ Situazione Competitiva:",
-            f"  • ADAPT mantiene leadership su {['Commissioni', 'Conversione'] if comm_adapt > comm_fisso or conv_adapt > conv_fisso else ['Benchmark FISSO competitivo']}",
-            f"  • Engagement cliente: {'Positivo' if fid_adapt > fid_fisso else 'Richiede attenzione'}",
-            f"",
-            f"📌 Azioni Prioritarie per il Prossimo Round:",
-            f"  1. Consolidare il vantaggio ADAPT su conversione (+{conv_adapt - conv_fisso:.1f}%)",
-            f"  2. Monitorare {churn_count} clienti a rischio churn",
-            f"  3. Scalare la strategia personalizzata nei cluster ad alta redditività",
-        ]
-    )
-
-    scenario_id = metrics.get('scenario_corrente', 'S0')
-    immagini = _genera_immagini_grafici(metrics, scenario_id)
-
-    def add_chart_slide(title: str, img_path: str):
+    def add_executive_analysis_slide():
+        """Slide 3: Analisi Esecutiva sintetica (max 400 caratteri)"""
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         background = slide.background
         fill = background.fill
         fill.solid()
         fill.fore_color.rgb = COLOR_NAVY
-        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.6))
+
+        title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.2), Inches(9.4), Inches(0.5))
         title_frame = title_box.text_frame
-        title_frame.text = title
+        title_frame.text = "Analisi Esecutiva"
         title_para = title_frame.paragraphs[0]
         title_para.font.size = Pt(28)
         title_para.font.bold = True
-        title_para.font.color.rgb = COLOR_GOLD
-        slide.shapes.add_picture(img_path, Inches(0.5), Inches(1.2), Inches(9), Inches(5.5))
+        title_para.font.color.rgb = COLOR_BLUE
 
+        # Testo LLM puro, limitato a 400 caratteri
+        analysis_text = llm_analysis[:400].strip()
+        if len(llm_analysis) > 400:
+            analysis_text += "…"
+
+        content_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.9), Inches(9), Inches(6.2))
+        tf = content_box.text_frame
+        tf.word_wrap = True
+        tf.text = analysis_text
+        tf.paragraphs[0].font.size = Pt(13)
+        tf.paragraphs[0].font.color.rgb = COLOR_TEXT
+        tf.paragraphs[0].line_spacing = 1.4
+
+    def add_chart_with_text_slide(title: str, img_path: str, testo: str, color_title=None):
+        """Slide con immagine a sinistra e testo didascalia a destra"""
+        if color_title is None:
+            color_title = COLOR_BLUE
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        # Titolo
+        title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.2), Inches(9.4), Inches(0.5))
+        tf = title_box.text_frame
+        tf.text = title
+        tf.paragraphs[0].font.size = Pt(22)
+        tf.paragraphs[0].font.bold = True
+        tf.paragraphs[0].font.color.rgb = color_title
+
+        # Immagine a sinistra
+        slide.shapes.add_picture(img_path, Inches(0.3), Inches(0.8), Inches(5.2), Inches(5.5))
+
+        # Testo a destra
+        txt_box = slide.shapes.add_textbox(Inches(5.7), Inches(0.8), Inches(4.0), Inches(5.5))
+        tf2 = txt_box.text_frame
+        tf2.word_wrap = True
+        p = tf2.paragraphs[0]
+        p.text = testo[:600] if len(testo) > 600 else testo
+        p.font.size = Pt(11)
+        p.font.color.rgb = COLOR_TEXT
+        p.line_spacing = 1.2
+
+    def add_conclusions_slide():
+        """Slide 7: Conclusioni con terminologia corretta"""
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.2), Inches(9.4), Inches(0.5))
+        title_frame = title_box.text_frame
+        title_frame.text = "Conclusioni e Prossimi Passi"
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(28)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_BLUE
+
+        content_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.85), Inches(9), Inches(6.4))
+        tf = content_box.text_frame
+        tf.word_wrap = True
+
+        conclusions = [
+            f"✅ Situazione Competitiva:",
+            f"  • Consulenza Adattiva mantiene leadership su commissioni e conversione",
+            f"  • Engagement cliente: {'Positivo' if fid_adapt > fid_fisso else 'Richiede attenzione'}",
+            f"",
+            f"📌 Azioni Prioritarie per il Prossimo Round:",
+            f"  1. Consolidare il vantaggio della Consulenza Adattiva",
+            f"  2. Monitorare {churn_count} clienti a rischio di abbandono clientela",
+            f"  3. Scalare la strategia personalizzata nei segmenti ad alta redditività",
+            f"",
+            f"⚠️ Metriche di Conformità:",
+            f"  • Clienti a rischio abbandono: {churn_count}",
+            f"  • Alert normativi: {mifid_count}",
+        ]
+
+        for idx, line_text in enumerate(conclusions):
+            if idx > 0:
+                tf.add_paragraph()
+            p = tf.paragraphs[idx]
+            p.text = line_text
+            p.font.size = Pt(11)
+            p.font.color.rgb = COLOR_TEXT
+            p.space_before = Pt(3)
+            p.space_after = Pt(3)
+            p.line_spacing = 1.2
+
+    # ============================================================================
+    # GENERAZIONE SLIDE
+    # ============================================================================
+    add_title_slide()
+    add_kpi_and_table_slide()
+    add_executive_analysis_slide()
+
+    scenario_id = metrics.get('scenario_corrente', 'S0')
+    immagini = _genera_immagini_grafici(metrics, scenario_id)
+
+    # Slide 4: Heatmap con testo
     if immagini.get('heatmap'):
-        add_chart_slide("Mappa di Valore (Patrimonio vs Rischio)", immagini['heatmap'])
+        heatmap_text = "Questa mappa mostra la performance relativa della Consulenza Adattiva vs Strategia Standard sui diversi segmenti clienti. Verde indica dominio della Consulenza Adattiva, rosso indica vantaggi della Strategia Standard."
+        add_chart_with_text_slide(
+            "Mappa di Valore (Patrimonio vs Profilo di Rischio)",
+            immagini['heatmap'],
+            heatmap_text
+        )
+
+    # Slide 5: Waterfall con testo
     if immagini.get('waterfall'):
-        add_chart_slide("Analisi Contribuzione Patrimonio Gestito", immagini['waterfall'])
+        waterfall_text = "Analisi della contribuzione al patrimonio gestito: mostra come la raccolta netta, l'effetto mercato e l'abbandono di clientela hanno determinato la variazione patrimoniale finale nel periodo."
+        add_chart_with_text_slide(
+            "Analisi Contribuzione Patrimonio Gestito",
+            immagini['waterfall'],
+            waterfall_text
+        )
+
+    # Slide 6: Linee Performance con testo
     if immagini.get('linee'):
-        add_chart_slide("Evoluzione Performance Cumulata", immagini['linee'])
-    if immagini.get('guadagni'):
-        add_chart_slide("Andamento Ricavi Cumulati", immagini['guadagni'])
+        linee_text = "Evoluzione della raccolta cumulata nel tempo: la Consulenza Adattiva (linea verde) evidenzia un trend superiore rispetto alla Strategia Standard (linea blu) lungo i 200 round."
+        add_chart_with_text_slide(
+            "Evoluzione Performance Cumulata",
+            immagini['linee'],
+            linee_text
+        )
+
+    # Slide 7: Conclusioni
+    add_conclusions_slide()
 
     with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
         prs.save(tmp.name)
@@ -1511,9 +1506,11 @@ def get_waterfall_data(scenario_id: str = "S0"):
     TICKET_MEDIO = 100000
 
     raccolta_totale = 0.0
-    delta_fiducia_positivi = 0.0
-    delta_fiducia_negativi = 0.0
+    churn_totale = 0.0
     clienti_totali = 0
+    fiducia_pre_totale = 0.0
+    fiducia_post_totale = 0.0
+    count_fiducia = 0
 
     for r in rounds:
         for promo in r.get("promoters_data", []):
@@ -1522,22 +1519,35 @@ def get_waterfall_data(scenario_id: str = "S0"):
             for s in promo.get("strategies", []):
                 clienti = s.get("clients_in_cluster", 0)
                 clienti_totali += clienti
+
                 if s.get("accettato"):
                     raccolta_totale += clienti * TICKET_MEDIO
-                delta = s.get("delta_fiducia_medio", 0)
-                if delta > 0:
-                    delta_fiducia_positivi += delta * clienti * TICKET_MEDIO * 0.1
-                elif delta < -0.05:
-                    delta_fiducia_negativi += abs(delta) * clienti * TICKET_MEDIO * 0.5
 
-    aum_iniziale = clienti_totali * TICKET_MEDIO if clienti_totali > 0 else 10000000
-    effetto_mercato = delta_fiducia_positivi * 0.3
+                delta = s.get("delta_fiducia_medio", 0)
+                fid_pre = s.get("fiducia_media_pre", 0)
+                fid_post = s.get("fiducia_media_post", 0)
+
+                if delta < -0.05:
+                    churn_totale += clienti * TICKET_MEDIO * abs(delta) * 2
+
+                fiducia_pre_totale += fid_pre * clienti
+                fiducia_post_totale += fid_post * clienti
+                count_fiducia += clienti
+
+    aum_iniziale = 10000000 # 100 clienti * 100000 ticket medio = patrimonio inziale simulazione
+    
+    # Effetto mercato: negativo se fiducia cala, positivo se sale
+    if count_fiducia > 0:
+        delta_fiducia_medio = (fiducia_post_totale - fiducia_pre_totale) / count_fiducia
+        effetto_mercato = delta_fiducia_medio * raccolta_totale * 5
+    else:
+        effetto_mercato = 0
 
     return {
         "aum_iniziale": round(aum_iniziale),
         "nuova_raccolta": round(raccolta_totale),
         "effetto_mercato": round(effetto_mercato),
-        "churn": round(-delta_fiducia_negativi)
+        "churn": round(-churn_totale)
     }
     
 @app.get("/api/charts/heatmap-data")
@@ -1647,7 +1657,7 @@ def applica_stile_premium(fig, titolo: str, dark_mode: bool = True):
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Segoe UI, -apple-system, Arial", color="#374151", size=13),
-            margin=dict(l=60, r=30, t=70, b=60),
+            margin=dict(l=80, r=40, t=70, b=70),
             showlegend=True
         )
         fig.update_xaxes(
@@ -1702,13 +1712,13 @@ async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
         name="Patrimonio Gestito", orientation="v",
         measure=["relative", "relative", "relative", "relative", "total"],
         x=["Patrimonio Iniziale", "Nuova Raccolta", "Effetto Mercato", "Abbandoni", "Patrimonio Finale"],
-        textposition="outside",
-        text=[f"+{nuova_raccolta/1e6:.1f}M", f"{effetto_mercato/1e6:.1f}M", f"{churn_clienti/1e6:.1f}M", f"{aum_finale/1e6:.1f}M"],
+        textposition="auto",
+        text=[f"+{aum_iniziale/1e6:.1f}M", f"{nuova_raccolta/1e6:.1f}M", f"{effetto_mercato/1e6:.1f}M", f"{aum_finale/1e6:.1f}M"],
         y=[aum_iniziale, nuova_raccolta, effetto_mercato, churn_clienti, 0],
         connector={"line": {"color": "rgba(0,0,0,0.1)", "width": 1}},
         decreasing={"marker": {"color": "#e11d48"}},
         increasing={"marker": {"color": "#059669"}},
-        totals={"marker": {"color": "#1f2937"}}
+        totals={"marker": {"color": "#2e6fd6"}}
     ))
 
     fig.update_layout(
@@ -1716,6 +1726,15 @@ async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
     )
 
     fig = applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio Gestito", dark_mode=True)
+    fig.update_traces(textfont=dict(color="#ffffff", size=12))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#059669", symbol="square"), name='Incremento patrimoniale'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#e11d48", symbol="square"), name='Riduzione patrimoniale'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#2e6fd6", symbol="square"), name='Patrimonio finale'))
+    fig.update_layout(
+        showlegend=True,
+        margin=dict(l=60, r=60, t=120, b=100),
+        legend=dict(orientation='h', yanchor='bottom', y=-0.25, xanchor='center', x=0.5, font=dict(size=11))
+    )
 
     return {"data": fig.to_json()}
 

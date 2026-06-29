@@ -247,20 +247,22 @@ def genera_waterfall_patrimonio(business_metrics: dict):
         totals={"marker": {"color": "#1f2937"}}
     ))
     
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#059669", symbol="square"), name='Nuova Raccolta (Positivo)'))
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#e11d48", symbol="square"), name='Uscite / Rischio Abbandono (Negativo)'))
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=12, color="#1f2937", symbol="square"), name='Totale Patrimonio Gestito'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#059669", symbol="square"), name='Incremento'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#e11d48", symbol="square"), name='Riduzione'))
+    fig.add_trace(go.Scatter(x=[None], y=[None], mode='markers', marker=dict(size=10, color="#2E6FD6", symbol="square"), name='Patrimonio Finale'))
     
     fig.update_layout(
         showlegend=True,
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.02,
+            y=-0.25,
             xanchor="center",
             x=0.5,
-            title_text=""
-        )
+            title_text="",
+            font=dict(size=11)
+        ),
+        margin=dict(l=60, r=60, t=70, b=100),
     )
     
     return applica_stile_premium(fig, "Analisi di Contribuzione del Patrimonio Gestito")
