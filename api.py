@@ -811,6 +811,95 @@ async def chat_with_advisor(request: AdvisorRequest) -> AdvisorResponse:
     )
     return response
 
+def _genera_immagini_grafici(metrics: Dict[str, Any], scenario_id: str) -> Dict[str, str]:
+    """
+    Genera immagini PNG dei grafici principali per inclusione in PDF/PPTX.
+    Legge i dati reali da MongoDB per scenario.
+    """
+    from visualizzatore_grafici import (
+        genera_heatmap_performance,
+        genera_waterfall_patrimonio,
+        genera_linee_comparative,
+        genera_andamento_guadagni
+    )
+    import tempfile
+
+    immagini = {}
+
+    # Arricchisci metrics con dati reali da MongoDB
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    if doc and "rounds" in doc:
+        TICKET_MEDIO_MLN = 0.1
+        TICKET_MEDIO = 100000
+        COMMISSIONE = 0.01
+
+        storico_ia, storico_fisso = [], []
+        guadagni_ia, guadagni_fisso = [], []
+        raccolta_cumulata_ia, raccolta_cumulata_fisso = 0.0, 0.0
+
+        for r in sorted(doc["rounds"], key=lambda x: x.get("round", 0)):
+            raccolta_round_ia, raccolta_round_fisso = 0.0, 0.0
+            guadagni_round_ia, guadagni_round_fisso = 0.0, 0.0
+
+            for promo in r.get("promoters_data", []):
+                pid = promo.get("promotore_id", "")
+                for s in promo.get("strategies", []):
+                    if s.get("accettato"):
+                        clienti = s.get("clients_in_cluster", 0)
+                        if "ADAPT" in pid:
+                            raccolta_round_ia += clienti * TICKET_MEDIO_MLN
+                            guadagni_round_ia += clienti * TICKET_MEDIO * COMMISSIONE
+                        elif "FISSO" in pid:
+                            raccolta_round_fisso += clienti * TICKET_MEDIO_MLN
+                            guadagni_round_fisso += clienti * TICKET_MEDIO * COMMISSIONE
+
+            raccolta_cumulata_ia += raccolta_round_ia
+            raccolta_cumulata_fisso += raccolta_round_fisso
+            storico_ia.append(round(raccolta_cumulata_ia, 2))
+            storico_fisso.append(round(raccolta_cumulata_fisso, 2))
+            guadagni_ia.append(guadagni_round_ia)
+            guadagni_fisso.append(guadagni_round_fisso)
+
+        metrics["storico_raccolta_adattivo"] = storico_ia
+        metrics["storico_raccolta_fisso"] = storico_fisso
+        metrics["guadagni_adapt_per_round"] = guadagni_ia
+        metrics["guadagni_fisso_per_round"] = guadagni_fisso
+
+    try:
+        fig = genera_heatmap_performance(metrics)
+        path = tempfile.mktemp(suffix="_heatmap.png")
+        fig.write_image(path, width=800, height=500)
+        immagini["heatmap"] = path
+    except Exception as e:
+        print(f"[IMG] Errore heatmap: {e}")
+
+    try:
+        fig = genera_waterfall_patrimonio(metrics)
+        path = tempfile.mktemp(suffix="_waterfall.png")
+        fig.write_image(path, width=800, height=500)
+        immagini["waterfall"] = path
+    except Exception as e:
+        print(f"[IMG] Errore waterfall: {e}")
+
+    try:
+        fig = genera_linee_comparative(metrics)
+        path = tempfile.mktemp(suffix="_linee.png")
+        fig.write_image(path, width=800, height=400)
+        immagini["linee"] = path
+    except Exception as e:
+        print(f"[IMG] Errore linee: {e}")
+
+    try:
+        fig = genera_andamento_guadagni(metrics)
+        path = tempfile.mktemp(suffix="_guadagni.png")
+        fig.write_image(path, width=800, height=400)
+        immagini["guadagni"] = path
+    except Exception as e:
+        print(f"[IMG] Errore guadagni: {e}")
+
+    return immagini
 
 def _generate_executive_analysis(metrics: Dict[str, Any]) -> str:
     """Genera un'analisi esecutiva completa tramite LLM per report e presentazioni."""
@@ -1170,6 +1259,33 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         ]
     )
 
+    scenario_id = metrics.get('scenario_corrente', 'S0')
+    immagini = _genera_immagini_grafici(metrics, scenario_id)
+
+    def add_chart_slide(title: str, img_path: str):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+        title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.6))
+        title_frame = title_box.text_frame
+        title_frame.text = title
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(28)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_GOLD
+        slide.shapes.add_picture(img_path, Inches(0.5), Inches(1.2), Inches(9), Inches(5.5))
+
+    if immagini.get('heatmap'):
+        add_chart_slide("Mappa di Valore (Patrimonio vs Rischio)", immagini['heatmap'])
+    if immagini.get('waterfall'):
+        add_chart_slide("Analisi Contribuzione Patrimonio Gestito", immagini['waterfall'])
+    if immagini.get('linee'):
+        add_chart_slide("Evoluzione Performance Cumulata", immagini['linee'])
+    if immagini.get('guadagni'):
+        add_chart_slide("Andamento Ricavi Cumulati", immagini['guadagni'])
+
     with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
         prs.save(tmp.name)
         tmp_path = tmp.name
@@ -1286,6 +1402,45 @@ async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
     elements.append(Paragraph(risk_text, styles['Normal']))
     elements.append(Spacer(1, 0.3*inch))
 
+# Grafici come immagini PNG con didascalie LLM
+    from reportlab.platypus import Image as RLImage
+    scenario_id = metrics.get('scenario_corrente', 'S0')
+    immagini = _genera_immagini_grafici(metrics, scenario_id)
+
+    grafici_da_includere = [
+        ('heatmap', 'Mappa di Valore (Patrimonio vs Rischio)',
+         'Analizza questa mappa di valore e spiega in 3 frasi cosa indicano le celle verdi e rosse per la strategia commerciale della banca. Usa linguaggio da consulente finanziario senior.'),
+        ('waterfall', 'Analisi Contribuzione Patrimonio Gestito',
+         'Analizza questo grafico a cascata del patrimonio gestito e spiega in 3 frasi i fattori principali che hanno determinato la variazione finale. Usa linguaggio da consulente finanziario senior.'),
+        ('linee', 'Evoluzione Performance Cumulata',
+         'Analizza queste linee di performance cumulata ADAPT vs FISSO e spiega in 3 frasi cosa indica la divergenza tra le due strategie. Usa linguaggio da consulente finanziario senior.'),
+        ('guadagni', 'Andamento Ricavi Cumulati',
+         'Analizza questo grafico dei ricavi cumulati e spiega in 3 frasi le implicazioni strategiche per il prossimo periodo. Usa linguaggio da consulente finanziario senior.'),
+    ]
+
+    for chiave, titolo, prompt_llm in grafici_da_includere:
+        if immagini.get(chiave):
+            elements.append(PageBreak())
+            elements.append(Paragraph(titolo, heading_style))
+            elements.append(Spacer(1, 0.1*inch))
+            elements.append(RLImage(immagini[chiave], width=6*inch, height=3.5*inch))
+            elements.append(Spacer(1, 0.15*inch))
+            # Genera didascalia LLM
+            try:
+                payload_llm = {
+                    "model": OllamaAdvisor.MODEL_NAME,
+                    "prompt": f"Scenario {scenario_id}. KPI: Commissioni ADAPT €{comm_adapt:,.0f}, FISSO €{comm_fisso:,.0f}. Conversione ADAPT {conv_adapt:.1f}%, FISSO {conv_fisso:.1f}%. {prompt_llm}",
+                    "stream": False
+                }
+                r = requests.post(OllamaAdvisor.OLLAMA_GENERATE_URL, json=payload_llm, timeout=60)
+                didascalia = r.json().get("response", "").strip()[:1500] if r.ok else ""
+            except Exception:
+                didascalia = ""
+            if didascalia:
+                elements.append(Paragraph(didascalia, normal_style))
+            elements.append(Spacer(1, 0.2*inch))
+    
+
     # Build PDF
     doc.build(elements)
 
@@ -1294,7 +1449,6 @@ async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
         media_type="application/pdf",
         filename=f"FINsim_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     )
-
 
 # =====================================================================
 # HEALTH AND DASHBOARD ENDPOINTS
@@ -1360,7 +1514,94 @@ async def get_tutti_scenari():
             result[sid] = d
     return {"scenari": result}
 
+@app.get("/api/charts/waterfall-data")
+def get_waterfall_data(scenario_id: str = "S0"):
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"aum_iniziale": 0, "nuova_raccolta": 0, "effetto_mercato": 0, "churn": 0}
 
+    rounds = sorted(doc["rounds"], key=lambda x: x.get("round", 0))
+    TICKET_MEDIO = 100000
+
+    raccolta_totale = 0.0
+    delta_fiducia_positivi = 0.0
+    delta_fiducia_negativi = 0.0
+    clienti_totali = 0
+
+    for r in rounds:
+        for promo in r.get("promoters_data", []):
+            if "ADAPT" not in promo.get("promotore_id", ""):
+                continue
+            for s in promo.get("strategies", []):
+                clienti = s.get("clients_in_cluster", 0)
+                clienti_totali += clienti
+                if s.get("accettato"):
+                    raccolta_totale += clienti * TICKET_MEDIO
+                delta = s.get("delta_fiducia_medio", 0)
+                if delta > 0:
+                    delta_fiducia_positivi += delta * clienti * TICKET_MEDIO * 0.1
+                elif delta < -0.05:
+                    delta_fiducia_negativi += abs(delta) * clienti * TICKET_MEDIO * 0.5
+
+    aum_iniziale = clienti_totali * TICKET_MEDIO if clienti_totali > 0 else 10000000
+    effetto_mercato = delta_fiducia_positivi * 0.3
+
+    return {
+        "aum_iniziale": round(aum_iniziale),
+        "nuova_raccolta": round(raccolta_totale),
+        "effetto_mercato": round(effetto_mercato),
+        "churn": round(-delta_fiducia_negativi)
+    }
+    
+@app.get("/api/charts/heatmap-data")
+def get_heatmap_data(scenario_id: str = "S0"):
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"matrice": [[0,0,0],[0,0,0],[0,0,0]]}
+
+    profili_rischio = {"Conservative": 0, "Balanced": 1, "Aggressive": 2}
+    patrimoni = {"basso": 0, "medio": 1, "alto": 2}
+
+    adapt_acc = [[0,0,0],[0,0,0],[0,0,0]]
+    adapt_tot = [[0,0,0],[0,0,0],[0,0,0]]
+    fisso_acc = [[0,0,0],[0,0,0],[0,0,0]]
+    fisso_tot = [[0,0,0],[0,0,0],[0,0,0]]
+
+    for r in doc["rounds"]:
+        for promo in r.get("promoters_data", []):
+            pid = promo.get("promotore_id", "")
+            for s in promo.get("strategies", []):
+                profilo = s.get("profilo_rischio_prevalente", "Balanced")
+                coords = s.get("cluster_coords", [1, 1])
+                clienti = s.get("clients_in_cluster", 5)
+
+                # Mappa coords a indice patrimonio (0=basso, 1=medio, 2=alto)
+                col = min(int(coords[0] / 7 * 3), 2) if coords else 1
+                row = profili_rischio.get(profilo, 1)
+
+                if "ADAPT" in pid:
+                    adapt_tot[row][col] += 1
+                    if s.get("accettato"):
+                        adapt_acc[row][col] += 1
+                elif "FISSO" in pid:
+                    fisso_tot[row][col] += 1
+                    if s.get("accettato"):
+                        fisso_acc[row][col] += 1
+
+    matrice = []
+    for row in range(3):
+        riga = []
+        for col in range(3):
+            ta = adapt_tot[row][col]
+            tf = fisso_tot[row][col]
+            ra = adapt_acc[row][col] / ta if ta > 0 else 0
+            rf = fisso_acc[row][col] / tf if tf > 0 else 0
+            riga.append(round((ra - rf) * 100, 2))
+        matrice.append(riga)
+
+    return {"matrice": matrice}
 # =====================================================================
 # PLOTLY CHARTS HELPERS & ENDPOINTS
 # =====================================================================
@@ -1495,11 +1736,58 @@ async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
 
 @app.post("/api/charts/performance-lines", tags=["charts"])
 async def get_linee_comparative(request: AdvisorRequest) -> dict:
-    """Generate comparative performance lines as Plotly JSON"""
+    """
+    Generate comparative performance lines as Plotly JSON.
+    Data-Driven: Reads from MongoDB instead of synthetic data.
+    """
     metrics = request.metrics_data or {}
+    scenario_id = metrics.get("scenario_corrente", "S0")
 
-    storico_ia = metrics.get("storico_raccolta_adattivo", [i**1.2 * 10000 for i in range(1, 201)])
-    storico_fisso = metrics.get("storico_raccolta_fisso", [i * 9000 for i in range(1, 201)])
+    # Leggi dati reali da MongoDB
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    storico_ia = []
+    storico_fisso = []
+
+    if doc and "rounds" in doc:
+        TICKET_MEDIO_MLN = 0.1
+        raccolta_cumulata_ia = 0.0
+        raccolta_cumulata_fisso = 0.0
+
+        for r in sorted(doc.get("rounds", []), key=lambda x: x.get("round", 0)):
+            raccolta_round_ia = 0.0
+            raccolta_round_fisso = 0.0
+
+            for promo in r.get("promoters_data", []):
+                pid = promo.get("promotore_id", "")
+
+                for strat in promo.get("strategies", []):
+                    if strat.get("accettato") == True:
+                        clienti_convertiti = strat.get("clients_in_cluster", 0)
+                        volume_generato = clienti_convertiti * TICKET_MEDIO_MLN
+
+                        if "ADAPT" in pid:
+                            raccolta_round_ia += volume_generato
+                        elif "FISSO" in pid:
+                            raccolta_round_fisso += volume_generato
+
+            raccolta_cumulata_ia += raccolta_round_ia
+            raccolta_cumulata_fisso += raccolta_round_fisso
+
+            storico_ia.append(round(raccolta_cumulata_ia, 2))
+            storico_fisso.append(round(raccolta_cumulata_fisso, 2))
+
+    # Fallback: se nessun dato da MongoDB, ritorna zeri (non sintetici)
+    if not storico_ia:
+        storico_ia = [0] * 200
+    if not storico_fisso:
+        storico_fisso = [0] * 200
+
+    # Estendi a 200 elementi se necessario
+    storico_ia = storico_ia[:200] + [0] * (200 - len(storico_ia))
+    storico_fisso = storico_fisso[:200] + [0] * (200 - len(storico_fisso))
+
     proposte = [f"Prop. {i}" for i in range(1, 201)]
 
     df_ia = pd.DataFrame({"Proposta": proposte, "Valore": storico_ia, "Strategia": "Consulenza IA Dinamica"})
@@ -1962,6 +2250,9 @@ async def get_client_sentiment(payload: dict):
             "Rialzo tassi": "S2", "Stress": "S3", "Recessione": "S4"
         }
         scenario_codice = dizionario_scenari.get(scenario_ui, scenario_ui)
+        # Se scenario_ui è già un codice (S0, S1...) usalo direttamente
+        if scenario_ui.startswith("S") and len(scenario_ui) <= 3:
+            scenario_codice = scenario_ui
         db_scenario_id = f"{scenario_codice}_200" if not scenario_codice.endswith("_200") else scenario_codice
 
         print(f"[Spider] Cercando scenario: {db_scenario_id}")
@@ -2173,4 +2464,278 @@ def get_dati_banca_spider(scenario_id: str = "S0"):
         "adapt": [compliance, raccolta, fiducia, aderenza, redditivita],
         "target": [90, 80, 75, 70, 85],
         "labels": ["Compliance", "Raccolta", "Fiducia Cliente", "Aderenza Direttiva", "Redditività"]
+    }
+
+
+@app.get("/api/charts/radar-banca-direttiva")
+def get_radar_banca_direttiva(scenario_id: str = "S0"):
+    """
+    Radar Banca: Allocation Target vs Actual Portfolio
+    Dimensioni: Bond Corp, Monetario, Azionario, Illiquidi, Gov Bond
+    """
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    if not doc or "rounds" not in doc:
+        return {
+            "target": [80, 90, 20, 10, 85],
+            "attuale": [0, 0, 0, 0, 0]
+        }
+
+    # Mapping prodotto -> allocation weights
+    prodotti_map = {
+        "Bond_Corporate": {"bond": 80, "monetario": 20, "azionario": 10, "illiquidi": 5, "gov": 70},
+        "Monetario": {"bond": 20, "monetario": 90, "azionario": 5, "illiquidi": 0, "gov": 30},
+        "Azionario": {"bond": 10, "monetario": 10, "azionario": 80, "illiquidi": 20, "gov": 20},
+        "ETF": {"bond": 30, "monetario": 20, "azionario": 60, "illiquidi": 10, "gov": 40},
+        "Obbligazionario": {"bond": 70, "monetario": 30, "azionario": 15, "illiquidi": 5, "gov": 80},
+    }
+
+    bond_tot = mon_tot = az_tot = ill_tot = gov_tot = count = 0
+
+    # Usa l'ultimo round per il portafoglio attuale (ADAPT only)
+    rounds_sorted = sorted(doc.get("rounds", []), key=lambda x: x.get("round", 0))
+    if rounds_sorted:
+        ultimo_round = rounds_sorted[-1]
+        for promo in ultimo_round.get("promoters_data", []):
+            if "ADAPT" not in promo.get("promotore_id", ""):
+                continue
+            for s in promo.get("strategies", []):
+                prod = s.get("prodotto_suggerito", "Bond_Corporate")
+                pesi = prodotti_map.get(prod, prodotti_map["Bond_Corporate"])
+                bond_tot += pesi["bond"]
+                mon_tot += pesi["monetario"]
+                az_tot += pesi["azionario"]
+                ill_tot += pesi["illiquidi"]
+                gov_tot += pesi["gov"]
+                count += 1
+
+    if count == 0:
+        return {
+            "target": [80, 90, 20, 10, 85],
+            "attuale": [0, 0, 0, 0, 0]
+        }
+
+    return {
+        "target": [80, 90, 20, 10, 85],
+        "attuale": [
+            round(bond_tot / count, 1),
+            round(mon_tot / count, 1),
+            round(az_tot / count, 1),
+            round(ill_tot / count, 1),
+            round(gov_tot / count, 1)
+        ]
+    }
+
+# =====================================================================
+# FINSIM-MOD: ENDPOINT MANCANTI PER VISTA CLIENTE (Data-Driven)
+# =====================================================================
+
+@app.get("/api/charts/fiducia-evolution")
+def get_fiducia_evolution(scenario_id: str = "S0"):
+    """
+    Evoluzione della fiducia cliente medio per round (200 round).
+    Distingue ADAPT vs FISSO con trend smoothing.
+    """
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    if not doc or "rounds" not in doc:
+        return {
+            "labels": [f"R{i}" for i in range(1, 201)],
+            "fiducia_adapt": [50] * 200,
+            "fiducia_fisso": [45] * 200
+        }
+
+    fiducia_adapt = []
+    fiducia_fisso = []
+    labels = []
+
+    for r in sorted(doc["rounds"], key=lambda x: x.get('round', 0)):
+        round_num = r.get('round', 0)
+        labels.append(f"R{round_num}")
+
+        adapt_sum = adapt_count = fisso_sum = fisso_count = 0
+
+        for promo in r.get("promoters_data", []):
+            pid = promo.get("promotore_id", "")
+            for strat in promo.get("strategies", []):
+                fid = strat.get("fiducia_media_post", 0)
+
+                if "ADAPT" in pid:
+                    adapt_sum += fid
+                    adapt_count += 1
+                elif "FISSO" in pid:
+                    fisso_sum += fid
+                    fisso_count += 1
+
+        fiducia_adapt.append((adapt_sum / adapt_count * 100) if adapt_count > 0 else 0)
+        fiducia_fisso.append((fisso_sum / fisso_count * 100) if fisso_count > 0 else 0)
+
+    return {
+        "labels": labels,
+        "fiducia_adapt": fiducia_adapt,
+        "fiducia_fisso": fiducia_fisso
+    }
+
+
+@app.get("/api/charts/profilo-portafoglio")
+def get_profilo_portafoglio(scenario_id: str = "S0"):
+    """
+    Radar: Allineamento Profilo Dichiarato vs Portafoglio Assegnato.
+    Dimensioni: Rischio, Orizzonte Temporale, Liquidità, Rendimento Atteso, Conoscenza Finanziaria.
+    """
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    # Fallback se nessun dato
+    if not doc or "rounds" not in doc:
+        return {
+            "profilo_dichiarato": [35, 60, 70, 45, 50],
+            "portafoglio_assegnato": [40, 58, 75, 48, 50],
+            "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+        }
+
+    rounds = sorted(doc["rounds"], key=lambda x: x.get('round', 0))
+
+    # Accumulatori per ogni dimensione
+    profilo_risk = profilo_time = profilo_liquidity = profilo_return = profilo_knowledge = 0
+    portfolio_risk = portfolio_time = portfolio_liquidity = portfolio_return = portfolio_knowledge = 0
+    conteggio = 0
+
+    for r in rounds:
+        for promo in r.get("promoters_data", []):
+            if "ADAPT" not in promo.get("promotore_id", ""):
+                continue
+            for strat in promo.get("strategies", []):
+                profilo = strat.get("profilo_rischio_prevalente", "Balanced")
+                adeq = strat.get("adeguatezza_score", 0.5)
+
+                # Mappa profilo rischio dichiarato
+                risk_map = {"Conservative": 20, "Balanced": 50, "Aggressive": 80}
+                profilo_risk += risk_map.get(profilo, 50)
+
+                # Portfolio risk (basato su adeguatezza - se bassa, risk diverso)
+                portfolio_risk += (adeq * 80)
+
+                # Altre dimensioni (stimate da adeguatezza e fiducia)
+                fid = strat.get("fiducia_media_post", 0.5)
+                delta = strat.get("delta_fiducia_medio", 0)
+
+                profilo_time += 60  # Time horizon conservativo
+                portfolio_time += (fid * 100)  # Allineato a fiducia
+
+                profilo_liquidity += 70  # Liquidità desiderata
+                portfolio_liquidity += (80 if adeq > 0.6 else 60)
+
+                profilo_return += 50  # Return expectations
+                portfolio_return += (adeq * 100)  # Actual return potential
+
+                profilo_knowledge += 55  # Assumed knowledge
+                portfolio_knowledge += (delta * 100 + 50)  # Knowledge reflected in adjustments
+
+                conteggio += 1
+
+    if conteggio == 0:
+        return {
+            "profilo_dichiarato": [35, 60, 70, 45, 50],
+            "portafoglio_assegnato": [40, 58, 75, 48, 50],
+            "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+        }
+
+    profilo = [
+        round(profilo_risk / conteggio),
+        round(profilo_time / conteggio),
+        round(profilo_liquidity / conteggio),
+        round(profilo_return / conteggio),
+        round(profilo_knowledge / conteggio)
+    ]
+
+    portfolio = [
+        round(portfolio_risk / conteggio),
+        round(portfolio_time / conteggio),
+        round(portfolio_liquidity / conteggio),
+        round(portfolio_return / conteggio),
+        round(portfolio_knowledge / conteggio)
+    ]
+
+    # Normalizza a 0-100
+    profilo = [max(0, min(100, p)) for p in profilo]
+    portfolio = [max(0, min(100, p)) for p in portfolio]
+
+    return {
+        "profilo_dichiarato": profilo,
+        "portafoglio_assegnato": portfolio,
+        "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+    }
+
+
+@app.get("/api/charts/risk-propensity-heatmap")
+def get_risk_propensity_heatmap(scenario_id: str = "S0"):
+    """
+    Heatmap Propensione al Rischio per Cluster (Profilo Rischio × Patrimonio).
+    Valori: tasso di accettazione di prodotti a rischio per cluster.
+    """
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+
+    # Fallback
+    if not doc or "rounds" not in doc:
+        return {
+            "matrice": [[88, 82, 75, 70, 65], [91, 85, 79, 73, 68], [78, 72, 66, 58, 48], [62, 54, 44, 32, 22]],
+            "profili": ["Alto Rischio", "Medio Rischio", "Basso Rischio", "Conservativo"],
+            "patrimoni": ["Basso", "Medio-Basso", "Medio", "Medio-Alto", "Alto"]
+        }
+
+    # Clusters: 4 profili di rischio × 5 livelli di patrimonio
+    risk_profiles = ["Alto Rischio", "Medio Rischio", "Basso Rischio", "Conservativo"]
+    wealth_levels = ["Basso", "Medio-Basso", "Medio", "Medio-Alto", "Alto"]
+
+    risk_to_idx = {
+        "Aggressive": 0,
+        "Balanced": 1,
+        "Conservative": 2,
+        "Conservativo": 3
+    }
+
+    # Matrice di conteggio per cluster
+    cluster_acceptance = [[0]*5 for _ in range(4)]
+    cluster_total = [[0]*5 for _ in range(4)]
+
+    rounds = sorted(doc["rounds"], key=lambda x: x.get('round', 0))
+
+    for r in rounds:
+        for promo in r.get("promoters_data", []):
+            for strat in promo.get("strategies", []):
+                risk_profilo = strat.get("profilo_rischio_prevalente", "Balanced")
+                coords = strat.get("cluster_coords", [2, 2])
+                clienti = strat.get("clients_in_cluster", 1)
+                accettato = strat.get("accettato", False)
+
+                # Map risk profile to index (0-3)
+                risk_idx = risk_to_idx.get(risk_profilo, 1)
+
+                # Map coordinates to wealth level (0-4, assume 0-10 scale)
+                wealth_idx = min(4, int((coords[0] / 10.0) * 5)) if coords else 2
+
+                cluster_total[risk_idx][wealth_idx] += clienti
+                if accettato:
+                    cluster_acceptance[risk_idx][wealth_idx] += clienti
+
+    # Calcola tasso di accettazione per cluster (0-100%)
+    matrice_propensione = []
+    for i in range(4):
+        riga = []
+        for j in range(5):
+            if cluster_total[i][j] > 0:
+                tasso = int((cluster_acceptance[i][j] / cluster_total[i][j]) * 100)
+            else:
+                tasso = 50  # Default se nessun dato
+            riga.append(max(20, min(100, tasso)))  # Clamp tra 20-100
+        matrice_propensione.append(riga)
+
+    return {
+        "matrice": matrice_propensione,
+        "profili": risk_profiles,
+        "patrimoni": wealth_levels
     }

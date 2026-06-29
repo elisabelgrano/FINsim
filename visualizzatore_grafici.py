@@ -418,6 +418,10 @@ def genera_andamento_guadagni(business_metrics: dict):
     max_len = min(len(guadagni_ia), len(guadagni_fisso), 200)
     guadagni_ia = guadagni_ia[:max_len]
     guadagni_fisso = guadagni_fisso[:max_len]
+    
+    #cumulativo
+    guadagni_ia = [sum(guadagni_ia[:i+1]) for i in range(len(guadagni_ia))]
+    guadagni_fisso = [sum(guadagni_fisso[:i+1]) for i in range(len(guadagni_fisso))]
 
     # FINSIM-MOD: Forza l'asse X a 200 punti se i dati mancano (evita linee piatte in Plotly)
     if max_len == 0 or not guadagni_ia or not guadagni_fisso or \
