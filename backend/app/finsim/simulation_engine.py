@@ -22,7 +22,7 @@ from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
-AADEGUATEZZA_MATRIX = {
+ADEGUATEZZA_MATRIX = {
     "Conservative": {
         "Cash_Equivalents":      1.0,
         "Bond_Sovereign":        0.9,
