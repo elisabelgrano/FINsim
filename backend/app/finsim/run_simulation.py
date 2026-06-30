@@ -341,7 +341,7 @@ def main():
 
         for scenario_id in scenarios:
             # Creiamo il nuovo nome SOLO per MongoDB
-            mongo_scenario_id = f"{scenario_id}_200"
+            mongo_scenario_id = f"{scenario_id}_fix2"
             
             # Cache check sul NUOVO nome
             existing_doc = collection.find_one({"scenario_id": mongo_scenario_id})
@@ -367,7 +367,7 @@ def main():
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
-                    num_rounds=200,
+                    num_rounds=20,
                 )
 
                 all_results.append(scenario_result)

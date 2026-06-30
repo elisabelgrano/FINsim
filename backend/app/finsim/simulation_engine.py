@@ -22,34 +22,54 @@ from backend.app.finsim.metrics import normalize_prodotto
 
 logger = logging.getLogger('finsim.simulation_engine')
 
-ADEGUATEZZA_MATRIX = {
+AADEGUATEZZA_MATRIX = {
     "Conservative": {
-        "Cash_Equivalents": 1.0,
-        "Bond_Sovereign":   0.9,
-        "Bond_Corporate":   0.5,
-        "Mixed_Funds":      0.1,
-        "Altro":            0.2
+        "Cash_Equivalents":      1.0,
+        "Bond_Sovereign":        0.9,
+        "Bond_Corporate":        0.5,
+        "Polizze_Assicurative":  0.8,
+        "Real_Estate":           0.3,
+        "Mixed_Funds":           0.1,
+        "ETF_Tematici":          0.2,
+        "Fondi_Azionari":        0.1,
+        "Derivati":              0.0,
+        "Altro":                 0.2
     },
     "Balanced": {
-        "Bond_Sovereign":   1.0,
-        "Bond_Corporate":   0.8,
-        "Cash_Equivalents": 0.6,
-        "Mixed_Funds":      0.5,
-        "Altro":            0.3
+        "Bond_Sovereign":        1.0,
+        "Bond_Corporate":        0.8,
+        "Cash_Equivalents":      0.6,
+        "Polizze_Assicurative":  0.6,
+        "Real_Estate":           0.6,
+        "Mixed_Funds":           0.5,
+        "ETF_Tematici":          0.5,
+        "Fondi_Azionari":        0.4,
+        "Derivati":              0.1,
+        "Altro":                 0.3
     },
     "Growth": {
-        "Bond_Corporate":   1.0,
-        "Mixed_Funds":      0.8,
-        "Bond_Sovereign":   0.5,
-        "Cash_Equivalents": 0.3,
-        "Altro":            0.3
+        "Bond_Corporate":        1.0,
+        "Mixed_Funds":           0.8,
+        "ETF_Tematici":          0.8,
+        "Real_Estate":           0.7,
+        "Bond_Sovereign":        0.5,
+        "Polizze_Assicurative":  0.3,
+        "Fondi_Azionari":        0.9,
+        "Cash_Equivalents":      0.3,
+        "Derivati":              0.4,
+        "Altro":                 0.3
     },
     "Aggressive": {
-        "Mixed_Funds":      1.0,
-        "Bond_Corporate":   0.7,
-        "Bond_Sovereign":   0.3,
-        "Cash_Equivalents": 0.2,
-        "Altro":            0.2
+        "Mixed_Funds":           1.0,
+        "Fondi_Azionari":        1.0,
+        "Derivati":              0.9,
+        "Bond_Corporate":        0.7,
+        "ETF_Tematici":          0.7,
+        "Real_Estate":           0.6,
+        "Bond_Sovereign":        0.3,
+        "Polizze_Assicurative":  0.1,
+        "Cash_Equivalents":      0.2,
+        "Altro":                 0.2
     }
 }
 
@@ -326,6 +346,7 @@ class SimulationEngine:
                                 'clients_in_cluster': clients_updated,
                                 'llm_strategy': strategy_result['strategia'],
                                 'approccio_comunicativo': strategy_result['approccio_comunicativo'],
+                                'prodotto_suggerito_raw': prodotto_raw,
                                 'prodotto_suggerito': prodotto_normalized,
                                 'fiducia_media_pre': fiducia_media_pre,
                                 'fiducia_media_post': fiducia_media_post,

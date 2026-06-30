@@ -20,6 +20,11 @@ def normalize_prodotto(raw: str) -> str:
     - contains "cash" or "liquide"           → "Cash_Equivalents"
     - contains "mixed" or "mist"             → "Mixed_Funds"
     - contains "multisett"                   → "Mixed_Funds"
+    - contains "etf"                         → "ETF_Tematici"
+    - contains "azion" or "equity"           → "Fondi_Azionari"
+    - contains "polizz" or "assicurat"       → "Polizze_Assicurative"
+    - contains "immobil" or "real estate"    → "Real_Estate"
+    - contains "derivat" or "future" or "opzion" → "Derivati"
     - anything else                          → "Altro"
 
     Args:
@@ -31,36 +36,44 @@ def normalize_prodotto(raw: str) -> str:
     if not isinstance(raw, str):
         return "Altro"
 
-    # Normalize input: strip whitespace and convert to lowercase
     normalized = raw.strip().lower()
 
     if not normalized:
         return "Altro"
 
-    # Bond_Corporate: (bond OR obbligaz OR banca) + corporate
     if ("corporate" in normalized) and \
        any(x in normalized for x in ["bond", "obbligaz", "banca"]):
         return "Bond_Corporate"
 
-    # Bond_Sovereign: sovereign/sovran/governativ/titoli di stato
     if "sovereign" in normalized or "sovran" in normalized or \
        "governativ" in normalized or "titoli di stato" in normalized:
         return "Bond_Sovereign"
 
-    # Bond_Sovereign: bond + sovereign
     if "bond" in normalized and "sovereign" in normalized:
         return "Bond_Sovereign"
 
-    # Cash_Equivalents: cash or liquide
     if "cash" in normalized or "liquide" in normalized:
         return "Cash_Equivalents"
 
-    # Mixed_Funds: mixed/mist/multisett
     if "mixed" in normalized or "mist" in normalized or \
        "multisett" in normalized:
         return "Mixed_Funds"
 
-    # Default fallback
+    if "etf" in normalized:
+        return "ETF_Tematici"
+
+    if "azion" in normalized or "equity" in normalized:
+        return "Fondi_Azionari"
+
+    if "polizz" in normalized or "assicurat" in normalized:
+        return "Polizze_Assicurative"
+
+    if "immobil" in normalized or "real estate" in normalized:
+        return "Real_Estate"
+
+    if "derivat" in normalized or "future" in normalized or "opzion" in normalized:
+        return "Derivati"
+
     return "Altro"
 
 
