@@ -779,6 +779,106 @@
           </div>
         </div>
 
+        <div v-if="view === 'evoluzione'" class="dashboard-grid">
+
+          <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header">
+              <h3>🔍 Evoluzione Strategica per Segmento di Clientela</h3>
+            </div>
+            <p style="color: #8593A8; font-size: 13px; margin-bottom: 16px;">
+              Seleziona un segmento di clientela per analizzare come il promotore adatta la propria strategia nel corso dei tentativi di proposta, in risposta al feedback ricevuto.
+            </p>
+            <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 200px;">
+                <label style="font-size: 11px; color: #8593A8; text-transform: uppercase; display: block; margin-bottom: 6px;">Profilo di Rischio</label>
+                <select v-model.number="clusterRiskIdx" @change="caricaEvoluzioneCluster" class="advisor-input" style="cursor: pointer;">
+                  <option v-for="(label, idx) in profiliRischioLabels" :key="idx" :value="idx">{{ label }}</option>
+                </select>
+              </div>
+              <div style="flex: 1; min-width: 200px;">
+                <label style="font-size: 11px; color: #8593A8; text-transform: uppercase; display: block; margin-bottom: 6px;">Livello Patrimoniale</label>
+                <select v-model.number="clusterWealthIdx" @change="caricaEvoluzioneCluster" class="advisor-input" style="cursor: pointer;">
+                  <option v-for="(label, idx) in profiliPatrimonioLabels" :key="idx" :value="idx">{{ label }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div v-if="isLoadingClusterEvolution" class="advisor-loading">
+              <div class="loading-spinner"></div>
+              <span>Analisi dell'evoluzione strategica in corso...</span>
+            </div>
+
+            <div v-else-if="clusterEvolutionData.rounds && clusterEvolutionData.rounds.length > 0 && clusterPromotoreType === 'Strategia Standard'" style="text-align: center; padding: 40px 20px; background: rgba(46,111,214,0.05); border-radius: 8px; border: 1px solid rgba(46,111,214,0.15);">
+              <div style="font-size: 32px; margin-bottom: 12px;">📌</div>
+              <h4 style="color: #2E6FD6; margin-bottom: 8px;">{{ clusterEvolutionData.cluster_label }} — Gestito dalla Strategia Standard</h4>
+              <p style="color: #8593A8; font-size: 13px; max-width: 480px; margin: 0 auto 20px;">
+                Questo segmento di clientela segue un approccio fisso e predefinito, che non si adatta nel tempo in risposta al feedback dei clienti. Non c'è quindi un'evoluzione strategica da analizzare per questo profilo.
+              </p>
+              <button @click="clusterRiskIdx = 2; caricaEvoluzioneCluster()" class="quick-pill" style="display: inline-block; padding: 10px 20px;">
+                Prova "Basso Rischio" — gestito dalla Consulenza Adattiva
+              </button>
+            </div>
+
+            <div v-else-if="clusterEvolutionData.rounds && clusterEvolutionData.rounds.length > 0">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h4 style="color: #1FA463;">{{ clusterEvolutionData.cluster_label }}</h4>
+                <span style="font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 10px;"
+                      :style="{ background: clusterPromotoreType === 'Consulenza Adattiva' ? 'rgba(31,164,99,0.15)' : 'rgba(46,111,214,0.15)', color: clusterPromotoreType === 'Consulenza Adattiva' ? '#1FA463' : '#2E6FD6' }">
+                    Gestito da: {{ clusterPromotoreType }}
+                </span>
+              </div>
+
+              <div class="advisor-response" style="margin-bottom: 20px;">
+                <div class="response-brief" style="margin-bottom: 4px;">📊 Analisi del cambiamento di approccio</div>
+                <div class="response-detail">{{ clusterAnalisiLLM }}</div>
+              </div>
+
+              <div id="plotly-cluster-evolution" style="width: 100%; height: 350px; margin-bottom: 24px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
+              <div id="plotly-cumulativa-categoria" style="width: 100%; height: 320px; margin-bottom: 24px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
+
+              <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div v-for="(colore, catName) in categoriaColori" :key="catName" v-show="catName !== 'Non classificato'" style="display: flex; align-items: center; gap: 6px;">
+                  <span :style="{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: colore, display: 'inline-block' }"></span>
+                  <span style="font-size: 12px; color: #C7D5E6;">{{ catName }}</span>
+                </div>
+              </div>
+
+              <h4 style="color: #C7D5E6; margin-bottom: 12px; font-size: 13px;">Momenti di cambio strategia ({{ eventiTransizione.length }} su {{ clusterEvolutionData.rounds.length }} round totali)</h4>
+              <div style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
+                <div v-for="(evento, idx) in eventiTransizione" :key="idx"
+                     style="display: flex; gap: 12px; padding: 12px; border-radius: 6px; background: rgba(31,164,99,0.05);"
+                     :style="{ borderLeft: '3px solid ' + (categoriaColori[evento.categoria_approccio] || '#8593A8') }">
+                  <div style="min-width: 70px; font-size: 12px; color: #8593A8; font-weight: 600;">
+                    Round {{ evento.round }}
+                  </div>
+                  <div style="flex: 1;">
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px; flex-wrap: wrap;">
+                      <span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; color: white;"
+                            :style="{ background: categoriaColori[evento.categoria_approccio] || '#8593A8' }">
+                        {{ evento.categoria_approccio }}
+                      </span>
+                      <span style="font-size: 11px; color: #8593A8;">{{ evento.prodotto_suggerito }}</span>
+                      <span :style="{ color: evento.accettato ? '#1FA463' : '#e11d48', fontSize: '11px', fontWeight: '600' }">
+                        {{ evento.accettato ? '✓ Accettato' : '✗ Rifiutato' }}
+                      </span>
+                    </div>
+                    <p style="font-size: 13px; color: #E2E8F0; margin-bottom: 4px;">{{ evento.llm_strategy }}</p>
+                    <p style="font-size: 12px; color: #8593A8; font-style: italic;">{{ evento.approccio_comunicativo }}</p>
+                    <div style="display: flex; gap: 16px; margin-top: 6px; font-size: 11px; color: #8593A8;">
+                      <span>Adeguatezza: <strong style="color: #C7D5E6;">{{ (evento.adeguatezza_score * 100).toFixed(0) }}%</strong></span>
+                      <span>Δ Fiducia: <strong :style="{ color: evento.delta_fiducia_medio >= 0 ? '#1FA463' : '#e11d48' }">{{ evento.delta_fiducia_medio >= 0 ? '+' : '' }}{{ (evento.delta_fiducia_medio * 100).toFixed(1) }}%</strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else style="text-align: center; color: #8593A8; padding: 40px;">
+              Nessun dato disponibile per questo segmento di clientela in questo scenario.
+            </div>
+          </div>
+        </div>
+
       </div>
     </main>
 
@@ -791,11 +891,12 @@
 
         <div class="modal-section">
           <h3>🎯 Come navigare la dashboard</h3>
-          <p><strong>Viste operative:</strong> Usa i pulsanti nella sidebar sinistra per passare tra tre prospettive di analisi:</p>
+          <p><strong>Viste operative:</strong> Usa i pulsanti nella sidebar sinistra per passare tra quattro prospettive di analisi:</p>
           <ul>
             <li><strong>Banca:</strong> Visione consolidata delle performance commerciali, raccolta netta e adeguatezza del portafoglio a livello istituzionale.</li>
             <li><strong>Promotore:</strong> Metriche di performance della Consulenza Adattiva rispetto alla Strategia Standard — conversioni, commissioni, conformità normativa.</li>
             <li><strong>Cliente:</strong> Prospettiva del cliente finale — fiducia, soddisfazione, allineamento tra profilo di rischio e portafoglio assegnato.</li>
+            <li><strong>Evoluzione Cliente:</strong> Analisi dinamica di come un promotore adatta la propria strategia nel tempo in risposta al feedback ricevuto (fiducia e adeguatezza). Mostra solo i momenti critici dove cambia l'approccio strategico.</li>
           </ul>
           <p><strong>Scenari di mercato:</strong> Seleziona uno dei cinque scenari macroeconomici per vedere come cambiano le performance in contesti diversi:</p>
           <ul>
@@ -821,16 +922,62 @@
         </div>
 
         <div class="modal-section">
-          <h3>📊 Grafici interattivi</h3>
+          <h3>🔄 Evoluzione Cliente — Come analizzare l'adattamento strategico</h3>
+          <p><strong>Cosa vedi:</strong> Questa vista mostra come un promotore adatta dinamicamente il proprio approccio verso un segmento specifico di clientela nel corso della simulazione, evidenziando i momenti critici dove cambia strategia in risposta al feedback ricevuto.</p>
+          <p><strong>Come usarla:</strong></p>
+          <ol style="margin-left: 16px;">
+            <li>Seleziona un <strong>Profilo di Rischio</strong> (es. "Basso Rischio") e un <strong>Livello Patrimoniale</strong> (es. "Basso Patrimonio")</li>
+            <li>Leggi l'<strong>Analisi LLM</strong> in alto: spiega il pattern osservato e collega i cambi di strategia ai feedback ricevuti</li>
+            <li>Osserva il <strong>Grafico Plotly</strong>: mostra l'evoluzione di Fiducia (linea verde) e Adeguatezza (linea blu tratteggiata) nel tempo
+              <ul style="margin-left: 12px; margin-top: 4px;">
+                <li>I <strong>marker colorati</strong> sulla linea di fiducia indicano la categoria di approccio usata in quel round</li>
+                <li>Quando il colore cambia, il promotore ha cambiato strategia in risposta al feedback precedente</li>
+              </ul>
+            </li>
+            <li>Leggi la <strong>Cronologia</strong> qui sotto: mostra SOLO i round dove avviene un cambio strategico (es. "3 su 20 round totali")
+              <ul style="margin-left: 12px; margin-top: 4px;">
+                <li><strong style="color:#e11d48">Rosso</strong> = Approccio Aggressivo (spinge su prodotti a rischio/rendimento alto)</li>
+                <li><strong style="color:#2E6FD6">Blu</strong> = Approccio Conservativo (privilegi sicurezza e liquidità)</li>
+                <li><strong style="color:#f59e0b">Arancione</strong> = Approccio Informativo (focus su trasparenza e educazione)</li>
+                <li><strong style="color:#1FA463">Verde</strong> = Approccio Relazionale (focus su fiducia e rassicurazione)</li>
+              </ul>
+            </li>
+          </ol>
+          <p><strong>Cosa dedurre:</strong> Se vedi molte transizioni fra categorie diverse, il promotore sta reagendo dinamicamente al feedback. Se vedi un solo colore, la strategia è rimasta stabile. Confronta questo con l'Analisi LLM per capire il "perché" dietro i cambi osservati.</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>📊 Grafici interattivi e Schemi colore</h3>
           <p><strong>Spiegazione al click:</strong> Clicca su qualsiasi grafico per ricevere una spiegazione generata dall'assistente su come leggere il grafico e cosa indicano i dati nel contesto dello scenario attivo.</p>
-          <p><strong>Come leggere i colori:</strong></p>
+          <p><strong>Come leggere i colori — Scheme standard:</strong></p>
           <ul>
-            <li><strong style="color:#1FA463">Verde</strong> — Consulenza Adattiva / valore positivo / adeguatezza alta</li>
-            <li><strong style="color:#2E6FD6">Blu</strong> — Strategia Standard / valore di riferimento</li>
-            <li><strong style="color:#E0922F">Arancione</strong> — Situazione di attenzione / adeguatezza parziale</li>
-            <li><strong style="color:#D64242">Rosso</strong> — Situazione critica / adeguatezza bassa / valore negativo</li>
+            <li><strong style="color:#1FA463">Verde</strong> — Consulenza Adattiva / valore positivo / adeguatezza alta / Approccio Relazionale</li>
+            <li><strong style="color:#2E6FD6">Blu</strong> — Strategia Standard / valore di riferimento / Approccio Conservativo</li>
+            <li><strong style="color:#E0922F">Arancione</strong> — Situazione di attenzione / adeguatezza parziale / Approccio Informativo</li>
+            <li><strong style="color:#D64242">Rosso</strong> — Situazione critica / adeguatezza bassa / valore negativo / Approccio Aggressivo</li>
           </ul>
-          <p><strong>Heatmap:</strong> I colori indicano il differenziale di conversione tra le due strategie. Verde = la Consulenza Adattiva converte meglio in quel segmento. Rosso = la Strategia Standard è più efficace. Il numero indica la differenza percentuale.</p>
+          <p><strong>Categorie di approccio strategico (vista Evoluzione Cliente):</strong></p>
+          <ul>
+            <li><strong style="color:#e11d48">Aggressivo (Rosso)</strong> — Il promotore spinge su prodotti a rischio/rendimento alto, incrementa l'esposizione clienti</li>
+            <li><strong style="color:#2E6FD6">Conservativo (Blu)</strong> — Il promotore privilegia sicurezza, liquidità e protezione del capitale</li>
+            <li><strong style="color:#f59e0b">Informativo (Arancione)</strong> — Il promotore focalizza su trasparenza, educazione finanziaria e dati</li>
+            <li><strong style="color:#1FA463">Relazionale (Verde)</strong> — Il promotore focalizza su fiducia, rassicurazione e ascolto del cliente</li>
+          </ul>
+          <p><strong>Heatmap (viste Banca e Cliente):</strong> I colori indicano il differenziale di conversione tra le due strategie. Verde = la Consulenza Adattiva converte meglio in quel segmento. Rosso = la Strategia Standard è più efficace. Il numero indica la differenza percentuale.</p>
+        </div>
+
+        <div class="modal-section">
+          <h3>🔍 Vista Evoluzione Cliente</h3>
+          <p>Questa vista permette di analizzare in dettaglio come il promotore della Consulenza Adattiva modifica il proprio stile di approccio verso un segmento specifico di clientela nel corso della simulazione.</p>
+          <p><strong>Come usarla:</strong> Seleziona un Profilo di Rischio e un Livello Patrimoniale per identificare il segmento di clientela da analizzare. Nota che ogni segmento è gestito esclusivamente da un solo tipo di promotore — se il segmento è gestito dalla Strategia Standard, non sarà disponibile un'analisi di evoluzione poiché questo approccio non si adatta nel tempo.</p>
+          <p><strong>Categorie di approccio:</strong></p>
+          <ul>
+            <li><strong style="color:#e11d48">Aggressiva</strong> — il promotore privilegia prodotti a rischio e rendimento elevato</li>
+            <li><strong style="color:#2E6FD6">Conservativa</strong> — focus su sicurezza, liquidità e protezione del capitale</li>
+            <li><strong style="color:#f59e0b">Informativa</strong> — comunicazione basata su trasparenza ed educazione finanziaria</li>
+            <li><strong style="color:#1FA463">Relazionale</strong> — enfasi su fiducia, rassicurazione e ascolto del cliente</li>
+          </ul>
+          <p>Il grafico ad area cumulativa mostra quale stile diventa progressivamente dominante nel tempo, mentre l'analisi generata dall'assistente spiega perché il promotore potrebbe aver cambiato approccio in determinati momenti, collegando le transizioni ai livelli di fiducia e adeguatezza osservati.</p>
         </div>
 
         <div class="modal-section">
@@ -961,11 +1108,91 @@ const datiGraficiPromotore = ref({
 // FINSIM-MOD: Heatmap Propensione Rischio - Data-driven
 const heatmapReale = ref([]);
 
+// FINSIM-MOD: Cluster Evolution View
+const clusterRiskIdx = ref(0);
+const clusterWealthIdx = ref(0);
+const clusterEvolutionData = ref({ rounds: [], cluster_label: '' });
+const clusterTransizioni = ref([]);
+const clusterAnalisiLLM = ref('');
+const clusterPromotoreType = ref('');
+const isLoadingClusterEvolution = ref(false);
+
+const profiliRischioLabels = ['Alto Rischio', 'Medio Rischio', 'Basso Rischio', 'Conservativo'];
+const profiliPatrimonioLabels = ['Basso Patrimonio (50k-150k)', 'Medio-Basso (150k-300k)', 'Medio (300k-500k)', 'Medio-Alto (500k-750k)', 'Alto Patrimonio (750k+)'];
+const profiliPatrimonioLabelsBreve = ['Basso Patrimonio', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio'];
+
+const categoriaColori = {
+  'Aggressiva': '#e11d48',
+  'Conservativa': '#2E6FD6',
+  'Informativa': '#f59e0b',
+  'Relazionale': '#1FA463',
+  'Non classificato': '#8593A8'
+};
+
+// FINSIM-MOD: Filtra gli eventi di transizione dalla cronologia
+const eventiTransizione = computed(() => {
+  const rounds = clusterEvolutionData.value.rounds || [];
+  if (rounds.length === 0) return [];
+
+  const risultato = [rounds[0]];
+
+  for (let i = 1; i < rounds.length; i++) {
+    if (rounds[i].categoria_approccio !== rounds[i-1].categoria_approccio) {
+      risultato.push(rounds[i]);
+    }
+  }
+
+  return risultato;
+});
+
+const timelineBande = computed(() => {
+  const rounds = clusterEvolutionData.value.rounds || [];
+  if (rounds.length === 0) return [];
+
+  const bande = [];
+  let bandaAttuale = null;
+
+  rounds.forEach((evento) => {
+    const cat = evento.categoria_approccio;
+    if (!bandaAttuale || bandaAttuale.categoria !== cat) {
+      if (bandaAttuale) bande.push(bandaAttuale);
+      bandaAttuale = { categoria: cat, roundInizio: evento.round, roundFine: evento.round };
+    } else {
+      bandaAttuale.roundFine = evento.round;
+    }
+  });
+  if (bandaAttuale) bande.push(bandaAttuale);
+
+  return bande;
+});
+
+const cumulativaCategoria = computed(() => {
+  const rounds = clusterEvolutionData.value.rounds || [];
+  if (rounds.length === 0) return { labels: [], serie: {} };
+
+  const categorie = ['Aggressiva', 'Conservativa', 'Informativa', 'Relazionale'];
+  const contatori = { Aggressiva: 0, Conservativa: 0, Informativa: 0, Relazionale: 0 };
+  const serie = { Aggressiva: [], Conservativa: [], Informativa: [], Relazionale: [] };
+  const labels = [];
+
+  rounds.forEach((evento) => {
+    const cat = evento.categoria_approccio;
+    if (categorie.includes(cat)) {
+      contatori[cat]++;
+    }
+    labels.push(evento.round);
+    categorie.forEach(c => serie[c].push(contatori[c]));
+  });
+
+  return { labels, serie };
+});
+
 // --- DATI STATICI (UI Menu) ---
 const viewButtons = [
   { id: 'promotore', label: 'Promotore' },
   { id: 'banca', label: 'Banca' },
   { id: 'cliente', label: 'Cliente' },
+  { id: 'evoluzione', label: 'Evoluzione Cliente' },
 ];
 
 const scenarioPills = [
@@ -1841,6 +2068,89 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
   }
 };
 
+// Renderizza grafico evoluzione cluster con Fiducia e Adeguatezza
+const renderClusterEvolutionChart = async () => {
+  await loadPlotly();
+  await nextTick();
+
+  const el = document.getElementById('plotly-cluster-evolution');
+  const rounds = eventiTransizione.value;
+  if (!el || !rounds || rounds.length === 0) return;
+
+  const xRounds = rounds.map(e => e.round);
+  const fiducia = rounds.map(e => e.fiducia_media_post * 100);
+  const adeguatezza = rounds.map(e => e.adeguatezza_score * 100);
+  const traceColors = rounds.map(e => categoriaColori[e.categoria_approccio] || '#8593A8');
+  const hoverText = rounds.map(e => `Round ${e.round}<br>${e.categoria_approccio}<br>Fiducia: ${(e.fiducia_media_post*100).toFixed(0)}%<br>Adeguatezza: ${(e.adeguatezza_score*100).toFixed(0)}%`);
+
+  const traces = [
+    {
+      x: xRounds,
+      y: adeguatezza,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Adeguatezza Proposta (%)',
+      line: { color: 'rgba(46,111,214,0.3)', width: 1.5, dash: 'dot' },
+      hoverinfo: 'skip'
+    },
+    {
+      x: xRounds,
+      y: fiducia,
+      type: 'scatter',
+      mode: 'lines+markers',
+      name: 'Fiducia Cliente per Categoria',
+      line: { color: 'rgba(199,213,230,0.25)', width: 1 },
+      marker: { size: 11, color: traceColors, line: { width: 1, color: '#ffffff' } },
+      text: hoverText,
+      hoverinfo: 'text'
+    }
+  ];
+
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(30,41,59,0.3)',
+    font: { color: '#C7D5E6' },
+    xaxis: { title: 'Round (ogni punto è un cambio di strategia)', gridcolor: 'rgba(199,213,230,0.1)' },
+    yaxis: { title: 'Percentuale', range: [0, 100], gridcolor: 'rgba(199,213,230,0.1)' },
+    legend: { orientation: 'h', yanchor: 'bottom', y: -0.3, xanchor: 'center', x: 0.5 },
+    margin: { l: 60, r: 30, t: 30, b: 80 }
+  };
+
+  Plotly.newPlot('plotly-cluster-evolution', traces, layout, { responsive: true });
+};
+
+const renderCumulativaCategoria = async () => {
+  await loadPlotly();
+  await nextTick();
+
+  const el = document.getElementById('plotly-cumulativa-categoria');
+  const dati = cumulativaCategoria.value;
+  if (!el || !dati.labels || dati.labels.length === 0) return;
+
+  const traces = ['Aggressiva', 'Conservativa', 'Informativa', 'Relazionale'].map(cat => ({
+    x: dati.labels,
+    y: dati.serie[cat],
+    type: 'scatter',
+    mode: 'lines',
+    name: cat,
+    line: { color: categoriaColori[cat], width: 2 },
+    fill: 'tozeroy',
+    fillcolor: categoriaColori[cat] + '20'
+  }));
+
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(30,41,59,0.3)',
+    font: { color: '#C7D5E6' },
+    xaxis: { title: 'Round', gridcolor: 'rgba(199,213,230,0.1)' },
+    yaxis: { title: 'Utilizzo cumulativo', gridcolor: 'rgba(199,213,230,0.1)' },
+    legend: { orientation: 'h', yanchor: 'bottom', y: -0.25, xanchor: 'center', x: 0.5 },
+    margin: { l: 60, r: 30, t: 20, b: 80 }
+  };
+
+  Plotly.newPlot('plotly-cumulativa-categoria', traces, layout, { responsive: true });
+};
+
 const renderSpiderBanca = async () => {
   try{
     await loadPlotly();
@@ -2179,6 +2489,30 @@ const caricaHeatmapRischio = async () => {
   } catch (err) {
     console.warn('[Heatmap Rischio] Errore fetch API, fallback a dati statici:', err.message);
   }
+};
+
+// FINSIM-MOD: Carica evoluzione cluster per Vista Evoluzione Cliente
+const caricaEvoluzioneCluster = async () => {
+  isLoadingClusterEvolution.value = true;
+  try {
+    const res = await fetch(`http://10.12.7.53:8000/api/cluster-evolution?scenario_id=${scenario.value}&risk_idx=${clusterRiskIdx.value}&wealth_idx=${clusterWealthIdx.value}`);
+    if (res.ok) {
+      const data = await res.json();
+      clusterEvolutionData.value = data;
+      clusterTransizioni.value = data.transizioni || [];
+      clusterAnalisiLLM.value = data.analisi_llm || '';
+      clusterPromotoreType.value = data.promotore_tipo || '';
+      isLoadingClusterEvolution.value = false;
+      await nextTick();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      await renderClusterEvolutionChart();
+      await renderCumulativaCategoria();
+      return;
+    }
+  } catch (err) {
+    console.error('[Evoluzione Cluster] Errore:', err);
+  }
+  isLoadingClusterEvolution.value = false;
 };
 
 // FINSIM-MOD: Dynamic Plotly chart renderer for AI-suggested charts (STEP 3)
@@ -2551,6 +2885,9 @@ watch([view, scenario], async ([nuovaVista, nuovoScenario]) => {
       caricaHeatmapRischio(),
       renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', nuovoScenario)
     ]).catch(err => console.error('[FINsim] Errore nel caricamento Vista Cliente:', err));
+  } else if (nuovaVista === 'evoluzione') {
+    console.log('[FINsim] 📈 Vista Evoluzione Cliente attiva, caricando dati del cluster...');
+    await caricaEvoluzioneCluster();
   }
 });
 

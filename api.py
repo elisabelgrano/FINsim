@@ -967,6 +967,28 @@ def _map_scenario_code_to_name(scenario_code: str) -> str:
     }
     return scenario_map.get(scenario_code, scenario_code)
 
+def _generate_views_summary(metrics: Dict[str, Any], scenario_id: str) -> Dict[str, str]:
+    """Genera un riepilogo sintetico delle tre viste operative principali."""
+    comm_adapt = float(metrics.get('commissioni_cumulate_adapt') or 0)
+    comm_fisso = float(metrics.get('commissioni_cumulate_fisso') or 0)
+    conv_adapt = float(metrics.get('tasso_conversione_adapt_pct') or 0)
+    conv_fisso = float(metrics.get('tasso_conversione_fisso_pct') or 0)
+    fid_adapt = float(metrics.get('fiducia_media_adapt') or 0)
+    fid_fisso = float(metrics.get('fiducia_media_fisso') or 0)
+
+    riepilogo_banca = f"La raccolta netta complessiva ha generato € {comm_adapt + comm_fisso:,.0f} di commissioni nel periodo analizzato. La Consulenza Adattiva ha contribuito per € {comm_adapt:,.0f}, superando la Strategia Standard di € {comm_adapt - comm_fisso:,.0f}."
+
+    riepilogo_promotore = f"Il tasso di accettazione delle proposte è del {conv_adapt:.1f}% per la Consulenza Adattiva contro il {conv_fisso:.1f}% della Strategia Standard, con un differenziale di {conv_adapt - conv_fisso:.1f} punti percentuali a favore dell'approccio personalizzato."
+
+    sentiment_cliente = "una maggiore soddisfazione percepita" if fid_adapt > fid_fisso else "un'area di attenzione"
+    riepilogo_cliente = f"Il livello di fiducia media dei clienti gestiti con la Consulenza Adattiva è del {fid_adapt:.1f}%, rispetto al {fid_fisso:.1f}% della Strategia Standard. Questo indica {sentiment_cliente} nei segmenti seguiti dall'approccio personalizzato."
+
+    return {
+        "banca": riepilogo_banca,
+        "promotore": riepilogo_promotore,
+        "cliente": riepilogo_cliente
+    }
+
 @app.post("/api/advisor/export-pptx", tags=["advisor"])
 async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     """Generate PowerPoint presentation with 7 slides (compact structure)."""
@@ -1150,6 +1172,57 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
         tf.paragraphs[0].font.color.rgb = COLOR_TEXT
         tf.paragraphs[0].line_spacing = 1.4
 
+    def add_views_summary_slide():
+        """Slide aggiuntiva: Riepilogo delle tre viste operative"""
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = COLOR_NAVY
+
+        title_box = slide.shapes.add_textbox(Inches(0.3), Inches(0.2), Inches(9.4), Inches(0.5))
+        title_frame = title_box.text_frame
+        title_frame.text = "Riepilogo Viste Operative"
+        title_para = title_frame.paragraphs[0]
+        title_para.font.size = Pt(28)
+        title_para.font.bold = True
+        title_para.font.color.rgb = COLOR_BLUE
+
+        scenario_code = metrics.get('scenario_corrente', 'S0')
+        views_summary = _generate_views_summary(metrics, scenario_code)
+
+        sezioni = [
+            ("🏦 Vista Banca", views_summary["banca"]),
+            ("👤 Vista Promotore", views_summary["promotore"]),
+            ("🤝 Vista Cliente", views_summary["cliente"])
+        ]
+
+        y_pos = 0.9
+        for titolo_sezione, testo_sezione in sezioni:
+            box = slide.shapes.add_shape(1, Inches(0.4), Inches(y_pos), Inches(9.2), Inches(1.7))
+            box.fill.solid()
+            box.fill.fore_color.rgb = RGBColor(20, 30, 42)
+            box.line.color.rgb = COLOR_BLUE
+            box.line.width = Pt(1)
+
+            tf = box.text_frame
+            tf.word_wrap = True
+            tf.clear()
+            p1 = tf.paragraphs[0]
+            p1.text = titolo_sezione
+            p1.font.size = Pt(14)
+            p1.font.bold = True
+            p1.font.color.rgb = COLOR_ADAPT
+
+            tf.add_paragraph()
+            p2 = tf.paragraphs[1]
+            p2.text = testo_sezione
+            p2.font.size = Pt(11)
+            p2.font.color.rgb = COLOR_TEXT
+            p2.line_spacing = 1.2
+
+            y_pos += 1.9
+
     def add_chart_with_text_slide(title: str, img_path: str, testo: str, color_title=None):
         """Slide con immagine a sinistra e testo didascalia a destra"""
         if color_title is None:
@@ -1232,6 +1305,7 @@ async def export_advisor_pptx(request: AdvisorRequest) -> FileResponse:
     # ============================================================================
     add_title_slide()
     add_kpi_and_table_slide()
+    add_views_summary_slide()
     add_executive_analysis_slide()
 
     scenario_id = metrics.get('scenario_corrente', 'S0')
@@ -1351,6 +1425,33 @@ async def export_advisor_pdf(request: AdvisorRequest) -> FileResponse:
     # Analisi Esecutiva
     elements.append(Paragraph("Executive Summary", heading_style))
     elements.append(Paragraph(llm_analysis, normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+
+    # Riepilogo Viste Operative
+    scenario_code_pdf = metrics.get('scenario_corrente', 'S0')
+    views_summary = _generate_views_summary(metrics, scenario_code_pdf)
+
+    elements.append(Paragraph("Riepilogo Viste Operative", heading_style))
+
+    vista_style = ParagraphStyle(
+        'VistaStyle',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=14,
+        spaceAfter=8,
+        textColor=colors.HexColor('#1FA463')
+    )
+
+    elements.append(Paragraph("<b>Vista Banca</b>", vista_style))
+    elements.append(Paragraph(views_summary["banca"], normal_style))
+    elements.append(Spacer(1, 0.15*inch))
+
+    elements.append(Paragraph("<b>Vista Promotore</b>", vista_style))
+    elements.append(Paragraph(views_summary["promotore"], normal_style))
+    elements.append(Spacer(1, 0.15*inch))
+
+    elements.append(Paragraph("<b>Vista Cliente</b>", vista_style))
+    elements.append(Paragraph(views_summary["cliente"], normal_style))
     elements.append(Spacer(1, 0.3*inch))
 
     # Tabella KPI
@@ -2828,4 +2929,167 @@ def get_risk_propensity_heatmap(scenario_id: str = "S0"):
         "matrice": matrice_propensione,
         "profili": risk_profiles,
         "patrimoni": wealth_levels
+    }
+
+
+@app.get("/api/cluster-evolution", tags=["dashboard"])
+async def get_cluster_evolution(scenario_id: str = "S0", risk_idx: int = 0, wealth_idx: int = 0):
+    """
+    Extract evolution of a specific cluster across simulation rounds and analyze strategy transitions.
+    Shows how the single promoter managing that cluster evolves their approach over time.
+
+    Args:
+        scenario_id: Scenario identifier (S0-S4)
+        risk_idx: Risk profile index (0-3)
+        wealth_idx: Wealth profile index (0-4)
+
+    Returns:
+        Dictionary with rounds evolution, cluster label, promoter type, transitions, and LLM analysis
+    """
+    db_scenario_id = get_scenario_code(scenario_id)
+    doc = collection.find_one({"scenario_id": db_scenario_id})
+    if not doc or "rounds" not in doc:
+        return {"rounds": [], "cluster_label": "", "promotore_tipo": "", "transizioni": [], "analisi_llm": ""}
+
+    rounds = sorted(doc["rounds"], key=lambda x: x.get("round", 0))
+    target_coords = [risk_idx, wealth_idx]
+
+    eventi = []
+    tipo_promotore_cluster = None
+
+    for r in rounds:
+        round_num = r.get("round", 0)
+        for promo in r.get("promoters_data", []):
+            pid = promo.get("promotore_id", "")
+            for s in promo.get("strategies", []):
+                if s.get("cluster_coords") == target_coords:
+                    tipo = "Consulenza Adattiva" if "ADAPT" in pid else "Strategia Standard"
+                    tipo_promotore_cluster = tipo
+                    eventi.append({
+                        "round": round_num,
+                        "tipo_promotore": tipo,
+                        "llm_strategy": s.get("llm_strategy", ""),
+                        "approccio_comunicativo": s.get("approccio_comunicativo", ""),
+                        "prodotto_suggerito": s.get("prodotto_suggerito", "").replace("_", " "),
+                        "adeguatezza_score": s.get("adeguatezza_score", 0),
+                        "delta_fiducia_medio": s.get("delta_fiducia_medio", 0),
+                        "fiducia_media_pre": s.get("fiducia_media_pre", 0),
+                        "fiducia_media_post": s.get("fiducia_media_post", 0),
+                        "accettato": s.get("accettato", False)
+                    })
+
+    if not eventi:
+        return {"rounds": [], "cluster_label": "", "promotore_tipo": "", "transizioni": [], "analisi_llm": ""}
+
+    # Classifica TUTTI gli eventi ADAPT in batch per evitare sovraccarico
+    eventi_adapt = [e for e in eventi if e["tipo_promotore"] == "Consulenza Adattiva"]
+
+    BATCH_SIZE = 25
+    categorie_valide = {"Aggressiva", "Conservativa", "Informativa", "Relazionale"}
+
+    for batch_start in range(0, len(eventi_adapt), BATCH_SIZE):
+        batch = eventi_adapt[batch_start:batch_start + BATCH_SIZE]
+        if not batch:
+            continue
+
+        strategie_testo = "\n".join([
+            f"{i+1}. {e['llm_strategy']}"
+            for i, e in enumerate(batch)
+        ])
+
+        prompt_classificazione = f"""Classifica ciascuna delle seguenti strategie di consulenza finanziaria in UNA di queste 4 categorie: "Aggressiva" (spinge su prodotti a rischio/rendimento alto), "Conservativa" (privilegia sicurezza, liquidità, protezione capitale), "Informativa" (focus su trasparenza, educazione, dati), "Relazionale" (focus su fiducia, rassicurazione, ascolto).
+
+Strategie da classificare (numerate da 1 a {len(batch)}):
+{strategie_testo}
+
+Rispondi SOLO con un array JSON di {len(batch)} stringhe, una per ogni strategia numerata in ordine. Esempio per 3 strategie: ["Aggressiva", "Conservativa", "Informativa"]"""
+
+        try:
+            payload_llm = {
+                "model": OllamaAdvisor.MODEL_NAME,
+                "prompt": prompt_classificazione,
+                "stream": False,
+                "format": "json"
+            }
+            r = requests.post(OllamaAdvisor.OLLAMA_GENERATE_URL, json=payload_llm, timeout=90)
+            if r.ok:
+                result = r.json()
+                raw_response = json.loads(result.get("response", "[]"))
+
+                if isinstance(raw_response, list):
+                    categorie = raw_response
+                elif isinstance(raw_response, dict):
+                    categorie = None
+                    for key, value in raw_response.items():
+                        if isinstance(value, list):
+                            categorie = value
+                            break
+                    if categorie is None:
+                        valori = list(raw_response.values())
+                        if valori and all(isinstance(v, str) for v in valori):
+                            categorie = valori
+                        else:
+                            categorie = []
+                else:
+                    categorie = []
+
+                for i, cat in enumerate(categorie):
+                    if i < len(batch) and isinstance(cat, str) and cat in categorie_valide:
+                        batch[i]["categoria_approccio"] = cat
+        except Exception as e:
+            print(f"[Cluster Evolution] Errore classificazione batch {batch_start}: {e}")
+
+    for e in eventi:
+        if "categoria_approccio" not in e:
+            e["categoria_approccio"] = "Non classificato"
+
+    # Identifica le transizioni di categoria (dove cambia rispetto al round precedente)
+    transizioni = []
+    for i in range(1, len(eventi)):
+        if eventi[i]["categoria_approccio"] != eventi[i-1]["categoria_approccio"]:
+            transizioni.append({
+                "round": eventi[i]["round"],
+                "da": eventi[i-1]["categoria_approccio"],
+                "a": eventi[i]["categoria_approccio"],
+                "fiducia_pre_transizione": round(eventi[i-1]["fiducia_media_post"] * 100, 0),
+                "adeguatezza_pre_transizione": round(eventi[i-1]["adeguatezza_score"] * 100, 0)
+            })
+
+    # Genera analisi LLM del perché cambia la strategia
+    analisi_llm = ""
+    if transizioni:
+        transizioni_testo = "\n".join([
+            f"- Al round {t['round']}, la strategia passa da '{t['da']}' a '{t['a']}' (fiducia cliente prima del cambio: {t['fiducia_pre_transizione']:.0f}%, adeguatezza: {t['adeguatezza_pre_transizione']:.0f}%)"
+            for t in transizioni[:8]
+        ])
+        prompt_analisi = f"""Sei un consulente finanziario senior. Analizza questi cambiamenti di stile di approccio di un promotore verso un segmento di clientela nel corso della simulazione:
+
+{transizioni_testo}
+
+Scrivi un'analisi di massimo 4 frasi in italiano professionale che spieghi il pattern osservato: perché il promotore potrebbe aver cambiato approccio in questi momenti, collegando il cambio di strategia ai livelli di fiducia e adeguatezza osservati. Non usare termini tecnici come MiFID, churn, KPI, S0. Scrivi in modo che un direttore commerciale di banca capisca immediatamente."""
+
+        try:
+            payload_analisi = {
+                "model": OllamaAdvisor.MODEL_NAME,
+                "prompt": prompt_analisi,
+                "stream": False
+            }
+            r2 = requests.post(OllamaAdvisor.OLLAMA_GENERATE_URL, json=payload_analisi, timeout=60)
+            if r2.ok:
+                analisi_llm = r2.json().get("response", "").strip()
+        except Exception:
+            analisi_llm = "Analisi non disponibile al momento."
+    else:
+        analisi_llm = "Il promotore ha mantenuto uno stile di approccio costante per tutto il periodo analizzato, senza variazioni significative di strategia."
+
+    profili_rischio = ["Alto Rischio", "Medio Rischio", "Basso Rischio", "Conservativo"]
+    profili_patrimonio = ["Basso Patrimonio", "Medio-Basso", "Medio", "Medio-Alto", "Alto Patrimonio"]
+    cluster_label = f"{profili_rischio[risk_idx]} · {profili_patrimonio[wealth_idx]}"
+
+    return {
+        "rounds": eventi,
+        "cluster_label": cluster_label,
+        "promotore_tipo": tipo_promotore_cluster,
+        "transizioni": transizioni,
+        "analisi_llm": analisi_llm
     }
