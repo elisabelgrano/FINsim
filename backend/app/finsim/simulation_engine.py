@@ -303,6 +303,7 @@ class SimulationEngine:
                                 riga=riga,
                                 col=col,
                                 prodotto_suggerito=prodotto_suggerito,
+                                adeguatezza_score=adeguatezza_score,
                             )
 
                             result['clients_updated'] += clients_updated
@@ -514,23 +515,24 @@ class SimulationEngine:
         riga: int,
         col: int,
         prodotto_suggerito: str,
+        adeguatezza_score: float = 0.5,
     ) -> int:
         try:
-            # Map product risk
-            prodotto_lower = prodotto_suggerito.lower()
-            if 'azion' in prodotto_lower or 'equity' in prodotto_lower:
-                rischio_prodotto = 'ALTO'
-            elif 'obblig' in prodotto_lower or 'bond' in prodotto_lower:
-                rischio_prodotto = 'MEDIO'
+            # Calcola delta fiducia direttamente dall'adeguatezza del prodotto
+            if adeguatezza_score >= 0.8:
+                delta_fiducia_base = 0.05    # prodotto molto adatto
+            elif adeguatezza_score >= 0.5:
+                delta_fiducia_base = 0.02    # prodotto accettabile
+            elif adeguatezza_score >= 0.3:
+                delta_fiducia_base = -0.01   # prodotto poco adatto
             else:
-                rischio_prodotto = 'BASSO'
+                delta_fiducia_base = -0.04   # prodotto inadatto
 
             # Get all clients in cluster managed by this promoter
-            # ORA CHIEDIAMO ANCHE LA SODDISFAZIONE!
             get_clients_query = """
             MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
-            RETURN c.uuid as client_uuid, c.profilo_rischio as profilo_rischio,
+            RETURN c.uuid as client_uuid,
                    c.fiducia_attuale as fiducia_attuale, c.soddisfazione as soddisfazione
             """
 
@@ -542,29 +544,15 @@ class SimulationEngine:
 
             for client in clients:
                 client_uuid = client['client_uuid']
-                profilo_rischio = client['profilo_rischio']
                 fiducia_attuale = client['fiducia_attuale'] or 0.5
                 soddisfazione = client['soddisfazione'] or 0.5
 
-                # Map client risk
-                if profilo_rischio in ['Aggressivo', 'Growth']:
-                    rischio_cliente = 'ALTO'
-                elif profilo_rischio in ['Moderato', 'Balanced']:
-                    rischio_cliente = 'MEDIO'
-                else:
-                    rischio_cliente = 'BASSO'
+                delta_fiducia = delta_fiducia_base
+                delta_soddisfazione = delta_fiducia * 0.5
 
-                # Calcoliamo i Delta
-                delta_fiducia = self._calcola_delta_fiducia(rischio_prodotto, rischio_cliente)
-                
-                # Leghiamo la soddisfazione alla fiducia in modo logico (+10% di delta fiducia = +5% soddisfazione)
-                delta_soddisfazione = delta_fiducia * 0.5 
-
-                # Apply update (assicurandoci che stiano tra 0 e 1)
                 fiducia_nuova = max(0.0, min(1.0, fiducia_attuale + delta_fiducia))
                 soddisf_nuova = max(0.0, min(1.0, soddisfazione + delta_soddisfazione))
 
-                # Update BOTH properties in DB!
                 update_query = """
                 MATCH (c:Cliente {uuid: $client_uuid})
                 SET c.fiducia_attuale = $fiducia_nuova,
@@ -715,7 +703,7 @@ class SimulationEngine:
             fisso_data = next((p for p in round_data.get('promoters_data', [])
                                if p['promotore_id'] == 'PROM-FISSO-1'), None)
             adapt_data = next((p for p in round_data.get('promoters_data', [])
-                               if p['promotore_id'] == 'PROM-ADATTIVO-1'), None)
+                              if p['promotore_id'] == 'PROM-ADAPT-1'), None)
 
             sodd_fisso_round = 0.0
             sodd_adapt_round = 0.0
@@ -836,6 +824,37 @@ class SimulationEngine:
             metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"] = round(
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4
             )
+
+        # Metric 0: delta_fiducia_cumulato
+        fiducia_cumulata = {
+            "adapt_delta_totale": 0.0,
+            "fisso_delta_totale": 0.0,
+            "adapt_conteggio": 0,
+            "fisso_conteggio": 0
+        }
+        
+        for round_data in scenario_data.get('rounds', []):
+            for promoter_data in round_data.get('promoters_data', []):
+                pid = promoter_data.get('promotore_id', '')
+                for strategy in promoter_data.get('strategies', []):
+                    delta = strategy.get('delta_fiducia_medio', 0.0)
+                    if 'ADAPT' in pid:
+                        fiducia_cumulata['adapt_delta_totale'] += delta
+                        fiducia_cumulata['adapt_conteggio'] += 1
+                    elif 'FISSO' in pid:
+                        fiducia_cumulata['fisso_delta_totale'] += delta
+                        fiducia_cumulata['fisso_conteggio'] += 1
+                        
+        adapt_count = fiducia_cumulata['adapt_conteggio']
+        fisso_count = fiducia_cumulata['fisso_conteggio']
+        
+        metrics["fiducia_cumulata"] = {
+            "adapt_delta_totale": round(fiducia_cumulata['adapt_delta_totale'], 4),
+            "fisso_delta_totale": round(fiducia_cumulata['fisso_delta_totale'], 4),
+            "adapt_delta_medio_per_round": round(fiducia_cumulata['adapt_delta_totale'] / adapt_count, 4) if adapt_count > 0 else 0.0,
+            "fisso_Delta_medio_per_round": round(fiducia_cumulata['fisso_delta_totale'] / fisso_count, 4) if fisso_count > 0 else 0.0,
+            "vantaggio_adapt": round(fiducia_cumulata['adapt_delta_totale'] - fiducia_cumulata['fisso_delta_totale'], 4)
+        }
 
         # Metric 1: mismatch_rate
         rifiutate = 0

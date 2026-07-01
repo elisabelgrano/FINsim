@@ -74,8 +74,29 @@ def normalize_prodotto(raw: str) -> str:
     if "derivat" in normalized or "future" in normalized or "opzion" in normalized:
         return "Derivati"
 
-    return "Altro"
+    # Cash_Equivalents: certificati deposito, breve termine, deposito
+    if "certificat" in normalized or "deposito" in normalized or \
+       "breve termine" in normalized or "depositon" in normalized:
+        return "Cash_Equivalents"
 
+    # Mixed_Funds: fondi mutui, sicav, assestamento
+    if "fondo" in normalized or "fondi" in normalized or \
+       "sicav" in normalized or "assestament" in normalized:
+        return "Mixed_Funds"
+
+    # Bond_Sovereign: bond gov
+    if "bond_gov" in normalized or "bond gov" in normalized:
+        return "Bond_Sovereign"
+
+    # Derivati: crypto, valute estere
+    if "crypto" in normalized or "valut" in normalized:
+        return "Derivati"
+
+    # Fondi_Azionari: growth, sostenibile
+    if "growth" in normalized or "sostenibil" in normalized:
+        return "Fondi_Azionari"
+
+    return "Altro"
 
 if __name__ == "__main__":
     # Test cases

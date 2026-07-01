@@ -228,6 +228,14 @@ Rispondi SEMPRE con un JSON valido contenente i seguenti campi:
 - "approccio_comunicativo": tono e stile di comunicazione verso i clienti
 - "prodotto_suggerito": prodotto finanziario da proporre prioritariamente
 
+REGOLE OBBLIGATORIE per "prodotto_suggerito" in base al profilo di rischio del cluster:
+- Profilo Conservative: scegli SOLO tra Cash_Equivalents, Bond_Sovereign, Polizze_Assicurative, Bond_Corporate
+- Profilo Balanced: scegli SOLO tra Bond_Sovereign, Bond_Corporate, Cash_Equivalents, ETF_Tematici, Mixed_Funds
+- Profilo Growth: scegli SOLO tra Bond_Corporate, Fondi_Azionari, ETF_Tematici, Mixed_Funds, Bond_Sovereign
+- Profilo Aggressive: scegli SOLO tra Fondi_Azionari, Derivati, ETF_Tematici, Bond_Corporate, Mixed_Funds
+
+NON suggerire mai prodotti fuori dalla lista del profilo corrispondente.
+
 Non includere testo fuori dal JSON."""
 
         return system_prompt
