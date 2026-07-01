@@ -1196,8 +1196,11 @@ const viewButtons = [
 ];
 
 const scenarioPills = [
-  { id: 'S0', label: 'Base' }, { id: 'S1', label: 'Espansione' }, { id: 'S2', label: 'Rialzo tassi' },
-  { id: 'S3', label: 'Stress' }, { id: 'S4', label: 'Recessione' },
+  { id: 'S0', label: 'Base' },
+  { id: 'S1', label: 'Espansione' },
+  { id: 'S2', label: 'Rialzo tassi' },
+  { id: 'S3', label: 'Stress' },
+  { id: 'S4', label: 'Recessione' },
 ];
 
 const domandePredefiniteStandard = [
