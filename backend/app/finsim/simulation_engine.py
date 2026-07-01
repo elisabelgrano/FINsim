@@ -282,6 +282,21 @@ class SimulationEngine:
                                 profilo_rischio_prevalente = Counter(profili_rischio_list).most_common(1)[0][0]
                             else:
                                 profilo_rischio_prevalente = 'Balanced'
+                                
+                            # Post-processing: correggi prodotto se fuori lista per il profilo
+                            PRODOTTI_AMMESSI_PER_PROFILO = {
+                                'Conservative': {'Cash_Equivalents', 'Bond_Sovereign', 'Polizze_Assicurative', 'Bond_Corporate'},
+                                'Balanced':     {'Bond_Sovereign', 'Bond_Corporate', 'Cash_Equivalents', 'ETF_Tematici', 'Mixed_Funds'},
+                                'Growth':       {'Bond_Corporate', 'Fondi_Azionari', 'ETF_Tematici', 'Mixed_Funds', 'Bond_Sovereign'},
+                                'Aggressive':   {'Fondi_Azionari', 'Derivati', 'ETF_Tematici', 'Bond_Corporate', 'Mixed_Funds'},
+                            }
+                            ammessi = PRODOTTI_AMMESSI_PER_PROFILO.get(profilo_rischio_prevalente, set())
+                            if prodotto_normalized not in ammessi and ammessi:
+                                prodotto_normalized = max(
+                                    ammessi,
+                                    key=lambda p: ADEGUATEZZA_MATRIX.get(profilo_rischio_prevalente, {}).get(p, 0)
+                                )
+                                logger.info(f"    Post-processing: prodotto corretto a {prodotto_normalized} per profilo {profilo_rischio_prevalente}")
 
                             # Compute adequacy score
                             adeguatezza_score = round(
@@ -719,7 +734,7 @@ class SimulationEngine:
 
                     sodd_fisso_round += delta_sodd
                     metrics["soddisfazione_ponderata_fisso"] += (delta_sodd * peso)
-                    mappa_fisso[coords] = delta_sodd
+                    mappa_fisso[coords] = strat.get('delta_fiducia_medio', 0.0)
 
                     if coords in mappa_accumulazione:
                         mappa_accumulazione[coords]["soddisfazione_accumulata_fisso"] += delta_sodd
@@ -746,7 +761,8 @@ class SimulationEngine:
                         mappa_accumulazione[coords]["soddisfazione_accumulata_adattivo"] += delta_sodd
 
                     if coords in mappa_fisso:
-                        if mappa_fisso[coords] < 0 and delta_sodd >= 0:
+                        delta_fid_adapt = strat.get('delta_fiducia_medio', 0.0)
+                        if mappa_fisso[coords] < 0 and delta_fid_adapt >= 0:
                             metrics["clienti_salvati_dal_churn"] += 1
 
                     prod_raw = strat.get('prodotto_suggerito', 'Sconosciuto')
@@ -825,6 +841,34 @@ class SimulationEngine:
                 metrics["efficacia_strategica_prodotti"][k]["soddisfazione_generata"], 4
             )
 
+        # Metric -1: tasso_conversione per promotore
+        adapt_acc, adapt_tot = 0, 0
+        fisso_acc, fisso_tot = 0, 0
+        fisso_fid_sum, fisso_fid_count = 0.0, 0
+        adapt_fid_sum, adapt_fid_count = 0.0, 0
+
+        for round_data in scenario_data.get('rounds', []):
+            for promoter_data in round_data.get('promoters_data', []):
+                pid = promoter_data.get('promotore_id', '')
+                for strategy in promoter_data.get('strategies', []):
+                    acc = strategy.get('accettato', False)
+                    fid = strategy.get('fiducia_media_post', 0.0)
+                    if 'ADAPT' in pid:
+                        adapt_tot += 1
+                        adapt_fid_sum += fid
+                        adapt_fid_count += 1
+                        if acc: adapt_acc += 1
+                    elif 'FISSO' in pid:
+                        fisso_tot += 1
+                        fisso_fid_sum += fid
+                        fisso_fid_count += 1
+                        if acc: fisso_acc += 1
+
+        metrics["tasso_conversione_adapt_pct"] = round(adapt_acc / adapt_tot * 100, 1) if adapt_tot > 0 else 0.0
+        metrics["tasso_conversione_fisso_pct"] = round(fisso_acc / fisso_tot * 100, 1) if fisso_tot > 0 else 0.0
+        metrics["fiducia_media_adapt"] = round(adapt_fid_sum / adapt_fid_count * 100, 1) if adapt_fid_count > 0 else 0.0
+        metrics["fiducia_media_fisso"] = round(fisso_fid_sum / fisso_fid_count * 100, 1) if fisso_fid_count > 0 else 0.0
+
         # Metric 0: delta_fiducia_cumulato
         fiducia_cumulata = {
             "adapt_delta_totale": 0.0,
@@ -852,7 +896,7 @@ class SimulationEngine:
             "adapt_delta_totale": round(fiducia_cumulata['adapt_delta_totale'], 4),
             "fisso_delta_totale": round(fiducia_cumulata['fisso_delta_totale'], 4),
             "adapt_delta_medio_per_round": round(fiducia_cumulata['adapt_delta_totale'] / adapt_count, 4) if adapt_count > 0 else 0.0,
-            "fisso_Delta_medio_per_round": round(fiducia_cumulata['fisso_delta_totale'] / fisso_count, 4) if fisso_count > 0 else 0.0,
+            "fisso_delta_medio_per_round": round(fiducia_cumulata['fisso_delta_totale'] / fisso_count, 4) if fisso_count > 0 else 0.0,
             "vantaggio_adapt": round(fiducia_cumulata['adapt_delta_totale'] - fiducia_cumulata['fisso_delta_totale'], 4)
         }
 
