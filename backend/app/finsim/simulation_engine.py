@@ -282,21 +282,6 @@ class SimulationEngine:
                                 profilo_rischio_prevalente = Counter(profili_rischio_list).most_common(1)[0][0]
                             else:
                                 profilo_rischio_prevalente = 'Balanced'
-                                
-                            # Post-processing: correggi prodotto se fuori lista per il profilo
-                            PRODOTTI_AMMESSI_PER_PROFILO = {
-                                'Conservative': {'Cash_Equivalents', 'Bond_Sovereign', 'Polizze_Assicurative', 'Bond_Corporate'},
-                                'Balanced':     {'Bond_Sovereign', 'Bond_Corporate', 'Cash_Equivalents', 'ETF_Tematici', 'Mixed_Funds'},
-                                'Growth':       {'Bond_Corporate', 'Fondi_Azionari', 'ETF_Tematici', 'Mixed_Funds', 'Bond_Sovereign'},
-                                'Aggressive':   {'Fondi_Azionari', 'Derivati', 'ETF_Tematici', 'Bond_Corporate', 'Mixed_Funds'},
-                            }
-                            ammessi = PRODOTTI_AMMESSI_PER_PROFILO.get(profilo_rischio_prevalente, set())
-                            if prodotto_normalized not in ammessi and ammessi:
-                                prodotto_normalized = max(
-                                    ammessi,
-                                    key=lambda p: ADEGUATEZZA_MATRIX.get(profilo_rischio_prevalente, {}).get(p, 0)
-                                )
-                                logger.info(f"    Post-processing: prodotto corretto a {prodotto_normalized} per profilo {profilo_rischio_prevalente}")
 
                             # Compute adequacy score
                             adeguatezza_score = round(
