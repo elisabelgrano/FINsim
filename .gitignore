@@ -63,3 +63,4 @@ backend/venv311/
 # Cache e Risultati della simulazione FINsim
 backend/app/finsim/output/
 metriche_calcoli.txt
+

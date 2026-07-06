@@ -187,7 +187,10 @@ def generate_direttive_bancarie() -> List[Dict[str, Any]]:
 
 
 def generate_promotori() -> List[Dict[str, Any]]:
-    """Genera 2 promotori: 1 Fisso (Benchmark), 1 Adattativo (AI-driven)."""
+    """
+    Genera 2 promotori: 1 Fisso (Benchmark), 1 Adattativo (AI-driven).
+    FINSIM-MOD: portafoglio_clienti aggiornato a 100 (clonazione per A/B test).
+    """
     return [
         {
             'uuid': 'promotore-fisso-1',
@@ -196,7 +199,7 @@ def generate_promotori() -> List[Dict[str, Any]]:
                 'promotore_id': 'PROM-FISSO-1',
                 'nome': 'Promotore Fisso 1',
                 'tipo': 'Benchmark',
-                'portafoglio_clienti': 50,
+                'portafoglio_clienti': 100,
                 'score_performance': 0.65,
                 'bias_prodotto': 'Bond_Corporate',
                 'adattativo': False,
@@ -210,7 +213,7 @@ def generate_promotori() -> List[Dict[str, Any]]:
                 'promotore_id': 'PROM-ADAPT-1',
                 'nome': 'Promotore Adattativo 1',
                 'tipo': 'AI-Driven',
-                'portafoglio_clienti': 50,
+                'portafoglio_clienti': 100,
                 'score_performance': 0.0,
                 'bias_prodotto': '',
                 'adattativo': True,
@@ -246,31 +249,63 @@ def generate_cluster_profili() -> List[Dict[str, Any]]:
 
 
 def generate_clienti(num_clienti: int = 100) -> List[Dict[str, Any]]:
-    """Genera 100 clienti distribuiti uniformemente nei 20 cluster."""
+    """
+    FINSIM-MOD: Genera 200 clienti (clonati) per A/B testing vero.
+
+    Ogni cliente originale viene clonato in due copie identiche:
+    - cliente-XXX-fisso (gestito da PROM-FISSO-1)
+    - cliente-XXX-adapt (gestito da PROM-ADAPT-1)
+
+    Profilo mappato a cluster_riga (coerente con generate_cluster_profili):
+    - Riga 0 (cluster_row=0) → Conservative (25 clienti)
+    - Riga 1 (cluster_row=1) → Balanced (25 clienti)
+    - Riga 2 (cluster_row=2) → Growth (25 clienti)
+    - Riga 3 (cluster_row=3) → Aggressive (25 clienti)
+    Totale: 100 per profilo → 200 clonati (50 fisso + 50 adapt per profilo).
+    """
     clienti = []
-    profili_rischio = ['Conservative', 'Balanced', 'Growth']
+    profili_rischio = ['Conservative', 'Balanced', 'Growth', 'Aggressive']
     fasce_patrimonio = ['Under100k', '100k-500k', '500k-1M', '1M-5M']
 
     for i in range(num_clienti):
         cluster_row = (i // 5) % 4
         cluster_col = i % 5
 
+        # Base properties per il cliente
+        base_properties = {
+            'profilo_rischio': profili_rischio[cluster_row],
+            'cluster_riga': cluster_row,
+            'cluster_col': cluster_col,
+            'propensione_rischio': 0.3 + (i % 7) * 0.1,
+            'fascia_patrimoniale': fasce_patrimonio[i % len(fasce_patrimonio)],
+            'fiducia_iniziale': 0.5,
+            'soddisfazione': 0.5,
+            'prodotti_detenuti': 2,
+            'fiducia_attuale': 0.5,
+            'urgenza_liquidita': i % 2 == 0,
+            'acceptance_count': 0,
+            'last_refusal_streak': 0,
+        }
+
+        # Clone 1: gestito da PROM-FISSO-1
         clienti.append({
-            'uuid': f'cliente-{i:03d}',
+            'uuid': f'cliente-{i:03d}-fisso',
             'label': 'Cliente',
             'properties': {
-                'cliente_id': f'CLI-{i:03d}',
-                'nome': f'Cliente {i:03d}',
-                'profilo_rischio': profili_rischio[i % len(profili_rischio)],
-                'cluster_riga': cluster_row,
-                'cluster_col': cluster_col,
-                'propensione_rischio': 0.3 + (i % 7) * 0.1,
-                'fascia_patrimoniale': fasce_patrimonio[i % len(fasce_patrimonio)],
-                'fiducia_iniziale': 0.7,
-                'soddisfazione': 0.5,
-                'prodotti_detenuti': 2,
-                'fiducia_attuale': 0.7,
-                'urgenza_liquidita': i % 2 == 0,
+                'cliente_id': f'CLI-{i:03d}-FISSO',
+                'nome': f'Cliente {i:03d} (FISSO)',
+                **base_properties
+            }
+        })
+
+        # Clone 2: gestito da PROM-ADAPT-1
+        clienti.append({
+            'uuid': f'cliente-{i:03d}-adapt',
+            'label': 'Cliente',
+            'properties': {
+                'cliente_id': f'CLI-{i:03d}-ADAPT',
+                'nome': f'Cliente {i:03d} (ADAPT)',
+                **base_properties
             }
         })
 
@@ -323,32 +358,50 @@ def generate_relationships() -> List[Dict[str, Any]]:
                 'properties': {'fact': f'Directive {scenario.upper()} emitted to promoter'},
             })
 
-    # GESTISCE: Promotori → Clienti (A/B split: cluster_riga < 2 → Fisso, cluster_riga >= 2 → Adattativo)
+    # GESTISCE: Promotori → Clienti (A/B TEST VERO)
+    # FINSIM-MOD: Ogni cliente è clonato in due versioni (fisso e adapt).
+    # Ogni versione è gestita dal promotore omologo.
     for i in range(100):
-        # Determina cluster_riga usando la stessa logica di generate_clienti()
-        cluster_row = (i // 5) % 4
-        # Split esclusivo basato su cluster_riga: < 2 → Fisso, >= 2 → Adattativo
-        prom_uuid = 'promotore-fisso-1' if cluster_row < 2 else 'promotore-adattativo-1'
-
+        # Versione FISSO
         rels.append({
             'uuid': str(uuid.uuid4()),
             'type': 'GESTISCE',
-            'source_uuid': prom_uuid,
-            'target_uuid': f'cliente-{i:03d}',
-            'properties': {'fact': 'Promoter manages client'},
+            'source_uuid': 'promotore-fisso-1',
+            'target_uuid': f'cliente-{i:03d}-fisso',
+            'properties': {'fact': 'Promoter manages client (FISSO variant)'},
         })
 
-    # APPARTIENE_A: Clienti → ClusterProfilo
+        # Versione ADAPT
+        rels.append({
+            'uuid': str(uuid.uuid4()),
+            'type': 'GESTISCE',
+            'source_uuid': 'promotore-adattativo-1',
+            'target_uuid': f'cliente-{i:03d}-adapt',
+            'properties': {'fact': 'Promoter manages client (ADAPT variant)'},
+        })
+
+    # APPARTIENE_A: Clienti → ClusterProfilo (entrambe le varianti)
+    # FINSIM-MOD: Entrambi i cloni appartengono allo stesso cluster
     for i in range(100):
         cluster_row = (i // 5) % 4
         cluster_col = i % 5
 
+        # Variante FISSO
         rels.append({
             'uuid': str(uuid.uuid4()),
             'type': 'APPARTIENE_A',
-            'source_uuid': f'cliente-{i:03d}',
+            'source_uuid': f'cliente-{i:03d}-fisso',
             'target_uuid': f'cluster-{cluster_row}-{cluster_col}',
-            'properties': {'fact': 'Client belongs to cluster'},
+            'properties': {'fact': 'Client (FISSO) belongs to cluster'},
+        })
+
+        # Variante ADAPT
+        rels.append({
+            'uuid': str(uuid.uuid4()),
+            'type': 'APPARTIENE_A',
+            'source_uuid': f'cliente-{i:03d}-adapt',
+            'target_uuid': f'cluster-{cluster_row}-{cluster_col}',
+            'properties': {'fact': 'Client (ADAPT) belongs to cluster'},
         })
 
     return rels
@@ -376,12 +429,12 @@ def populate_all_scenarios(graph_id: str = 'finsim-multi-scenario') -> Dict[str,
         direttive = generate_direttive_bancarie()
         promotori = generate_promotori()
         clusters = generate_cluster_profili()
-        clienti = generate_clienti(100)
+        clienti = generate_clienti(100)  # 100 clienti originali → 200 clonati (100 fisso + 100 adapt)
 
         all_nodes = scenarios + direttive + promotori + clusters + clienti
         logger.info(
             f"Generati {len(all_nodes)} nodi: "
-            f"5 ScenarioMacro, 5 DirettivaBancaria, 2 Promotori, 20 Cluster, 100 Clienti"
+            f"5 ScenarioMacro, 5 DirettivaBancaria, 2 Promotori, 20 Cluster, 200 Clienti (clonati)"
         )
 
         # Genera relazioni per tutti gli scenari

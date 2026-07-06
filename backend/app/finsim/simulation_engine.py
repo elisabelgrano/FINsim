@@ -73,8 +73,120 @@ ADEGUATEZZA_MATRIX = {
     }
 }
 
+def calcola_moltiplicatore_scenario(prodotto: str, scenario_macro: dict) -> float:
+    """
+    Calcola un moltiplicatore [0.5, 1.5] per l'adeguatezza di un prodotto in base allo stato macroeconomico oggettivo dello scenario.
+    Formula deterministica - NON dipende dalla direttiva bancaria.
+    
+    Logica:
+    - liquidità [0,1]: bassa = crisi, alta = espansione
+    - tassi_interesse [%]: alti penalizzano obbligazionario a lunga duration
+    - sentiment: panico/pessimista/ansioso/ottimista
+    - inflazione [%]: alta premia asset reali
+    """
+    tassi = scenario_macro.get('tassi_interesse', 2.0)
+    liquidita = scenario_macro.get('liquidita_mercato', 0.8)
+    sentiment = scenario_macro.get('sentiment_mercato', 'ansioso')
+    inflazione = scenario_macro.get('inflazione', 2.0)
+    
+    # Score di stress [0,1]: 0 = neutro/ottimista, 1= panico totale
+    stress_sentiment = {'panico': 1.0, 'pessimista': 0.6, 'ansioso': 0.3, 'ottimista': 0.0}
+    stress = stress_sentiment.get(sentiment, 0.3)
+    
+    # Score di liquidità invertita [0,1]: 0 = liquido, 1 = illiquido
+    illiquidita = 1.0 - liquidita
+    
+    # Score tassi normalizzato rispetto al baseline 2.0%
+    delta_tassi = max(0.0, tassi - 2.0) / 2.0 # 0 a baseline, 1 a tassi 4%
+    
+    mult = 1.0
+    
+    if prodotto == 'Cash_Equivalents':
+        # Premiato da illiquidità e stress
+        mult += illiquidita * 0.5 + stress * 0.2 + delta_tassi * 0.1
+        
+    elif prodotto == 'Bond_Sovereign':
+        # Penalizzato da tassi alti
+        mult += stress * 0.4 - delta_tassi * 0.2
+        
+    elif prodotto == 'Bond_Corporate':
+        # Allargamento in crisi
+        mult -= illiquidita * 0.5 + stress * 0.3
+        
+    elif prodotto == 'Fondi_Azionari':
+        # Sale con ottimismo e crolla con panico
+        mult += (0.5 -stress) * 0.8
+        
+    elif prodotto == 'ETF_Tematici':
+        # Meno volatile di azionario
+        mult += (0.5 - stress) * 0.5
+        
+    elif prodotto == 'Derivati':
+        # Sensibilissimo a stress e illiquidità
+        mult += (0.5 - stress) * 0.8 - illiquidita * 0.3
+        
+    elif prodotto == 'Real_Estate':
+        # Illiquido in crisi, hedge inflazione
+        inflazione_extra = max(0.0, inflazione - 2.0) / 3.0
+        mult += inflazione_extra * 0.3 - illiquidita * 0.4
+        
+    elif prodotto == 'Polizze_Assicurative':
+        # Lieve beneficio in stress
+        mult += stress * 0.15
+        
+    elif prodotto == 'Mixed_Funds':
+        # Bilanciato
+        mult += (0.5 -stress) * 0.2
+        
+    return round(max(0.5, min(1.5, mult)), 3)   
+
 SOGLIA_ACCETTAZIONE = 0.5
 MALUS_FIDUCIA_RIFIUTO = -0.15
+
+
+def calcola_adeguatezza_dinamica(
+    adeguatezza_base: float,
+    fiducia_attuale: float,
+    acceptance_count: int,
+    last_refusal_streak: int,
+) -> float:
+    """
+    FINSIM-MOD: Calcola adeguatezza dinamica incorporando acceptance_rate e fiducia_attuale.
+
+    Formula:
+      adeguatezza_dinamica = adeguatezza_base
+                          + acceptance_boost
+                          + recovery_bonus
+                          - stagnation_malus
+
+    Args:
+        adeguatezza_base: Lookup statico da ADEGUATEZZA_MATRIX [0.0-1.0]
+        fiducia_attuale: Trust level attuale del cliente [0.0-1.0]
+        acceptance_count: Numero di volte che il cliente ha accettato (cumulative)
+        last_refusal_streak: Numero di rifiuti consecutivi
+
+    Returns:
+        adeguatezza_dinamica clampata in [0.0, 1.0]
+    """
+    # Boost: +0.01 per ogni round accettato (max +0.1)
+    acceptance_boost = 0.01 * min(acceptance_count, 10)
+
+    # Recovery bonus: +0.02 se fiducia bassa e il prodotto potrebbe essere adatto
+    recovery_bonus = 0.0
+    if fiducia_attuale < 0.3 and adeguatezza_base >= 0.7:
+        recovery_bonus = 0.02
+
+    # Stagnation malus: -0.02 se 3+ rifiuti di fila
+    stagnation_malus = 0.0
+    if last_refusal_streak >= 3:
+        stagnation_malus = 0.02
+
+    adeguatezza_dinamica = (
+        adeguatezza_base + acceptance_boost + recovery_bonus - stagnation_malus
+    )
+
+    # Clamp in [0.0, 1.0]
+    return round(max(0.0, min(1.0, adeguatezza_dinamica)), 2)
 
 
 class SimulationEngine:
@@ -94,6 +206,7 @@ class SimulationEngine:
         neo4j_user: str,
         neo4j_password: str,
         ollama_base_url: str = "http://localhost:11434",
+        ollama_model: str = "qwen2.5:32b",
     ):
         """
         Initialize SimulationEngine with Neo4j and Ollama connectivity.
@@ -103,6 +216,7 @@ class SimulationEngine:
             neo4j_user: Neo4j username
             neo4j_password: Neo4j password
             ollama_base_url: Ollama REST endpoint
+            ollama_model: FINSIM-MOD: LLM model name for strategy generation
         """
         self._neo4j_uri = neo4j_uri
         self._neo4j_user = neo4j_user
@@ -113,11 +227,14 @@ class SimulationEngine:
 
         self.ollama_client = OllamaClient(base_url=ollama_base_url)
         self.searcher = FinsimSearcher(neo4j_uri, neo4j_user, neo4j_password)
-        self.promotore_agent = PromotoreAgent(self.ollama_client, self.searcher)
+        # FINSIM-MOD: Pass ollama_model to PromotoreAgent
+        self.promotore_agent = PromotoreAgent(
+            self.ollama_client, self.searcher, model_name=ollama_model
+        )
 
         logger.info(
             f"SimulationEngine initialized: neo4j={neo4j_uri}, "
-            f"ollama={ollama_base_url}"
+            f"ollama={ollama_base_url}, model={ollama_model}"
         )
 
     def close(self):
@@ -261,12 +378,18 @@ class SimulationEngine:
                                 continue
 
                             # Get pre-reaction metrics
+                            # FINSIM-MOD: Include acceptance_count and last_refusal_streak for dynamic adequacy
                             pre_metrics_query = """
                             MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
                             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
                             RETURN
                               avg(c.fiducia_attuale) as fiducia_media_pre,
-                              collect(c.profilo_rischio) as profili_rischio
+                              collect(c.profilo_rischio) as profili_rischio,
+                              collect({
+                                fiducia: c.fiducia_attuale,
+                                acceptance_count: c.acceptance_count,
+                                last_refusal_streak: c.last_refusal_streak
+                              }) as client_tracking_data
                             """
                             pre_metrics_res = session.run(
                                 pre_metrics_query,
@@ -277,19 +400,42 @@ class SimulationEngine:
 
                             fiducia_media_pre = round(pre_metrics_res['fiducia_media_pre'], 4) if pre_metrics_res and pre_metrics_res['fiducia_media_pre'] is not None else 0.0
                             profili_rischio_list = pre_metrics_res['profili_rischio'] if pre_metrics_res else []
+                            client_tracking_list = pre_metrics_res['client_tracking_data'] if pre_metrics_res else []
 
                             if profili_rischio_list:
                                 profilo_rischio_prevalente = Counter(profili_rischio_list).most_common(1)[0][0]
                             else:
                                 profilo_rischio_prevalente = 'Balanced'
 
-                            # Compute adequacy score
-                            adeguatezza_score = round(
+                            # Compute base adequacy from lookup matrix
+                            adeguatezza_base = round(
                                 ADEGUATEZZA_MATRIX
                                 .get(profilo_rischio_prevalente, {})
                                 .get(prodotto_normalized, 0.0),
                                 2
                             )
+
+                            # fix: applico moltiplicatore scenario
+                            try:
+                                _scenario_state = self.searcher.get_scenario_state(scenario_id, round_n=round_n)
+                                _scenario_macro = _scenario_state.get('scenario', {}) if _scenario_state else {}
+                            except Exception:
+                                _scenario_macro = {}
+                            _mult = calcola_moltiplicatore_scenario(prodotto_normalized, _scenario_macro)
+                            adeguatezza_base = round(min(1.0, adeguatezza_base * _mult), 2)
+                            
+                            # FINSIM-MOD: Calculate dynamic adequacy for cluster average
+                            adeguatezza_dinamica_list = []
+                            for client_data in client_tracking_list:
+                                adeq_din = calcola_adeguatezza_dinamica(
+                                    adeguatezza_base=adeguatezza_base,
+                                    fiducia_attuale=client_data.get('fiducia', 0.5),
+                                    acceptance_count=client_data.get('acceptance_count', 0),
+                                    last_refusal_streak=client_data.get('last_refusal_streak', 0),
+                                )
+                                adeguatezza_dinamica_list.append(adeq_din)
+
+                            adeguatezza_score = round(sum(adeguatezza_dinamica_list) / len(adeguatezza_dinamica_list), 2) if adeguatezza_dinamica_list else adeguatezza_base
                             accettato = adeguatezza_score >= SOGLIA_ACCETTAZIONE
 
                             # Track product for compliance calculation
@@ -517,23 +663,28 @@ class SimulationEngine:
         prodotto_suggerito: str,
         adeguatezza_score: float = 0.5,
     ) -> int:
+        """
+        FINSIM-MOD: Calculate client reactions with dynamic adequacy tracking.
+
+        Updates:
+        - fiducia_attuale, soddisfazione (as before)
+        - acceptance_count (+1 if accepted)
+        - last_refusal_streak (reset to 0 if accepted, +1 if rejected)
+        """
         try:
-            # Calcola delta fiducia direttamente dall'adeguatezza del prodotto
-            if adeguatezza_score >= 0.8:
-                delta_fiducia_base = 0.05    # prodotto molto adatto
-            elif adeguatezza_score >= 0.5:
-                delta_fiducia_base = 0.02    # prodotto accettabile
-            elif adeguatezza_score >= 0.3:
-                delta_fiducia_base = -0.01   # prodotto poco adatto
-            else:
-                delta_fiducia_base = -0.04   # prodotto inadatto
+            prodotto_normalized = normalize_prodotto(prodotto_suggerito)
 
             # Get all clients in cluster managed by this promoter
+            # FINSIM-MOD: Include profilo_rischio, acceptance_count, last_refusal_streak for dynamic calc
             get_clients_query = """
             MATCH (p:Promotore {uuid: $promotore_uuid})-[:GESTISCE]->(c:Cliente)
             WHERE c.cluster_riga = $riga AND c.cluster_col = $col
             RETURN c.uuid as client_uuid,
-                   c.fiducia_attuale as fiducia_attuale, c.soddisfazione as soddisfazione
+                   c.fiducia_attuale as fiducia_attuale,
+                   c.soddisfazione as soddisfazione,
+                   c.profilo_rischio as profilo_rischio,
+                   c.acceptance_count as acceptance_count,
+                   c.last_refusal_streak as last_refusal_streak
             """
 
             clients_result = session.run(
@@ -546,17 +697,43 @@ class SimulationEngine:
                 client_uuid = client['client_uuid']
                 fiducia_attuale = client['fiducia_attuale'] or 0.5
                 soddisfazione = client['soddisfazione'] or 0.5
+                profilo_rischio = client['profilo_rischio'] or 'Balanced'
+                acceptance_count = client['acceptance_count'] or 0
+                last_refusal_streak = client['last_refusal_streak'] or 0
 
-                delta_fiducia = delta_fiducia_base
+                # FINSIM-MOD: Calculate dynamic adequacy for this client
+                adeguatezza_base = round(
+                    ADEGUATEZZA_MATRIX
+                    .get(profilo_rischio, {})
+                    .get(prodotto_normalized, 0.0),
+                    2
+                )
+                adeguatezza_dinamica = calcola_adeguatezza_dinamica(
+                    adeguatezza_base=adeguatezza_base,
+                    fiducia_attuale=fiducia_attuale,
+                    acceptance_count=acceptance_count,
+                    last_refusal_streak=last_refusal_streak,
+                )
+
+                # fix: delta continuo proporzionale all'adeguatezza
+                delta_fiducia = round((adeguatezza_dinamica - 0.5) * 0.10, 4)
+
                 delta_soddisfazione = delta_fiducia * 0.5
 
                 fiducia_nuova = max(0.0, min(1.0, fiducia_attuale + delta_fiducia))
                 soddisf_nuova = max(0.0, min(1.0, soddisfazione + delta_soddisfazione))
 
+                # FINSIM-MOD: Update acceptance_count and refusal_streak
+                accettato = adeguatezza_dinamica >= SOGLIA_ACCETTAZIONE
+                nuovi_acceptance_count = acceptance_count + 1 if accettato else acceptance_count
+                nuovo_refusal_streak = 0 if accettato else last_refusal_streak + 1
+
                 update_query = """
                 MATCH (c:Cliente {uuid: $client_uuid})
                 SET c.fiducia_attuale = $fiducia_nuova,
-                    c.soddisfazione = $soddisf_nuova
+                    c.soddisfazione = $soddisf_nuova,
+                    c.acceptance_count = $nuovi_acceptance_count,
+                    c.last_refusal_streak = $nuovo_refusal_streak
                 RETURN c.uuid
                 """
 
@@ -565,6 +742,8 @@ class SimulationEngine:
                     client_uuid=client_uuid,
                     fiducia_nuova=fiducia_nuova,
                     soddisf_nuova=soddisf_nuova,
+                    nuovi_acceptance_count=nuovi_acceptance_count,
+                    nuovo_refusal_streak=nuovo_refusal_streak,
                 )
 
                 if update_result.single():

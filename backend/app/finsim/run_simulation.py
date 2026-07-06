@@ -317,11 +317,13 @@ def main():
     """Main entry point: run full simulation matrix (S0, S1, S2, S3, S4 with 1 round each)."""
     try:
         logger.info("Initializing SimulationEngine...")
+        # FINSIM-MOD: Use LLM_HEAVY_URL for SimulationEngine (promoter strategy generation)
         engine = SimulationEngine(
             neo4j_uri=Config.NEO4J_URI,
             neo4j_user=Config.NEO4J_USER,
             neo4j_password=Config.NEO4J_PASSWORD,
-            ollama_base_url=Config.EMBEDDING_BASE_URL,
+            ollama_base_url=Config.LLM_HEAVY_URL,
+            ollama_model=Config.LLM_HEAVY_MODEL,
         )
 
         # MongoDB connection
@@ -341,7 +343,7 @@ def main():
 
         for scenario_id in scenarios:
             # Creiamo il nuovo nome SOLO per MongoDB
-            mongo_scenario_id = f"{scenario_id}_fix5"
+            mongo_scenario_id = f"{scenario_id}_fix8"
             
             # Cache check sul NUOVO nome
             existing_doc = collection.find_one({"scenario_id": mongo_scenario_id})
