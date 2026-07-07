@@ -378,7 +378,10 @@ def main():
                         "partial": True,
                         "round_completed": round_n,
                     }
-                    partial_doc["business_metrics"] = engine._calcola_metriche_business
+                    try:
+                        partial_doc["business_metrics"] = engine._calcola_metriche_business(partial_doc)
+                    except Exception:
+                        partial_doc["business_metrics"] = {}
                     collection.replace_one(
                         {"scenario_id": mongo_scenario_id},
                         partial_doc,
