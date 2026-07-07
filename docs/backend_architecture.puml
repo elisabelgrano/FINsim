@@ -11,92 +11,121 @@ title FINsim Backend Architecture — A/B Testing, 5 Scenarios, 20 Rounds
 ' COMPONENTS
 ' ============================================================================
 
-package "Entry Point" {
-  component [run_simulation.py\n(Orchestrator)] as RunSimulation
+package "Entry Points" {
+  component [run_simulation.py\n(Simulation Orchestrator)] as RunSimulation
   note right of RunSimulation
-    Main entry point:
+    Simulation batch entry point:
     - Cycles through 5 scenarios (S0-S4)
-    - Manages cache check & skip logic
-    - Exports JSON results per scenario
+    - ollama_base_url = Config.LLM_HEAVY_URL
+    - ollama_model = Config.LLM_HEAVY_MODEL
+    - Cache/skip check against MongoDB
+      (not file-based)
+  end note
+
+  component [advisor.py\n(FastAPI App)] as AdvisorApi
+  note right of AdvisorApi
+    Separate FastAPI service, own Ollama
+    client (OllamaAdvisor, not OllamaClient):
+    - POST /api/advisor/chat
+    - GET  /health
+    - GET  /api/dashboard/scenari
+    - GET  /api/dashboard/scenario/{id}
+    - GET  /api/dashboard/tutti
+    Hardcoded: http://localhost:11434/api/generate
+    MODEL_NAME = "gemma4:e4b"
   end note
 }
 
-package "Caching & File I/O" {
-  component [File Cache Manager\n(output/*.json)] as CacheManager
-  note right of CacheManager
-    Stores scenario results:
-    - risultati_S0.json
-    - risultati_S1.json
-    - ... risultati_S4.json
-
-    Skip logic: If file exists,
-    scenario is skipped
+package "Caching" {
+  database [MongoDB\nfinsim_analytics] as Mongo
+  note right of Mongo
+    Collection: simulation_history
+    Skip logic: doc with
+    scenario_id = "{scenario}_fix11"
+    already present → scenario skipped
   end note
 }
 
 package "Simulation Engine (Core)" {
   component [SimulationEngine\n(esegui_round)] as SimEngine
   note bottom of SimEngine
-    Orchestrates round loop:
-    1. Query active clusters (Neo4j)
-    2. Generate strategies (PromotoreAgent)
-    3. Persist decisions (DecisioneCommerciale)
-    4. Update client reactions
+    Orchestrates round loop per scenario:
+    1. Query active clusters (via Searcher)
+    2. Generate strategy per cluster
+       (PromotoreAgent)
+    3. Compute adequacy:
+       ADEGUATEZZA_MATRIX,
+       calcola_moltiplicatore_scenario,
+       calcola_adeguatezza_dinamica
+    4. Apply trust malus,
+       calcola_reazione_clienti
+    5. Persist DecisioneCommerciale
+    A/B split by promoter id substring:
+    'ADAPT' vs 'FISSO'
+    (see _calcola_metriche_business)
   end note
 }
 
 package "Strategy Generation (LLM Layer)" {
   component [PromotoreAgent\nStrategy Generator] as PromAgent
   note bottom of PromAgent
-    Generates cluster-specific strategies:
-    - Scenario context (rates, liquidity)
-    - Bank directive (product focus)
-    - Client profiles (risk tolerance)
-    Uses: qwen2.5:3b (LIGHT_LLM)
+    Level 3 agent (only agent class in
+    backend/app/finsim/agents/):
+    - Builds system/user prompt from
+      scenario + directive + cluster data
+    - Constructor default model_name=
+      "qwen2.5:3b" (stale placeholder,
+      overridden at runtime)
+    - Actual model in use: gemma4:e4b
+      (LIGHT) / gemma4:31b (HEAVY)
+      via Config
+    - Parses response with json_repair
   end note
 
   component [OllamaClient\nREST Interface] as OllamaClient
   note bottom of OllamaClient
-    Local LLM API client:
-    - Timeout-aware requests
-    - Retry logic + fallback
-    - Parameterized prompts
-    Endpoint: http://localhost:11434
+    backend/app/finsim/llm/ollama_client.py
+    - POST {base_url}/api/generate
+    - GET  {base_url}/api/tags (health)
+    - Observed endpoint at runtime:
+      http://10.12.1.2:11434
+    - MAX_RETRIES=1 (retries only on
+      Timeout / ConnectionError — a
+      plain HTTP 500 is NOT retried)
+    - timeout = OLLAMA_TIMEOUT_SECONDS
+      env (default 900s)
   end note
 }
 
 package "Data Access Layer" {
-  component [FinsimSearcher\n(Secure Queries)] as Searcher
+  component [FinsimSearcher\n(search_finsim.py)] as Searcher
   note bottom of Searcher
     Parameterized Neo4j queries:
     - Allowlist validation (labels, rels)
     - Cluster lookup (grid position)
     - Promoter portfolios
-    - Scenario state
-    Uses: finsim_schema.json
+    - Scenario/directive state (read-only)
+    Uses: ontology/finsim_schema.json
   end note
 }
 
 package "Persistent Storage" {
   database [Neo4j\n(5.15 Community)] as NeoDb
   note bottom of NeoDb
-    Graph structure:
+    FINsim graph nodes (created by
+    ontology/populate_finsim.py,
+    NOT by generic
+    storage/neo4j_storage.py):
     - ScenarioMacro (S0-S4)
-    - DirettivaBancaria (1 per scenario)
-    - Promotori (2: Fixed, Adaptive)
-    - Clienti (100 synthetic, 10x10 grid)
-    - DecisioneCommerciale (decisions)
-  end note
-}
-
-package "Output & Results" {
-  component [JSON Exporter\n(esporta_json)] as Exporter
-  note bottom of Exporter
-    Exports scenario results:
-    - Round-by-round decisions
-    - Trust metrics (avg, distribution)
-    - Promoter performance (A/B)
-    Format: JSON (UTF-8)
+    - DirettivaBancaria (5 hardcoded,
+      one per scenario — see note below)
+    - Promotore (Adattivo / Fisso)
+    - Cliente (100 synthetic, 10x10 grid)
+    - DecisioneCommerciale
+    Relationship gap: code uses EFFETTUA
+    (Promotore→DecisioneCommerciale),
+    which is NOT in finsim_schema.json
+    allowed_relationships
   end note
 }
 
@@ -104,58 +133,72 @@ package "Output & Results" {
 ' RELATIONSHIPS & FLOW
 ' ============================================================================
 
-RunSimulation --> CacheManager : "1. Check cache\n(file exists?)"
-CacheManager --> RunSimulation : "Skip or Proceed"
+RunSimulation --> Mongo : "1. Check cache\n(simulation_history doc?)"
+Mongo --> RunSimulation : "Skip or Proceed"
 
 RunSimulation --> SimEngine : "2. Execute scenario\n(if not cached)"
 
-SimEngine --> Searcher : "Query clusters,\npromoter data,\nscenario state"
+SimEngine --> Searcher : "Query clusters,\npromoter data,\nscenario/directive state"
 
 Searcher --> NeoDb : "Parameterized\nCypher queries"
 NeoDb --> Searcher : "Node & relationship\nresults"
 
 SimEngine --> PromAgent : "Generate strategy\nfor cluster"
 
-PromAgent --> OllamaClient : "HTTP POST\n(system + user prompt)"
+PromAgent --> OllamaClient : "HTTP POST\n(system + user prompt,\nformat=json)"
 OllamaClient --> PromAgent : "JSON strategy\nresponse"
 
 SimEngine --> NeoDb : "Persist decisions\n(DecisioneCommerciale)"
 SimEngine --> NeoDb : "Update client trust\n& satisfaction"
 
-SimEngine --> Exporter : "Collect decisions\n& metrics"
-Exporter --> CacheManager : "Write JSON\nto output folder"
+SimEngine --> Mongo : "Write simulation_history\ndoc on completion"
+
+AdvisorApi --> NeoDb : "Dashboard queries\n(scenario/round summaries)"
 
 ' ============================================================================
 ' LEGEND & NOTES
 ' ============================================================================
 
+note as ArchGap
+  **Architecture discrepancy vs CLAUDE.md:**
+  CLAUDE.md describes Livello 2 (DirettivaBancaria)
+  as "1 agente adattivo, elaborato tramite HEAVY_LLM".
+  In the current code there is NO such agent class —
+  the 5 directives (one per S0-S4) are statically
+  pre-generated in populate_finsim.py and only ever
+  read back via FinsimSearcher. No dynamic HEAVY_LLM
+  call regenerates a directive at runtime.
+end note
+
 note as Legend
   **A/B Testing Matrix:**
   - 100 clients total
   - Promotore Fisso (Fixed): 50 clients → Benchmark broadcast
-  - Promotore Adattativo (Adaptive): 50 clients → LLM-driven strategy
+  - Promotore Adattivo (Adaptive): 50 clients → LLM-driven strategy
+  - Split detected by promoter id substring 'ADAPT' / 'FISSO'
 
-  **Scenario Execution:**
-  - S0: Baseline Neutral (2.0% rate)
-  - S1: Rate Shock (2.5% rate)
-  - S2: Acute Crisis (3.0% rate, liquidity crisis)
-  - S3: Opportunity (1.8% rate, regulatory pressure)
-  - S4: Bifurcation (S0 → pivot at R10)
+  **Scenario Execution (S0-S4):**
+  - S0: Baseline Neutro (tassi 2.0%, tensione geopolitica)
+  - S1: Shock Tassi (rialzo 2.5%, crollo equity)
+  - S2: Crisi Acuta (blocco geopolitico, PIL negativo)
+  - S3: Opportunità (distensione, pressione compliance)
+  - S4: Biforcazione Dinamica (= S0 fino al Round 10, poi
+    cambio drastico obbligatorio della DirettivaBancaria)
 
-  **Round Loop (per scenario):**
-  - Reset client state (trust ← initial, satisfaction → 0.5)
-  - For each round (1..20):
-    - For each promoter cluster:
-      - Query clients in grid cell
-      - Generate strategy (LLM)
-      - Calculate client reactions
-      - Persist to DB
+  **LLM Models (backend/app/config.py):**
+  - LLM_HEAVY_MODEL = gemma4:31b
+  - LLM_LIGHT_MODEL = gemma4:e4b
+  - Both served from the same remote Ollama host
+  - advisor.py uses its own hardcoded gemma4:e4b client,
+    independent of OllamaClient / config.py
 
   **Security Model:**
   ✓ Parameterized Neo4j queries (no f-string injection)
-  ✓ Label/relationship allowlist validation
-  ✓ Timeout-aware LLM requests
-  ✓ Error recovery & continue logic
+  ✓ Label/relationship allowlist (finsim_schema.json)
+    — but EFFETTUA relationship is used ungoverned
+  ✓ Timeout-aware LLM requests (900s default)
+  ⚠ HTTP 5xx from Ollama is NOT retried (only
+    Timeout/ConnectionError are) — see ollama_client.py
 end note
 
 @enduml
