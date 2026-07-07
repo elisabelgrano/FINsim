@@ -141,7 +141,7 @@ def calcola_moltiplicatore_scenario(prodotto: str, scenario_macro: dict) -> floa
     return round(max(0.5, min(1.5, mult)), 3)   
 
 SOGLIA_ACCETTAZIONE = 0.5
-MALUS_FIDUCIA_RIFIUTO = -0.15
+MALUS_FIDUCIA_RIFIUTO = -0.05
 
 
 def calcola_adeguatezza_dinamica(
@@ -701,15 +701,8 @@ class SimulationEngine:
                 acceptance_count = client['acceptance_count'] or 0
                 last_refusal_streak = client['last_refusal_streak'] or 0
 
-                # FINSIM-MOD: Calculate dynamic adequacy for this client
-                adeguatezza_base = round(
-                    ADEGUATEZZA_MATRIX
-                    .get(profilo_rischio, {})
-                    .get(prodotto_normalized, 0.0),
-                    2
-                )
                 adeguatezza_dinamica = calcola_adeguatezza_dinamica(
-                    adeguatezza_base=adeguatezza_base,
+                    adeguatezza_base=adeguatezza_score,
                     fiducia_attuale=fiducia_attuale,
                     acceptance_count=acceptance_count,
                     last_refusal_streak=last_refusal_streak,

@@ -96,7 +96,7 @@ class OllamaClient:
             "prompt": user_prompt,
             "format": format,
             "stream": False,
-            "think": False,
+            #"think": False,
         }
 
         for attempt in range(self.MAX_RETRIES + 1):

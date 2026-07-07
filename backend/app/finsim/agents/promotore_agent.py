@@ -154,16 +154,20 @@ class PromotoreAgent:
                 response_text = llm_response.get('content', '').strip()
 
                 # Try to extract JSON from response
-                if response_text.startswith('{'):
-                    strategy_json = json.loads(response_text)
+                from json_repair import repair_json
+                # Estrai il blocco JSON dalla risposta
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}') + 1
+                if start_idx != -1 and end_idx > start_idx:
+                    json_candidate = response_text[start_idx:end_idx]
                 else:
-                    # Try to find JSON within the response
-                    start_idx = response_text.find('{')
-                    end_idx = response_text.rfind('}') + 1
-                    if start_idx != -1 and end_idx > start_idx:
-                        strategy_json = json.loads(response_text[start_idx:end_idx])
-                    else:
-                        raise json.JSONDecodeError("No JSON found", response_text, 0)
+                    json_candidate = response_text
+                # Prova parsing diretto, poi con repair
+                try:
+                    strategy_json = json.loads(json_candidate)
+                except json.JSONDecodeError:
+                    repaired = repair_json(json_candidate)
+                    strategy_json = json.loads(repaired)
 
                 result['strategia'] = strategy_json.get('strategia', '')
                 result['approccio_comunicativo'] = strategy_json.get('approccio_comunicativo', '')

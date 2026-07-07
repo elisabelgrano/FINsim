@@ -46,6 +46,7 @@ def run_scenario_rounds(
     engine: SimulationEngine,
     scenario_id: str,
     num_rounds: int = 200,
+    on_round_complete=None,
 ) -> Dict[str, Any]:
     """
     Execute multiple consecutive rounds for a scenario with result collection.
@@ -90,6 +91,8 @@ def run_scenario_rounds(
             print(f"  Clients Updated: {round_result['clients_updated']}")
             if round_result['errors']:
                 print(f"  Errors: {len(round_result['errors'])}")
+            if on_round_complete is not None:
+                on_round_complete(scenario_result, round_n)
 
         except Exception as e:
             error_msg = f"Round {round_n} failed: {str(e)}"
@@ -271,7 +274,9 @@ def reset_scenario_state(
             reset_query = """
             MATCH (c:Cliente)
             SET c.fiducia_attuale = c.fiducia_iniziale,
-                c.soddisfazione = 0.5
+                c.soddisfazione = 0.5,
+                c.acceptance_count = 0,
+                c.last_refusal_streak = 0
             RETURN COUNT(c) as reset_count
             """
 
@@ -343,7 +348,7 @@ def main():
 
         for scenario_id in scenarios:
             # Creiamo il nuovo nome SOLO per MongoDB
-            mongo_scenario_id = f"{scenario_id}_fix8"
+            mongo_scenario_id = f"{scenario_id}_fix12"
             
             # Cache check sul NUOVO nome
             existing_doc = collection.find_one({"scenario_id": mongo_scenario_id})
@@ -366,10 +371,25 @@ def main():
                     logger.error(f"Failed to reset state for scenario {scenario_id}, continuing anyway...")
 
                 # Run consecutive rounds (ASSICURATI CHE SIA 200 QUI)
+                def salva_parziale(partial_result, round_n):
+                    partial_doc = {
+                        **partial_result,
+                        "scenario_id": mongo_scenario_id,
+                        "partial": True,
+                        "round_completed": round_n,
+                    }
+                    partial_doc["business_metrics"] = engine._calcola_metriche_business
+                    collection.replace_one(
+                        {"scenario_id": mongo_scenario_id},
+                        partial_doc,
+                        upsert=True,
+                    )
+                
                 scenario_result = run_scenario_rounds(
                     engine=engine,
                     scenario_id=scenario_id,
                     num_rounds=200,
+                    on_round_complete=salva_parziale,
                 )
 
                 all_results.append(scenario_result)
