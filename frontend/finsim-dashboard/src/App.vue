@@ -1201,6 +1201,11 @@ const scenarioPills = [
   { id: 'S2', label: 'Rialzo tassi' },
   { id: 'S3', label: 'Stress' },
   { id: 'S4', label: 'Recessione' },
+  { id: 'S0_fix12', label: 'Base (fix12)' },
+  { id: 'S1_fix12', label: 'Espansione (fix12)' },
+  { id: 'S2_fix12', label: 'Rialzo tassi (fix12)' },
+  { id: 'S3_fix12', label: 'Opportunità (fix12)' },
+  { id: 'S4_fix12', label: 'Biforcazione (fix12)' },
 ];
 
 const domandePredefiniteStandard = [

@@ -59,7 +59,7 @@ def get_scenario_code(scenario_ui: str) -> str:
     Esempio: "Base" → "S0_200", "Espansione" → "S1_200"
     """
     codice_base = MAPPA_SCENARI.get(scenario_ui, scenario_ui)
-    if codice_base.startswith("S") and any(codice_base.endswith(s) for s in ["_200", "_fix8", "_fix9"]):
+    if codice_base.startswith("S") and any(codice_base.endswith(s) for s in ["_200", "_fix8", "_fix9", "_fix12"]):
         return codice_base
     return f"{codice_base}_200"
 
