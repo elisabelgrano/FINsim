@@ -416,11 +416,7 @@ def get_trend_banca(scenario_id: str = "S0"):
     Legge i round da MongoDB e calcola la raccolta netta cumulata
     (Vero vs Falso su 'accettato' moltiplicato per i clienti).
     """
-    # Mappa scenario_id al documento corretto da 200 round
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
+    db_scenario_id = get_scenario_code(scenario_id)
 
     # 1. Cerchiamo il documento della simulazione desiderata
     doc = collection.find_one({"scenario_id": db_scenario_id})

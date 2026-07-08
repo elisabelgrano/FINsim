@@ -2066,8 +2066,18 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
       const el = document.getElementById(divId);
       if (!el) { console.error(`DOM element #${divId} non trovato`); return; }
       if (window.Plotly) {
+        if (divId === 'plotly-waterfall') {
+          figData.layout = {
+            ...figData.layout,
+            showlegend: false,
+            margin: { l: 60, r: 30, t: 70, b: 30 },
+            xaxis: { ...figData.layout?.xaxis, automargin: true },
+            yaxis: { ...figData.layout?.yaxis, automargin: true },
+          };
+        }
         Plotly.newPlot(divId, figData.data, figData.layout, { responsive: true });
       }
+
     } else {
       console.error(`Errore API Plotly ${endpoint}: ${res.status}`);
     }
