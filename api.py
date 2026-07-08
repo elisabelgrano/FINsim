@@ -192,9 +192,9 @@ Rispondi SOLO con un oggetto JSON valido con questa struttura:
 class OllamaAdvisor:
     """Handles communication with Ollama for advisory generation"""
 
-    OLLAMA_GENERATE_URL = "http://localhost:11434/api/generate"
+    OLLAMA_GENERATE_URL = "http://10.12.1.2:11434/api/generate"
     OLLAMA_TIMEOUT = 120  # seconds
-    MODEL_NAME = "qwen2.5:3b"
+    MODEL_NAME = "gemma4:e4b"
 
     @staticmethod
     def _format_metrics_context(metrics_data: Dict[str, Any]) -> str:
@@ -2886,9 +2886,12 @@ Rispondi SOLO con un array JSON di {len(batch)} stringhe, una per ogni strategia
         except Exception as e:
             print(f"[Cluster Evolution] Errore classificazione batch {batch_start}: {e}")
 
+    ultima_categoria = "Non classificato"
     for e in eventi:
-        if "categoria_approccio" not in e:
-            e["categoria_approccio"] = "Non classificato"
+        if "categoria_approccio" not in e or e["categoria_approccio"] == "Non classificato":
+            e["categoria_approccio"] = ultima_categoria
+        else:
+            ultima_categoria = e["categoria_approccio"]
 
     # Identifica le transizioni di categoria (dove cambia rispetto al round precedente)
     transizioni = []

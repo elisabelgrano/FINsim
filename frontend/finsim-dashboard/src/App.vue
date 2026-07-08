@@ -221,8 +221,23 @@
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
-            <div id="plotly-heatmap" @click="apriSpiegazioneGrafico('plotly-heatmap', 'Mappa di Valore')" style="min-height: 400px; width: 100%; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
-            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie per ogni segmento di clientela (profilo di rischio × patrimonio). <strong style="color:#059669">Verde</strong> = la Consulenza Adattiva converte meglio in quel segmento. <strong style="color:#e11d48">Rosso</strong> = la Strategia Standard è più efficace. Il valore numerico indica la differenza percentuale tra le due strategie.</p>
+            <div style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center;">
+              <div></div>
+              <div v-for="col in ['Patrimonio Basso', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio']" :key="col"
+                  style="text-align:center; font-size:11px; color:#8593A8; font-weight:600; padding:4px; text-transform:uppercase; letter-spacing:0.5px">
+                {{ col }}
+              </div>
+              <template v-for="(row, rowIdx) in heatmapBanca" :key="rowIdx">
+                <div style="font-size:11px; color:#8593A8; font-weight:600; text-align:right; padding-right:8px; text-transform:uppercase; letter-spacing:0.5px">
+                  {{ row.label }}
+                </div>
+                <div v-for="(cell, colIdx) in row.cells" :key="colIdx"
+                    class="heat-cell" :style="{ backgroundColor: cell.bg, color: cell.fg }">
+                  {{ cell.value }}
+                </div>
+              </template>
+            </div>
+            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie. <strong style="color:#059669">Verde</strong> = Consulenza Adattiva converte meglio. <strong style="color:#e11d48">Rosso</strong> = Strategia Standard più efficace.</p>
           </div>
 
           <div class="panel" style="grid-column: span 6;">
@@ -1106,6 +1121,7 @@ const datiGraficiPromotore = ref({
 
 // FINSIM-MOD: Heatmap Propensione Rischio - Data-driven
 const heatmapReale = ref([]);
+const heatmapBanca = ref([]);
 
 // FINSIM-MOD: Cluster Evolution View
 const clusterRiskIdx = ref(0);
@@ -2106,8 +2122,8 @@ const renderClusterEvolutionChart = async () => {
       y: adeguatezza,
       type: 'scatter',
       mode: 'lines',
-      name: 'Adeguatezza Proposta (%)',
-      line: { color: 'rgba(46,111,214,0.3)', width: 1.5, dash: 'dot' },
+      name: '-Adeguatezza Proposta',
+      line: { color: 'rgba(46,111,214,0.5)', width: 2, dash: 'dot' },
       hoverinfo: 'skip'
     },
     {
@@ -2115,23 +2131,49 @@ const renderClusterEvolutionChart = async () => {
       y: fiducia,
       type: 'scatter',
       mode: 'lines+markers',
-      name: 'Fiducia Cliente per Categoria',
-      line: { color: 'rgba(199,213,230,0.25)', width: 1 },
-      marker: { size: 11, color: traceColors, line: { width: 1, color: '#ffffff' } },
+      name: '● Fiducia Cliente (colore = categoria approccio)',
+      line: { color: 'rgba(199,213,230,0.15)', width: 1 },
+      marker: { size: 13, color: traceColors, line: { width: 1.5, color: '#ffffff' } },
       text: hoverText,
       hoverinfo: 'text'
     }
   ];
-
   const layout = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(30,41,59,0.3)',
-    font: { color: '#C7D5E6' },
-    xaxis: { title: 'Round (ogni punto è un cambio di strategia)', gridcolor: 'rgba(199,213,230,0.1)' },
-    yaxis: { title: 'Percentuale', range: [0, 100], gridcolor: 'rgba(199,213,230,0.1)' },
-    legend: { orientation: 'h', yanchor: 'bottom', y: -0.3, xanchor: 'center', x: 0.5 },
-    margin: { l: 60, r: 30, t: 30, b: 80 }
-  };
+    font: { color: '#C7D5E6', family: 'Segoe UI, sans-serif' },
+    xaxis: {
+      title: { text: 'Round di Simulazione', font: { size: 12, color: '#8593A8' } },
+      gridcolor: 'rgba(199,213,230,0.08)',
+      tickfont: { size: 11, color: '#8593A8' }
+  },
+  yaxis: {
+    title: { text: 'Percentuale (%)', font: { size: 12, color: '#8593A8' } },
+    range: [0, 100],
+    gridcolor: 'rgba(199,213,230,0.08)',
+    tickfont: { size: 11, color: '#8593A8' },
+    ticksuffix: '%'
+  },
+  legend: {
+    orientation: 'h',
+    yanchor: 'bottom',
+    y: -0.25,
+    xanchor: 'center',
+    x: 0.5,
+    font: { size: 11, color: '#C7D5E6' },
+    bgcolor: 'rgba(0,0,0,0)'
+  },
+  annotations: [
+    {
+      x: 0.01, y: 1.05, xref: 'paper', yref: 'paper',
+      text: '🔴 Aggressiva  🔵 Conservativa  🟠 Informativa  🟢 Relazionale',
+      showarrow: false,
+      font: { size: 11, color: '#C7D5E6' },
+      align: 'left'
+     }
+  ],
+  margin: { l: 60, r: 30, t: 50, b: 80 }
+};
 
   Plotly.newPlot('plotly-cluster-evolution', traces, layout, { responsive: true });
 };
@@ -2508,6 +2550,28 @@ const caricaHeatmapRischio = async () => {
   }
 };
 
+const caricaHeatmapBanca = async () => {
+  try {
+    const res = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
+    if (res.ok) {
+      const data = await res.json();
+      const righeLabel = ['Alto Rischio', 'Aggressive', 'Balanced', 'Conservative'];
+      heatmapBanca.value = (data.matrice || []).map((riga, i) => ({
+        label: righeLabel[i],
+        cells: riga.map(v => {
+          let bg = '#D64242', fg = '#FFFFFF';
+          if (v >= 5) { bg = '#1E9E63'; fg = '#062017'; }
+          else if ( v>= 0) { bg = '#7DB85A'; fg = '#10240A'; }
+          else if (v >= -3) { bg = '#E0922F'; fg = '#2E1C05'; }
+          return { value: v.toFixed(1) + '%', bg, fg };
+        })
+      }));
+    }
+  } catch (err) {
+      console.warn('[Heatmap Banca] Errore:', err.message);
+    }
+};
+
 const ripristinaConversazione = async (conv) => {
   if (conv.clusterSnapshot) {
     view.value = 'evoluzione';
@@ -2832,7 +2896,7 @@ onMounted(async () => {
     await loadPlotly();
     await nextTick();
     await renderSpiderBanca();
-    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
+    await caricaHeatmapBanca();
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
     await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', scenario.value);
   }
@@ -2892,7 +2956,7 @@ await nextTick(() => renderCharts());
 if (view.value === 'banca') {
   await nextTick();
   await renderSpiderBanca();
-  await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', newScenario);
+    await caricaHeatmapBanca();
   await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', newScenario);
   await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', newScenario);
 } else if (view.value === 'promotore') {
@@ -2928,7 +2992,7 @@ watch([view, scenario], async ([nuovaVista, nuovoScenario], [vecchiaVista, vecch
     console.log('[FINsim] 📈 Vista Banca attiva, renderizzando grafici Plotly...');
     await nextTick();
     await renderSpiderBanca();
-    await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', nuovoScenario);
+    await caricaHeatmapBanca();
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', nuovoScenario);
     await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', nuovoScenario);
   } else if (nuovaVista === 'promotore') {
