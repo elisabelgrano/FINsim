@@ -64,3 +64,4 @@ backend/venv311/
 backend/app/finsim/output/
 metriche_calcoli.txt
 
+logs/
