@@ -848,8 +848,16 @@
                 <div class="response-detail">{{ clusterAnalisiLLM }}</div>
               </div>
 
-              <div id="plotly-cluster-evolution" style="width: 100%; height: 350px; margin-bottom: 24px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
-              <div id="plotly-cumulativa-categoria" style="width: 100%; height: 320px; margin-bottom: 24px; background: rgba(0,0,0,0.02); border-radius: 4px;"></div>
+              <div id="plotly-cluster-evolution" @click="apriSpiegazioneGrafico('plotly-cluster-evolution', 'Evoluzione Strategica per Cluster')" style="width: 100%; height: 400px; margin-bottom: 8px; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
+              <div class="chart-static-caption" style="margin-bottom: 24px;">
+                <strong>Come leggere:</strong> Ogni pallino rappresenta un momento in cui il promotore ha cambiato approccio strategico. Il <strong>colore</strong> indica la categoria (🔴 Aggressiva, 🔵 Conservativa, 🟠 Informativa, 🟢 Relazionale). L'<strong>asse Y</strong> mostra la fiducia del cliente in quel momento (0-100%). La <strong>linea tratteggiata blu</strong> mostra l'adeguatezza della proposta.
+                <strong>Deduzione:</strong> Pallini in salita indicano che il cambio di approccio ha migliorato la fiducia. Pallini in discesa indicano che la strategia non ha funzionato e il promotore ha dovuto cambiare rotta.
+              </div>
+              <div id="plotly-cumulativa-categoria" @click="apriSpiegazioneGrafico('plotly-cumulativa-categoria', 'Utilizzo Cumulativo delle Categorie di Approccio')" style="width: 100%; height: 320px; margin-bottom: 8px; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
+              <div class="chart-static-caption" style="margin-bottom: 24px;">
+                <strong>Come leggere:</strong> Le linee mostrano quante volte ciascuna categoria di approccio è stata usata cumulativamente nel corso dei 200 round. Una linea che sale rapidamente indica un approccio dominante.
+                <strong>Deduzione:</strong> Se la categoria Relazionale (verde) domina nel lungo periodo, il promotore ha imparato che costruire fiducia è più efficace che spingere prodotti aggressivamente.
+              </div>
 
               <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
                 <div v-for="(colore, catName) in categoriaColori" :key="catName" v-show="catName !== 'Non classificato'" style="display: flex; align-items: center; gap: 6px;">
@@ -1971,6 +1979,8 @@ const apriSpiegazioneGrafico = async (chartId, chartTitle) => {
     'cFiducia': 'Curva di fiducia media dei clienti su 200 proposte, con media mobile a 15 periodi per eliminare il rumore.',
     'cRadar': 'Radar chart che confronta il profilo/soglia di riferimento (blu) con il portafoglio effettivamente assegnato (verde) su 3 dimensioni con dati reali: Profilo Rischio, Fiducia Cliente, Adeguatezza Proposta.',
     'spider-sentiment-clienti': 'Spider chart con 5 dimensioni psicologiche del cliente: Fiducia Percepita, Soddisfazione Proposta, Resilienza al Churn, Aderenza Normativa, Stabilità Comportamentale.',
+    'plotly-cluster-evolution': 'Grafico a dispersione che mostra i momenti di cambio strategico del promotore verso un segmento specifico di clientela. Ogni pallino colorato rappresente un cambio di approccio: ross=Aggressiva, blu=Conservativa, verde=Relazionale. L\'asse Y mostra la fiducia del cliente (0-100%), la linea tratteggiata blu mostra l\'adeguatezza della proposta.',
+    'plotly-cumulativa-categoria': 'Grafico ad area cumulativa che mostra quante volte ciascuna categoria di approccio strategico è stata utilizzata nel corso dei 200 round. Le linee mostrano l\'evoluzione dell\'approccio dominante nel tempo.',
   };
 
   const descrizione = descrizioniGrafici[chartId] || `Grafico ${chartTitle} della dashboard FINsim.`;
@@ -2122,7 +2132,7 @@ const renderClusterEvolutionChart = async () => {
       y: adeguatezza,
       type: 'scatter',
       mode: 'lines',
-      name: '-Adeguatezza Proposta',
+      name: 'Adeguatezza Proposta (linea tratteggiata)',
       line: { color: 'rgba(46,111,214,0.5)', width: 2, dash: 'dot' },
       hoverinfo: 'skip'
     },
@@ -2131,7 +2141,7 @@ const renderClusterEvolutionChart = async () => {
       y: fiducia,
       type: 'scatter',
       mode: 'lines+markers',
-      name: '● Fiducia Cliente (colore = categoria approccio)',
+      name: 'Fiducia Cliente (colore per categoria approccio)',
       line: { color: 'rgba(199,213,230,0.15)', width: 1 },
       marker: { size: 13, color: traceColors, line: { width: 1.5, color: '#ffffff' } },
       text: hoverText,
