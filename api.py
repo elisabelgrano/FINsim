@@ -1652,27 +1652,23 @@ def get_heatmap_data(scenario_id: str = "S0"):
     db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
     if not doc or "rounds" not in doc:
-        return {"matrice": [[0,0,0],[0,0,0],[0,0,0]]}
+        return {"matrice": [[0]*5 for _ in range(4)]}
 
-    profili_rischio = {"Conservative": 0, "Balanced": 1, "Aggressive": 2}
-    patrimoni = {"basso": 0, "medio": 1, "alto": 2}
-
-    adapt_acc = [[0,0,0],[0,0,0],[0,0,0]]
-    adapt_tot = [[0,0,0],[0,0,0],[0,0,0]]
-    fisso_acc = [[0,0,0],[0,0,0],[0,0,0]]
-    fisso_tot = [[0,0,0],[0,0,0],[0,0,0]]
+    adapt_acc = [[0]*5 for _ in range(4)]
+    adapt_tot = [[0]*5 for _ in range(4)]
+    fisso_acc = [[0]*5 for _ in range(4)]
+    fisso_tot = [[0]*5 for _ in range(4)]
 
     for r in doc["rounds"]:
         for promo in r.get("promoters_data", []):
             pid = promo.get("promotore_id", "")
             for s in promo.get("strategies", []):
-                profilo = s.get("profilo_rischio_prevalente", "Balanced")
                 coords = s.get("cluster_coords", [1, 1])
                 clienti = s.get("clients_in_cluster", 5)
 
-                # Mappa coords a indice patrimonio (0=basso, 1=medio, 2=alto)
-                col = min(int(coords[0] / 7 * 3), 2) if coords else 1
-                row = profili_rischio.get(profilo, 1)
+                # coords[0]=indice rischio (0-3), coords[1]=indice patrimonio (0-4)
+                row = min(int(coords[0]), 3) if coords else 1
+                col = min(int(coords[1]), 4) if coords else 1
 
                 if "ADAPT" in pid:
                     adapt_tot[row][col] += 1
@@ -1684,9 +1680,9 @@ def get_heatmap_data(scenario_id: str = "S0"):
                         fisso_acc[row][col] += 1
 
     matrice = []
-    for row in range(3):
+    for row in range(4):
         riga = []
-        for col in range(3):
+        for col in range(5):
             ta = adapt_tot[row][col]
             tf = fisso_tot[row][col]
             ra = adapt_acc[row][col] / ta if ta > 0 else 0
@@ -1694,7 +1690,11 @@ def get_heatmap_data(scenario_id: str = "S0"):
             riga.append(round((ra - rf) * 100, 2))
         matrice.append(riga)
 
-    return {"matrice": matrice}
+    return {
+        "matrice": matrice,
+        "risk_labels": ["Conservative", "Balanced", "Aggressive", "Alto Rischio"],
+        "wealth_labels": ["Patrimonio Basso", "Medio-Basso", "Medio", "Medio-Alto", "Patrimonio Alto"]
+    }
 # =====================================================================
 # PLOTLY CHARTS HELPERS & ENDPOINTS
 # =====================================================================
@@ -1835,91 +1835,6 @@ async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
 
     return {"data": fig.to_json()}
 
-
-@app.post("/api/charts/performance-lines", tags=["charts"])
-async def get_linee_comparative(request: AdvisorRequest) -> dict:
-    """
-    Generate comparative performance lines as Plotly JSON.
-    Data-Driven: Reads from MongoDB instead of synthetic data.
-    """
-    metrics = request.metrics_data or {}
-    scenario_id = metrics.get("scenario_corrente", "S0")
-
-    # Leggi dati reali da MongoDB
-    db_scenario_id = get_scenario_code(scenario_id)
-    doc = collection.find_one({"scenario_id": db_scenario_id})
-
-    storico_ia = []
-    storico_fisso = []
-
-    if doc and "rounds" in doc:
-        TICKET_MEDIO_MLN = 0.1
-        raccolta_cumulata_ia = 0.0
-        raccolta_cumulata_fisso = 0.0
-
-        for r in sorted(doc.get("rounds", []), key=lambda x: x.get("round", 0)):
-            raccolta_round_ia = 0.0
-            raccolta_round_fisso = 0.0
-
-            for promo in r.get("promoters_data", []):
-                pid = promo.get("promotore_id", "")
-
-                for strat in promo.get("strategies", []):
-                    if strat.get("accettato") == True:
-                        clienti_convertiti = strat.get("clients_in_cluster", 0)
-                        volume_generato = clienti_convertiti * TICKET_MEDIO_MLN
-
-                        if "ADAPT" in pid:
-                            raccolta_round_ia += volume_generato
-                        elif "FISSO" in pid:
-                            raccolta_round_fisso += volume_generato
-
-            raccolta_cumulata_ia += raccolta_round_ia
-            raccolta_cumulata_fisso += raccolta_round_fisso
-
-            storico_ia.append(round(raccolta_cumulata_ia, 2))
-            storico_fisso.append(round(raccolta_cumulata_fisso, 2))
-
-    # Fallback: se nessun dato da MongoDB, ritorna zeri (non sintetici)
-    if not storico_ia:
-        storico_ia = [0] * 200
-    if not storico_fisso:
-        storico_fisso = [0] * 200
-
-    # Estendi a 200 elementi se necessario
-    storico_ia = storico_ia[:200] + [0] * (200 - len(storico_ia))
-    storico_fisso = storico_fisso[:200] + [0] * (200 - len(storico_fisso))
-
-    proposte = [f"Prop. {i}" for i in range(1, 201)]
-
-    df_ia = pd.DataFrame({"Proposta": proposte, "Valore": storico_ia, "Strategia": "Consulenza IA Dinamica"})
-    df_fisso = pd.DataFrame({"Proposta": proposte, "Valore": storico_fisso, "Strategia": "Strategia Standard"})
-    df = pd.concat([df_ia, df_fisso])
-
-    fig = px.line(
-        df, x="Proposta", y="Valore", color="Strategia",
-        color_discrete_map={"Consulenza IA Dinamica": "#059669", "Strategia Standard": "#e11d48"}
-    )
-
-    fig.update_traces(line=dict(width=3))
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            title_text=""
-        ),
-        xaxis=dict(showticklabels=False)
-    )
-
-    fig = applica_stile_premium(fig, "Evoluzione Performance Cumulata", dark_mode=True)
-
-    return {"data": fig.to_json()}
-
-
 @app.post("/api/charts/sopravvivenza", tags=["charts"])
 async def get_curva_sopravvivenza(request: AdvisorRequest) -> dict:
     """Generate Kaplan-Meier Customer Retention Curve as Plotly JSON.
@@ -1936,9 +1851,7 @@ async def get_curva_sopravvivenza(request: AdvisorRequest) -> dict:
     rounds_data = []
     debug_info = {}
     try:
-        # Query MongoDB for simulation data (200 rounds)
-        # DB stores as "{scenario_id}_200" (e.g., "S0_200" not "S0")
-        db_scenario_key = f"{scenario_id}_200"
+        db_scenario_key = get_scenario_code(scenario_id)
         debug_info["searching_for"] = db_scenario_key
 
         # Try direct query first
@@ -2019,27 +1932,6 @@ async def get_sankey_flussi(request: AdvisorRequest) -> dict:
 # STANDARDIZED CHART ENDPOINTS (STEP 2: Global Chart Exposure)
 # =====================================================================
 
-@app.post("/api/charts/heatmap", tags=["charts"])
-async def get_heatmap_performance(request: AdvisorRequest) -> dict:
-    """Generate Performance Heatmap (Patrimonio vs Rischio) as Plotly JSON"""
-    from visualizzatore_grafici import genera_heatmap_performance
-
-    metrics = request.metrics_data or {}
-
-    fig = genera_heatmap_performance(metrics)
-
-    # Dark mode styling
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(30,41,59,0.3)',
-        font=dict(color='#C7D5E6')
-    )
-    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
-    fig.update_yaxes(tickfont=dict(color='#C7D5E6'))
-
-    return {"data": fig.to_json()}
-
-
 @app.post("/api/charts/prodotti", tags=["charts"])
 async def get_bar_prodotti(request: AdvisorRequest) -> dict:
     """Generate Product Satisfaction Bar Chart as Plotly JSON"""
@@ -2099,13 +1991,8 @@ async def get_andamento_guadagni(request: AdvisorRequest) -> dict:
     from visualizzatore_grafici import genera_andamento_guadagni
 
     metrics = request.metrics_data or {}
-
-    # Leggi dati reali da MongoDB
     scenario_id = metrics.get("scenario_corrente", "S0")
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
+    db_scenario_id = get_scenario_code(scenario_id)
 
     documento = collection.find_one({"scenario_id": db_scenario_id})
 
@@ -2170,13 +2057,8 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
     from visualizzatore_grafici import genera_linee_comparative
 
     metrics = request.metrics_data or {}
-
-    # Leggi dati reali da MongoDB (raccolta cumulata per round)
     scenario_id = metrics.get("scenario_corrente", "S0")
-    if not scenario_id.endswith("_200"):
-        db_scenario_id = f"{scenario_id}_200"
-    else:
-        db_scenario_id = scenario_id
+    db_scenario_id = get_scenario_code(scenario_id)
 
     documento = collection.find_one({"scenario_id": db_scenario_id})
 
@@ -2231,27 +2113,6 @@ async def get_linee_comparative(request: AdvisorRequest) -> dict:
         font=dict(color='#C7D5E6')
     )
     fig.update_xaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
-    fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
-
-    return {"data": fig.to_json()}
-
-
-@app.post("/api/charts/waterfall", tags=["charts"])
-async def get_waterfall_patrimonio(request: AdvisorRequest) -> dict:
-    """Generate AUM Waterfall Chart as Plotly JSON"""
-    from visualizzatore_grafici import genera_waterfall_patrimonio
-
-    metrics = request.metrics_data or {}
-
-    fig = genera_waterfall_patrimonio(metrics)
-
-    # Dark mode styling
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(30,41,59,0.3)',
-        font=dict(color='#C7D5E6')
-    )
-    fig.update_xaxes(tickfont=dict(color='#C7D5E6'))
     fig.update_yaxes(tickfont=dict(color='#C7D5E6'), gridcolor='rgba(199, 213, 230, 0.1)')
 
     return {"data": fig.to_json()}
@@ -2371,7 +2232,7 @@ async def get_trend_compliance(request: AdvisorRequest) -> dict:
     # Fetch rounds data from MongoDB
     rounds_data = []
     try:
-        db_scenario_key = f"{scenario_id}_200"
+        db_scenario_key = get_scenario_code(scenario_id)
         sim_doc = collection.find_one({"scenario_id": db_scenario_key})
 
         if not sim_doc:
@@ -2440,7 +2301,7 @@ async def get_client_sentiment(payload: dict):
         # Se scenario_ui è già un codice (S0, S1...) usalo direttamente
         if scenario_ui.startswith("S") and len(scenario_ui) <= 3:
             scenario_codice = scenario_ui
-        db_scenario_id = f"{scenario_codice}_200" if not scenario_codice.endswith("_200") else scenario_codice
+        db_scenario_id = get_scenario_code(scenario_codice)
 
         print(f"[Spider] Cercando scenario: {db_scenario_id}")
         documento = collection.find_one({"scenario_id": db_scenario_id})
@@ -2770,24 +2631,27 @@ def get_fiducia_evolution(scenario_id: str = "S0"):
 def get_profilo_portafoglio(scenario_id: str = "S0"):
     """
     Radar: Allineamento Profilo Dichiarato vs Portafoglio Assegnato.
-    Dimensioni: Rischio, Orizzonte Temporale, Liquidità, Rendimento Atteso, Conoscenza Finanziaria.
+    Dimensioni: Profilo Rischio, Fiducia Cliente, Adeguatezza Proposta.
+    Solo dimensioni con dati reali nella simulazione (FINSIM-MOD: rimosse Orizzonte/Liquidità/Conoscenza, non misurate).
     """
     db_scenario_id = get_scenario_code(scenario_id)
     doc = collection.find_one({"scenario_id": db_scenario_id})
 
+    labels = ["Profilo Rischio", "Fiducia Cliente", "Adeguatezza Proposta"]
+
     # Fallback se nessun dato
     if not doc or "rounds" not in doc:
         return {
-            "profilo_dichiarato": [35, 60, 70, 45, 50],
-            "portafoglio_assegnato": [40, 58, 75, 48, 50],
-            "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+            "profilo_dichiarato": [35, 70, 75],
+            "portafoglio_assegnato": [40, 58, 48],
+            "labels": labels
         }
 
     rounds = sorted(doc["rounds"], key=lambda x: x.get('round', 0))
 
     # Accumulatori per ogni dimensione
-    profilo_risk = profilo_time = profilo_liquidity = profilo_return = profilo_knowledge = 0
-    portfolio_risk = portfolio_time = portfolio_liquidity = portfolio_return = portfolio_knowledge = 0
+    profilo_risk = portfolio_risk = 0
+    portfolio_fiducia = portfolio_adeguatezza = 0
     conteggio = 0
 
     for r in rounds:
@@ -2797,53 +2661,37 @@ def get_profilo_portafoglio(scenario_id: str = "S0"):
             for strat in promo.get("strategies", []):
                 profilo = strat.get("profilo_rischio_prevalente", "Balanced")
                 adeq = strat.get("adeguatezza_score", 0.5)
+                fid = strat.get("fiducia_media_post", 0.5)
 
                 # Mappa profilo rischio dichiarato
                 risk_map = {"Conservative": 20, "Balanced": 50, "Aggressive": 80}
                 profilo_risk += risk_map.get(profilo, 50)
 
-                # Portfolio risk (basato su adeguatezza - se bassa, risk diverso)
+                # Portfolio risk (basato su adeguatezza)
                 portfolio_risk += (adeq * 80)
 
-                # Altre dimensioni (stimate da adeguatezza e fiducia)
-                fid = strat.get("fiducia_media_post", 0.5)
-                delta = strat.get("delta_fiducia_medio", 0)
-
-                profilo_time += 60  # Time horizon conservativo
-                portfolio_time += (fid * 100)  # Allineato a fiducia
-
-                profilo_liquidity += 70  # Liquidità desiderata
-                portfolio_liquidity += (80 if adeq > 0.6 else 60)
-
-                profilo_return += 50  # Return expectations
-                portfolio_return += (adeq * 100)  # Actual return potential
-
-                profilo_knowledge += 55  # Assumed knowledge
-                portfolio_knowledge += (delta * 100 + 50)  # Knowledge reflected in adjustments
+                portfolio_fiducia += (fid * 100)
+                portfolio_adeguatezza += (adeq * 100)
 
                 conteggio += 1
 
     if conteggio == 0:
         return {
-            "profilo_dichiarato": [35, 60, 70, 45, 50],
-            "portafoglio_assegnato": [40, 58, 75, 48, 50],
-            "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+            "profilo_dichiarato": [35, 70, 75],
+            "portafoglio_assegnato": [40, 58, 48],
+            "labels": labels
         }
 
     profilo = [
         round(profilo_risk / conteggio),
-        round(profilo_time / conteggio),
-        round(profilo_liquidity / conteggio),
-        round(profilo_return / conteggio),
-        round(profilo_knowledge / conteggio)
+        70,   # Fiducia Cliente: soglia di fiducia accettabile di riferimento
+        75    # Adeguatezza Proposta: soglia normativa di riferimento
     ]
 
     portfolio = [
         round(portfolio_risk / conteggio),
-        round(portfolio_time / conteggio),
-        round(portfolio_liquidity / conteggio),
-        round(portfolio_return / conteggio),
-        round(portfolio_knowledge / conteggio)
+        round(portfolio_fiducia / conteggio),
+        round(portfolio_adeguatezza / conteggio)
     ]
 
     # Normalizza a 0-100
@@ -2853,7 +2701,7 @@ def get_profilo_portafoglio(scenario_id: str = "S0"):
     return {
         "profilo_dichiarato": profilo,
         "portafoglio_assegnato": portfolio,
-        "labels": ["Rischio", "Orizzonte", "Liquidità", "Rendimento", "Conoscenza"]
+        "labels": labels
     }
 
 
@@ -3029,9 +2877,12 @@ Rispondi SOLO con un array JSON di {len(batch)} stringhe, una per ogni strategia
                 else:
                     categorie = []
 
+                categorie_valide_norm = {c.strip().casefold(): c for c in categorie_valide}
                 for i, cat in enumerate(categorie):
-                    if i < len(batch) and isinstance(cat, str) and cat in categorie_valide:
-                        batch[i]["categoria_approccio"] = cat
+                    if i < len(batch) and isinstance(cat, str):
+                        cat_normalizzata = categorie_valide_norm.get(cat.strip().casefold())
+                        if cat_normalizzata:
+                            batch[i]["categoria_approccio"] = cat_normalizzata
         except Exception as e:
             print(f"[Cluster Evolution] Errore classificazione batch {batch_start}: {e}")
 

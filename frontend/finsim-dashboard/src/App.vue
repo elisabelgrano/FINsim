@@ -35,7 +35,7 @@
           <div v-if="conversationHistory.length === 0" style="color: #6B7280; font-size: 12px; text-align: center; padding: 12px;">
             Nessuna domanda ancora...
           </div>
-          <div v-for="conv in conversationHistory" :key="conv.id" class="history-item">
+          <div v-for="conv in conversationHistory" :key="conv.id" class="history-item" @click="ripristinaConversazione(conv)">
             <div class="history-time">{{ conv.timestamp }}</div>
             <div class="history-question">{{ conv.question }}</div>
             <div class="history-brief">{{ conv.brief }}</div>
@@ -767,7 +767,7 @@
             <div class="panel-header"><h3>Allineamento Profilo vs Portafoglio</h3></div>
             <div class="chart-container" @click="apriSpiegazioneGrafico('cRadar', 'Allineamento Profilo vs Portafoglio')" style="height: 320px; cursor:pointer;"><canvas id="cRadar"></canvas></div>
             <div class="chart-static-caption">
-              <strong>Come leggere:</strong> Il radar mostra 5 dimensioni di preferenza cliente: Rischio, Orizzonte temporale, Liquidità, Rendimento atteso, Conoscenza finanziaria. La linea <strong style="color:#2E6FD6">blu</strong> è il profilo dichiarato, la linea <strong style="color:#178A57">verde</strong>è il portafoglio effettivo assegnato.
+              <strong>Come leggere:</strong> Il radar mostra 3 dimensioni con dati reali di simulazione: Profilo Rischio, Fiducia Cliente, Adeguatezza Proposta. La linea <strong style="color:#2E6FD6">blu</strong> è il profilo/soglia di riferimento, la linea <strong style="color:#178A57">verde</strong>è il portafoglio effettivo assegnato.
               <strong>Deduzione:</strong> Quando le aree coincidono il profilo è rispettato. Discrepanze indicano necessità di ribilanciamento o comunicazione aggiuntiva al cliente sul razionale delle scelte.
             </div>
           </div>
@@ -843,8 +843,7 @@
                 </div>
               </div>
 
-              <h4 style="color: #C7D5E6; margin-bottom: 12px; font-size: 13px;">Momenti di cambio strategia ({{ eventiTransizione.length }} su {{ clusterEvolutionData.rounds.length }} round totali)</h4>
-              <div style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
+                <h4 style="color: #C7D5E6; margin-bottom: 12px; font-size: 13px;">Momenti di cambio strategia ({{ eventiTransizione.length }} su 200 round totali)</h4>              <div style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
                 <div v-for="(evento, idx) in eventiTransizione" :key="idx"
                      style="display: flex; gap: 12px; padding: 12px; border-radius: 6px; background: rgba(31,164,99,0.05);"
                      :style="{ borderLeft: '3px solid ' + (categoriaColori[evento.categoria_approccio] || '#8593A8') }">
@@ -1671,9 +1670,9 @@ const renderCharts = () => {
 
     // RADAR CLIENTE - Profilo vs Portafoglio - Data-driven da MongoDB
     (async () => {
-      let profiloLabels = ['Rischio', 'Orizzonte', 'Liquidità', 'Rendimento', 'Conoscenza'];
-      let profiloDichiarato = [35, 60, 70, 45, 50];
-      let portagifolioAssegnato = [40, 58, 75, 48, 50];
+      let profiloLabels = ['Profilo Rischio', 'Fiducia Cliente', 'Adeguatezza Proposta'];
+      let profiloDichiarato = [35, 70, 75];
+      let portagifolioAssegnato = [40, 58, 48];
 
       try {
         const res = await fetch(`http://10.12.7.53:8000/api/charts/profilo-portafoglio?scenario_id=${scenario.value}`);
@@ -1954,7 +1953,7 @@ const apriSpiegazioneGrafico = async (chartId, chartTitle) => {
     'plotly-heatmap-promotore': 'Heatmap del vantaggio strategico per cluster clienti, vista dal punto di vista del promotore.',
     'plotly-sopravvivenza': 'Curva di sopravvivenza Kaplan-Meier che mostra il tasso di retention clienti nel tempo. I gradini verso il basso indicano abbandoni.',
     'cFiducia': 'Curva di fiducia media dei clienti su 200 proposte, con media mobile a 15 periodi per eliminare il rumore.',
-    'cRadar': 'Radar chart che confronta il profilo di rischio dichiarato dal cliente (blu) con il portafoglio effettivamente assegnato (verde) su 5 dimensioni.',
+    'cRadar': 'Radar chart che confronta il profilo/soglia di riferimento (blu) con il portafoglio effettivamente assegnato (verde) su 3 dimensioni con dati reali: Profilo Rischio, Fiducia Cliente, Adeguatezza Proposta.',
     'spider-sentiment-clienti': 'Spider chart con 5 dimensioni psicologiche del cliente: Fiducia Percepita, Soddisfazione Proposta, Resilienza al Churn, Aderenza Normativa, Stabilità Comportamentale.',
   };
 
@@ -2018,7 +2017,7 @@ const renderPlotlyChart = async (endpoint, divId, scenario_id = 'S0') => {
       fiducia_media_fisso: datiPromotore.value.fisso?.fiducia_media || 0,
       proposte_totali_adapt: datiPromotore.value.adapt?.proposte_totali || 0,
       proposte_totali_fisso: datiPromotore.value.fisso?.proposte_totali || 0,
-      matrice_performance: [[0,0,0],[0,0,0],[0,0,0]],
+      matrice_performance: [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],
       aum_iniziale: 100000000,
       nuova_raccolta_netta: 0,
       effetto_mercato: 0,
@@ -2214,7 +2213,7 @@ const renderHeatmapPromotore = async () => {
     // Attendi che Vue abbia montato il div nel DOM
     await nextTick();
     console.log('[Heatmap Promotore] nextTick completato');
-    let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
+    let matriceReale = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]];
     try {
       const r = await fetch(`http://10.12.7.53:8000/api/charts/heatmap-data?scenario_id=${scenario.value}`);
       if (r.ok) {
@@ -2509,6 +2508,25 @@ const caricaHeatmapRischio = async () => {
   }
 };
 
+const ripristinaConversazione = async (conv) => {
+  if (conv.clusterSnapshot) {
+    view.value = 'evoluzione';
+    clusterRiskIdx.value = conv.clusterSnapshot.riskIdx;
+    clusterWealthIdx.value = conv.clusterSnapshot.wealthIdx;
+    clusterEvolutionData.value = conv.clusterSnapshot.evolutionData;
+    clusterAnalisiLLM.value = conv.clusterSnapshot.evolutionData.analisi_llm || '';
+    clusterPromotoreType.value = conv.clusterSnapshot.evolutionData.promotore_tipo || '';
+    await nextTick();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    await renderClusterEvolutionChart();
+    await renderCumulativaCategoria();
+  }  else {
+    aiResponseBrief.value = conv.brief;
+    aiResponseDetail.value = conv.detail || '';
+    aiResponseCharts.value = [];
+  }
+};
+
 // FINSIM-MOD: Carica evoluzione cluster per Vista Evoluzione Cliente
 const caricaEvoluzioneCluster = async () => {
   isLoadingClusterEvolution.value = true;
@@ -2521,6 +2539,22 @@ const caricaEvoluzioneCluster = async () => {
       clusterAnalisiLLM.value = data.analisi_llm || '';
       clusterPromotoreType.value = data.promotore_tipo || '';
       isLoadingClusterEvolution.value = false;
+
+      if (data.analisi_llm) {
+        conversationHistory.value.push({
+          id: Date.now(),
+          question: `${data.cluster_label} — Evoluzione Strategica`,
+          brief: data.analisi_llm.slice(0, 120) + (data.analisi_llm.length > 120 ? '...': ''),
+          detail: data.analisi_llm,
+          timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit'}),
+          clusterSnapshot: {
+            riskIdx: clusterRiskIdx.value,
+            wealthIdx: clusterWealthIdx.value,
+            evolutionData: data,
+          }
+        });
+      }
+
       await nextTick();
       await new Promise(resolve => setTimeout(resolve, 150));
       await renderClusterEvolutionChart();
@@ -2567,7 +2601,7 @@ const renderAIPlotlyCharts = async () => {
         continue;
       }
 
-      let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
+      let matriceReale = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]];
       let waterfallData = { aum_iniziale: 100000000, nuova_raccolta: 15500000, effetto_mercato: -3200000, churn: -5800000 };
 
       if (chart.codice === 'HEATMAP_PERFORMANCE') {
@@ -2657,7 +2691,7 @@ const createAICharts = async () => {
 const exportToPDF = async () => {
   try {
     let waterfallReale = { aum_iniziale: 100000000, nuova_raccolta: 15500000, effetto_mercato: -3200000, churn: -5800000 };
-    let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
+    let matriceReale = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]];
     try {
       const rw = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario.value}`);
       if (rw.ok) { const d = await rw.json(); waterfallReale = d; }
@@ -2717,7 +2751,7 @@ const exportToPDF = async () => {
 const exportToPPTX = async () => {
   try {
     let waterfallReale = { aum_iniziale: 100000000, nuova_raccolta: 15500000, effetto_mercato: -3200000, churn: -5800000 };
-    let matriceReale = [[0,0,0],[0,0,0],[0,0,0]];
+    let matriceReale = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]];
     try {
       const rw = await fetch(`http://10.12.7.53:8000/api/charts/waterfall-data?scenario_id=${scenario.value}`);
       if (rw.ok) { const d = await rw.json(); waterfallReale = d; }
@@ -2800,7 +2834,7 @@ onMounted(async () => {
     await renderSpiderBanca();
     await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', scenario.value);
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', scenario.value);
-    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', scenario.value);
+    await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', scenario.value);
   }
 
   if (view.value === 'promotore') {
@@ -2853,21 +2887,31 @@ watch(scenario, async (newScenario, oldScenario) => {
   // Fetch dati per il nuovo scenario
   await fetchData();
 
-// Renderizza i grafici con i nuovi dati
-  await nextTick(() => renderCharts());
-
-  // Se vista cliente è attiva, ricarica dopo fetchData
-  if (view.value === 'cliente') {
-    await nextTick();
-    await new Promise(resolve => setTimeout(resolve, 200));
-    await Promise.all([
-      caricaVistaCliente(),
-      caricaHeatmapRischio(),
-      renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', scenario.value)
-    ]).catch(err => console.error('[FINsim] Errore Vista Cliente:', err));
-  }
-
-  console.log(`[FINsim] ✓ Dashboard aggiornata per scenario ${newScenario}`);
+// Nuovi dati per i grafici
+await nextTick(() => renderCharts());
+if (view.value === 'banca') {
+  await nextTick();
+  await renderSpiderBanca();
+  await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', newScenario);
+  await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', newScenario);
+  await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', newScenario);
+} else if (view.value === 'promotore') {
+  await nextTick();
+  await Promise.all([
+    renderHeatmapPromotore(),
+    renderSopravvivenza(),
+    renderPlotlyChart('/api/charts/guadagni', 'plotly-guadagni', newScenario)
+  ]).catch(err => console.error('[FINsim] Errore Vista Promotore:', err));
+} else if (view.value === 'cliente') {
+  await nextTick();
+  await new Promise(resolve => setTimeout(resolve, 200));
+  await Promise.all([
+    caricaVistaCliente(),
+    caricaHeatmapRischio(),
+    renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', newScenario)
+  ]).catch(err => console.error('[FINsim] Errore Vista Cliente:', err));
+}
+console.log(`[FINsim] ✓ Dashboard aggiornata per scenario ${newScenario}`);
 });
 
 // Watch sui grafici consigliati dall'IA per renderizzarli dinamicamente
@@ -2878,17 +2922,17 @@ watch(aiResponseCharts, async () => {
 
 // FINSIM-MOD: Watch sulla vista E scenario per renderizzare i grafici Plotly
 // Intercetta sia il cambio di tab (Banca/Promotore/Cliente) sia il cambio di Scenario (Base, Stress, ecc.)
-watch([view, scenario], async ([nuovaVista, nuovoScenario]) => {
+watch([view, scenario], async ([nuovaVista, nuovoScenario], [vecchiaVista, vecchioScenario]) => {
+  if (nuovoScenario !== vecchioScenario) return;
   if (nuovaVista === 'banca') {
     console.log('[FINsim] 📈 Vista Banca attiva, renderizzando grafici Plotly...');
     await nextTick();
     await renderSpiderBanca();
     await renderPlotlyChart('/api/charts/heatmap', 'plotly-heatmap', nuovoScenario);
     await renderPlotlyChart('/api/charts/waterfall', 'plotly-waterfall', nuovoScenario);
-    await renderPlotlyChart('/api/charts/performance-lines', 'plotly-lines', nuovoScenario);
+    await renderPlotlyChart('/api/charts/linee-comparative', 'plotly-lines', nuovoScenario);
   } else if (nuovaVista === 'promotore') {
-    console.log('[FINsim] 📊 Vista Promotore attiva, renderizzando grafici Plotly...');
-    // Renderizza la heatmap e la curva di sopravvivenza in parallelo
+    console.log('[FINsim] 📊 Vista proomotore attiva, renderizzando grafici Plotly...')
     await Promise.all([
       renderHeatmapPromotore(),
       renderSopravvivenza(),

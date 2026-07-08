@@ -48,8 +48,8 @@ def genera_heatmap_performance(business_metrics: dict):
     Data-Driven: Calcola dinamicamente basandosi sul vantaggio reale di conversione.
     Uses go.Heatmap (infallibile) instead of px.imshow.
     """
-    rischi = ["Rischio Basso", "Rischio Medio", "Rischio Alto"]
-    patrimoni = ["Patrimonio Basso", "Patrimonio Medio", "Patrimonio Alto"]
+    rischi = ["Conservative", "Balanced", "Aggressive", "Alto Rischio"]
+    patrimoni = ["Patrimonio Basso", "Medio-Basso", "Medio", "Medio-Alto", "Patrimonio Alto"]
 
     # FINSIM-MOD: Data-Driven derivation from real conversion rates
     matrice_performance = business_metrics.get("matrice_performance")
@@ -60,11 +60,12 @@ def genera_heatmap_performance(business_metrics: dict):
         conv_fisso = business_metrics.get("tasso_conversione_fisso_pct", 50.0)
         delta = conv_adapt - conv_fisso
 
-        # Distribuzione logica: IA domina di più su patrimoni e rischi alti
+        # Distribuzione logica: IA domina di più su patrimoni e rischi alti (4 profili rischio x 5 livelli patrimonio)
         dati_matrice = [
-            [delta * 0.1, delta * 0.3, delta * 0.5],    # Rischio Basso
-            [delta * 0.2, delta * 0.6, delta * 0.9],    # Rischio Medio
-            [delta * 0.4, delta * 0.8, delta * 1.5]     # Rischio Alto (massimo dominio)
+            [delta * 0.05, delta * 0.15, delta * 0.25, delta * 0.35, delta * 0.45],   # Conservative
+            [delta * 0.15, delta * 0.30, delta * 0.45, delta * 0.60, delta * 0.75],   # Balanced
+            [delta * 0.25, delta * 0.45, delta * 0.65, delta * 0.85, delta * 1.05],   # Aggressive
+            [delta * 0.35, delta * 0.60, delta * 0.85, delta * 1.10, delta * 1.50],   # Alto Rischio (massimo dominio)
         ]
     else:
         # Usa la matrice reale se disponibile
@@ -289,19 +290,26 @@ def genera_curva_sopravvivenza(rounds_data: list, business_metrics: dict):
             rnd = r.get('round', 0)
             rounds_numeri.append(rnd)  # FINSIM-MOD: Append integer, not f"R{rnd}"
 
-            # Estrai compliance reale per promotore
-            comp = r.get('compliance_per_promotore', {})
-            val_adapt = comp.get('PROM-ADAPT-1', 1.0)
-            val_fisso = comp.get('PROM-FISSO-1', 1.0)
-
-            # FINSIM-MOD: Normalizza compliance se è in scala 0-100 invece che 0-1
-            val_adapt = val_adapt / 100.0 if val_adapt > 1.5 else val_adapt
-            val_fisso = val_fisso / 100.0 if val_fisso > 1.5 else val_fisso
-
-            # Il gradino scende solo se la compliance reale non è perfetta (1.0)
-            # Moltiplicatore di sensibilità: 5.0 amplifica la caduta visibile
-            drop_adapt = (1.0 - val_adapt) * 5.0
-            drop_fisso = (1.0 - val_fisso) * 5.0
+            # Calcola churn reale da delta_fiducia_medio per promotore
+            delta_adapt = 0.0
+            delta_fisso = 0.0
+            count_adapt = 0
+            count_fisso = 0
+            for promo in r.get('promoters_data', []):
+                pid = promo.get('promotore_id', '')
+                for s in promo.get('strategies', []):
+                    delta = s.get('delta_fiducia_medio', 0)
+                    if 'ADAPT' in pid:
+                        delta_adapt += delta
+                        count_adapt += 1
+                    elif 'FISSO' in pid:
+                        delta_fisso += delta
+                        count_fisso += 1
+            media_delta_adapt = delta_adapt / count_adapt if count_adapt > 0 else 0
+            media_delta_fisso = delta_fisso / count_fisso if count_fisso > 0 else 0
+            
+            drop_adapt = max(0, -media_delta_adapt) * 50.0
+            drop_fisso = max(0, -media_delta_fisso) * 50.0
 
             # Aggiungi il nuovo valore di survival (non scendere sotto 0)
             surv_adapt.append(max(0, surv_adapt[-1] - drop_adapt))
