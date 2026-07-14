@@ -2834,7 +2834,7 @@ async def get_cluster_evolution(scenario_id: str = "S0", risk_idx: int = 0, weal
     # Classifica TUTTI gli eventi ADAPT in batch per evitare sovraccarico
     eventi_adapt = [e for e in eventi if e["tipo_promotore"] == "Consulenza Adattiva"]
 
-    BATCH_SIZE = 25
+    BATCH_SIZE = 50
     categorie_valide = {"Aggressiva", "Conservativa", "Informativa", "Relazionale"}
 
     for batch_start in range(0, len(eventi_adapt), BATCH_SIZE):

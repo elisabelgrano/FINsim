@@ -221,7 +221,7 @@
 
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
-            <div style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center;">
+            <div @click="apriSpiegazioneGrafico('heatmap-banca', 'Mappa di Valore')" style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center; cursor:pointer;">
               <div></div>
               <div v-for="col in ['Patrimonio Basso', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio']" :key="col"
                   style="text-align:center; font-size:11px; color:#8593A8; font-weight:600; padding:4px; text-transform:uppercase; letter-spacing:0.5px">
@@ -415,12 +415,25 @@
             </div>
           </div>
 
-          <!-- ROW 2B: Heatmap Plotly Cluster Clienti -->
           <div class="panel" style="grid-column: span 6;">
             <div class="panel-header"><h3>🔥 Mappa di Valore (Patrimonio Gestito vs Profilo Rischio)</h3></div>
-            <div id="plotly-heatmap-promotore" @click="apriSpiegazioneGrafico('plotly-heatmap-promotore', 'Mappa di Valore Promotore')" style="width: 100%; height: 400px; min-height: 400px; background: rgba(0,0,0,0.02); border-radius: 4px; cursor:pointer;"></div>
-            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie per ogni segmento di clientela (profilo di rischio × patrimonio). <strong style="color:#059669">Verde</strong> = la Consulenza Adattiva converte meglio in quel segmento. <strong style="color:#e11d48">Rosso</strong> = la Strategia Standard è più efficace. Il valore numerico indica la differenza percentuale tra le due strategie.</p> 
-           </div>
+            <div @click="apriSpiegazioneGrafico('heatmap-promotore', 'Mappa di Valore Promotore')" style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center; cursor:pointer;">              <div></div>
+              <div v-for="col in ['Patrimonio Basso', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio']" :key="col"
+                  style="text-align:center; font-size:11px; color:#8593A8; font-weight:600; padding:4px; text-transform:uppercase; letter-spacing:0.5px">
+                {{ col }}
+              </div>
+              <template v-for="(row, rowIdx) in heatmapBanca" :key="rowIdx">
+                <div style="font-size:11px; color:#8593A8; font-weight:600; text-align:right; padding-right:8px; text-transform:uppercase; letter-spacing:0.5px">
+                  {{ row.label }}
+                </div>
+                <div v-for="(cell, colIdx) in row.cells" :key="colIdx"
+                    class="heat-cell" :style="{ backgroundColor: cell.bg, color: cell.fg }">
+                  {{ cell.value }}
+                </div>
+              </template>
+            </div>
+            <p class="chart-caption">La scala cromatica mostra il differenziale di conversione tra le due strategie. <strong style="color:#059669">Verde</strong> = Consulenza Adattiva converte meglio. <strong style="color:#e11d48">Rosso</strong> = Strategia Standard più efficace.</p>
+          </div>
 
           <!-- ROW 2C: Delta Performance Consulenza Adattiva vs Strategia Standard -->
           <div class="panel" style="grid-column: span 6;">
@@ -742,7 +755,7 @@
             <div class="panel-header">
               <h3>🗺️ Heatmap Propensione al Rischio per Cluster</h3>
             </div>
-            <div style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center;">
+            <div @click="apriSpiegazioneGrafico('heatmap-promotore', 'Mappa di Valore Promotore')" style="display: grid; grid-template-columns: 120px repeat(5, 1fr); gap: 4px; align-items: center; cursor:pointer;">
               <!-- Header colonne -->
               <div></div>
               <div v-for="col in ['Basso Patrimonio', 'Medio-Basso', 'Medio', 'Medio-Alto', 'Alto Patrimonio']" :key="col"
@@ -1981,6 +1994,8 @@ const apriSpiegazioneGrafico = async (chartId, chartTitle) => {
     'spider-sentiment-clienti': 'Spider chart con 5 dimensioni psicologiche del cliente: Fiducia Percepita, Soddisfazione Proposta, Resilienza al Churn, Aderenza Normativa, Stabilità Comportamentale.',
     'plotly-cluster-evolution': 'Grafico a dispersione che mostra i momenti di cambio strategico del promotore verso un segmento specifico di clientela. Ogni pallino colorato rappresente un cambio di approccio: ross=Aggressiva, blu=Conservativa, verde=Relazionale. L\'asse Y mostra la fiducia del cliente (0-100%), la linea tratteggiata blu mostra l\'adeguatezza della proposta.',
     'plotly-cumulativa-categoria': 'Grafico ad area cumulativa che mostra quante volte ciascuna categoria di approccio strategico è stata utilizzata nel corso dei 200 round. Le linee mostrano l\'evoluzione dell\'approccio dominante nel tempo.',
+    'heatmap-banca': 'Griglia che mostra il differenziale di conversione tra Conulenza Adattiva e Strategia Standard per ogni combinazione di Profilo di Rischio (righe) e Patrimonio del Cliente (colonne). Valori positivi in verde indicano che la Consulenza Adattiva converte meglio in quel segmento. Valori negativi in rosso indicano che la Strategia Standard è più efficace.',
+    'heatmap-promotore': 'Griglia che mostra il differenziale di conversione tra Consulenza Adattiva e Strategia Standard per ogni segmento di clientela. Valori positivi in verde indicano che la Consulenza Adattiva converte meglio. Valori negativi in rosso indicano che Strategia Standard è più efficace in quel cluster.',
   };
 
   const descrizione = descrizioniGrafici[chartId] || `Grafico ${chartTitle} della dashboard FINsim.`;
@@ -2143,7 +2158,7 @@ const renderClusterEvolutionChart = async () => {
       mode: 'lines+markers',
       name: 'Fiducia Cliente (colore per categoria approccio)',
       line: { color: 'rgba(199,213,230,0.15)', width: 1 },
-      marker: { size: 13, color: traceColors, line: { width: 1.5, color: '#ffffff' } },
+      marker: { size: 7, color: traceColors, line: { width: 1, color: '#ffffff' } },
       text: hoverText,
       hoverinfo: 'text'
     }
@@ -2155,7 +2170,10 @@ const renderClusterEvolutionChart = async () => {
     xaxis: {
       title: { text: 'Round di Simulazione', font: { size: 12, color: '#8593A8' } },
       gridcolor: 'rgba(199,213,230,0.08)',
-      tickfont: { size: 11, color: '#8593A8' }
+      tickfont: { size: 11, color: '#8593A8' },
+      margin: { l: 60, 4: 30, t: 50, b: 80 },
+      dragmode: 'zoom',
+      modebar: { orientation: 'v' }
   },
   yaxis: {
     title: { text: 'Percentuale (%)', font: { size: 12, color: '#8593A8' } },
@@ -2913,7 +2931,6 @@ onMounted(async () => {
 
   if (view.value === 'promotore') {
     await Promise.all([
-      renderHeatmapPromotore(),
       renderSopravvivenza(),
       renderPlotlyChart('/api/charts/guadagni', 'plotly-guadagni', scenario.value)
     ]).catch(err => console.error('[FINsim] Errore nel rendering dei grafici:', err));
@@ -2972,7 +2989,6 @@ if (view.value === 'banca') {
 } else if (view.value === 'promotore') {
   await nextTick();
   await Promise.all([
-    renderHeatmapPromotore(),
     renderSopravvivenza(),
     renderPlotlyChart('/api/charts/guadagni', 'plotly-guadagni', newScenario)
   ]).catch(err => console.error('[FINsim] Errore Vista Promotore:', err));
@@ -3008,7 +3024,6 @@ watch([view, scenario], async ([nuovaVista, nuovoScenario], [vecchiaVista, vecch
   } else if (nuovaVista === 'promotore') {
     console.log('[FINsim] 📊 Vista proomotore attiva, renderizzando grafici Plotly...')
     await Promise.all([
-      renderHeatmapPromotore(),
       renderSopravvivenza(),
       renderPlotlyChart('/api/charts/guadagni', 'plotly-guadagni', nuovoScenario)
     ]).catch(err => console.error('[FINsim] Errore nel rendering dei grafici:', err));
