@@ -507,15 +507,21 @@ def get_dati_promotore(scenario_id: str = "S0"):
     ultimo_prodotto = "N/A"
     ultimo_profilo = "N/A"
 
-    for promo in ultimo_round.get("promoters_data", []):
-        if "ADAPT" in promo.get("promotore_id", ""):
-            strats = promo.get("strategies", [])
-            if strats:
-                strat_consigliata = strats[0].get("llm_strategy", "")
-                approccio = strats[0].get("approccio_comunicativo", "")
-                ultimo_prodotto = strats[0].get("prodotto_suggerito", "Altro").replace('_', ' ')
-                ultimo_profilo = strats[0].get("profilo_rischio_prevalente", "Balanced")
-
+    for round_check in reversed(rounds):
+        found = False
+        for promo in round_check.get("promoters_data", []):
+            if "ADAPT" in promo.get("promotore_id", ""):
+                strats = promo.get("strategies", [])
+                if strats and strats[0].get("approccio_comunicativo", ""):
+                    strat_consigliata = strats[0].get("llm_strategy", "")
+                    approccio = strats[0].get("approccio_comunicativo", "")
+                    ultimo_prodotto = strats[0].get("prodotto_suggerito", "Altro").replace('_', ' ')
+                    ultimo_profilo = strats[0].get("profilo_rischio_prevalente", "Balanced")
+                    found = True
+                    break
+        if found: 
+            break
+        
     # Creazione automatica dei Tag di contesto basati sulle risposte dell'LLM
     tags = [f"🎯 Target: {ultimo_profilo}", f"📦 Prodotto: {ultimo_prodotto}"]
     if "stabile" in strat_consigliata.lower() or "mitigare" in strat_consigliata.lower() or "ansietà" in strat_consigliata.lower():

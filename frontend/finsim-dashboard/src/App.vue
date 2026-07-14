@@ -1062,7 +1062,7 @@ const loadPlotly = async () => {
 
 // --- STATO ---
 const view = ref('banca'); // Partiamo dalla vista banca
-const scenario = ref('S0'); // Impostiamo a S0 visto che i tuoi dati su Mongo sono S0
+const scenario = ref('S0_fix12');
 let chartInstances = [];
 const isAdvisorLoading = ref(false);
 const showHelpModal = ref(false);
@@ -1219,16 +1219,16 @@ const viewButtons = [
 ];
 
 const scenarioPills = [
-  { id: 'S0', label: 'Base' },
-  { id: 'S1', label: 'Espansione' },
-  { id: 'S2', label: 'Rialzo tassi' },
-  { id: 'S3', label: 'Stress' },
-  { id: 'S4', label: 'Recessione' },
-  { id: 'S0_fix12', label: 'Base (fix12)' },
-  { id: 'S1_fix12', label: 'Espansione (fix12)' },
-  { id: 'S2_fix12', label: 'Rialzo tassi (fix12)' },
-  { id: 'S3_fix12', label: 'Opportunità (fix12)' },
-  { id: 'S4_fix12', label: 'Biforcazione (fix12)' },
+  //{ id: 'S0', label: 'Base' },
+  // { id: 'S1', label: 'Espansione' },
+  // { id: 'S2', label: 'Rialzo tassi' },
+  // { id: 'S3', label: 'Stress' },
+  // { id: 'S4', label: 'Recessione' },
+  { id: 'S0_fix12', label: 'Base' },
+  { id: 'S1_fix12', label: 'Espansione' },
+  { id: 'S2_fix12', label: 'Rialzo tassi' },
+  { id: 'S3_fix12', label: 'Opportunità' },
+  { id: 'S4_fix12', label: 'Biforcazione' },
 ];
 
 const domandePredefiniteStandard = [
