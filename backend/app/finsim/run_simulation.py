@@ -46,6 +46,7 @@ def run_scenario_rounds(
     engine: SimulationEngine,
     scenario_id: str,
     num_rounds: int = 200,
+    start_round: int = 1,
     on_round_complete=None,
 ) -> Dict[str, Any]:
     """
@@ -73,7 +74,7 @@ def run_scenario_rounds(
         'timestamp': datetime.now().isoformat(),
     }
 
-    for round_n in range(1, num_rounds + 1):
+    for round_n in range(start_round, num_rounds + 1):
         try:
             logger.info(f"\n--- Round {round_n}/{num_rounds} ---")
             round_result = engine.esegui_round(scenario_id=scenario_id, round_n=round_n)
@@ -352,9 +353,17 @@ def main():
             
             # Cache check sul NUOVO nome
             existing_doc = collection.find_one({"scenario_id": mongo_scenario_id})
-            if existing_doc:
+            if existing_doc and not existing_doc.get("partial", False):
                 logger.info(f"Scenario {mongo_scenario_id} already completed. Skipping execution.")
                 continue
+            
+            # Resume da round successivo se partial esiste
+            start_round = 1
+            rounds_esistenti = []
+            if existing_doc and existing_doc.get("partial", False):
+                rounds_esistenti = existing_doc.get("rounds", [])
+                start_round = existing_doc.get("round_completed", 0) + 1
+                logger.info(f"Resuming {mongo_scenario_id} from round {start_round} ({len(rounds_esistenti)} rounds already completed)")
 
             try:
                 logger.info(f"\n\n{'='*80}")
@@ -392,8 +401,13 @@ def main():
                     engine=engine,
                     scenario_id=scenario_id,
                     num_rounds=200,
+                    start_round=start_round,
                     on_round_complete=salva_parziale,
                 )
+                # Merge con i round esistenti
+                scenario_result["rounds"] = rounds_esistenti + scenario_result["rounds"]
+                scenario_result["total_decisions"] += sum(r.get("decisions_created", 0) for r in rounds_esistenti)
+                scenario_result["total_clients_updated"] += sum(r.get("clients_updated", 0) for r in rounds_esistenti)
 
                 all_results.append(scenario_result)
 
