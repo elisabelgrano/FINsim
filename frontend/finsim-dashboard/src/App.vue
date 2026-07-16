@@ -24,7 +24,7 @@
           @click="scenario = s.id"
           :style="getBtnStyle(scenario === s.id, true)"
         >
-          <span class="status-dot" :class="{ active: scenario === s.id }"></span>
+          <span class="status-dot" :class="{ active: scenario === s.id, [regimeMercato.colorClass]: scenario === s.id }"></span>
           {{ s.label }}
         </button>
       </div>
@@ -53,7 +53,7 @@
             <button @click="exportToPPTX" class="report-btn pptx-btn" title="Genera presentazione PPTX con grafici e analisi">🎬 Genera PPTX</button>
           </div>
           <button @click="showHelpModal = true" class="help-btn">❓ Guida & Legenda</button>
-          <div class="user-profile"></div>
+          <div class="user-profile" :class="regimeMercato.colorClass"></div>
         </div>
       </header>
 
@@ -348,8 +348,8 @@
           <div class="panel highlight-panel" style="grid-column: span 8;">
             <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
               <h3><span style="font-size:16px;">🧠</span> Direttiva Strategica IA (Consulenza Adattiva)</h3>
-              <div class="scenario-indicator">
-                <span class="status-dot active"></span>
+              <div class="scenario-indicator" :style="{ background: regimeColori.bg, border: `1px solid ${regimeColori.border}`, color: regimeColori.color }">
+                <span class="status-dot active" :class="regimeMercato.colorClass"></span>
                 Scenario: <strong>{{ scenarioPills.find(s => s.id === scenario)?.label || scenario }}</strong>
               </div>
             </div>
@@ -1383,6 +1383,17 @@ const regimeMercato = computed(() => {
   };
   const scenarioBase = scenario.value.replace('_fix12', '');
   return regimes[scenarioBase] || regimes.S0;
+});
+
+const regimeColori = computed(() => {
+  const mappa = {
+    'status-stable':    { color: '#1FA463', bg: 'rgba(31,164,99,0.1)',   border: 'rgba(31,164,99,0.3)' },
+    'status-expansion': { color: '#2E6FD6', bg: 'rgba(46,111,214,0.1)',  border: 'rgba(46,111,214,0.3)' },
+    'status-warning':   { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.3)' },
+    'status-critical':  { color: '#E11D48', bg: 'rgba(225,29,72,0.1)',   border: 'rgba(225,29,72,0.3)' },
+    'status-recession': { color: '#7C3AED', bg: 'rgba(124,58,237,0.1)',  border: 'rgba(124,58,237,0.3)' },
+  };
+  return mappa[regimeMercato.value.colorClass] || mappa['status-stable'];
 });
 
 const nextBestActionsTradotte = computed(() => {
@@ -3068,13 +3079,28 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .version { font-size: 11px; color: #1FA463; margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
 .sidebar-section h4 { font-size: 11px; color: #5C6F86; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #314457; transition: background-color 0.2s; }
+.status-dot.status-stable { background-color: #1FA463; }
+.status-dot.status-expansion { background-color: #2E6FD6; }
+.status-dot.status-warning { background-color: #F59E0B; }
+.status-dot.status-critical { background-color: #E11D48; }
+.status-dot.status-recession { background-color: #7C3AED; }
 .status-dot.active { background-color: #1FA463; box-shadow: 0 0 8px rgba(31,164,99,0.4); }
+.status-dot.active.status-stable { background-color: #1FA463; box-shadow: 0 0 8px rgba(31,164,99,0.4); }
+.status-dot.active.status-expansion { background-color: #2E6FD6; box-shadow: 0 0 8px rgba(46,111,214,0.4); }
+.status-dot.active.status-warning { background-color: #F59E0B; box-shadow: 0 0 8px rgba(245,158,11,0.4); }
+.status-dot.active.status-critical { background-color: #E11D48; box-shadow: 0 0 8px rgba(225,29,72,0.4); }
+.status-dot.active.status-recession { background-color: #7C3AED; box-shadow: 0 0 8px rgba(124,58,237,0.4); }
 
 /* Main Content */
 .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { height: 64px; border-bottom: 1px solid #1C2B3A; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background-color: #111c24; }
 .breadcrumb { font-size: 14px; color: #cbd5e0; }
-.user-profile { width: 32px; height: 32px; border-radius: 50%; background-color: #1FA463; border: 2px solid #111A24; }
+.user-profile { width: 32px; height: 32px; border-radius: 50%; background-color: #1FA463; border: 2px solid #111A24; transition: background-color 0.3s; }
+.user-profile.status-stable { background-color: #1FA463; }
+.user-profile.status-expansion { background-color: #2E6FD6; }
+.user-profile.status-warning { background-color: #F59E0B; }
+.user-profile.status-critical { background-color: #E11D48; }
+.user-profile.status-recession { background-color: #7C3AED; }
 
 /* Area Contenuto */
 .content-area { padding: 32px; overflow-y: auto; height: calc(100vh - 64px); background-color: #111c24; }
