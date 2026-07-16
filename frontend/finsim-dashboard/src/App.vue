@@ -1381,7 +1381,8 @@ const regimeMercato = computed(() => {
       regWatch: "Media (Ricalibrazione Target)"
     }
   };
-  return regimes[scenario.value] || regimes.S0;
+  const scenarioBase = scenario.value.replace('_fix12', '');
+  return regimes[scenarioBase] || regimes.S0;
 });
 
 const nextBestActionsTradotte = computed(() => {
