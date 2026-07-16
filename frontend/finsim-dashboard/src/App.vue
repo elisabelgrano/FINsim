@@ -1485,7 +1485,11 @@ const renderCharts = () => {
   
   const mkChart = (id, config) => {
     const el = document.getElementById(id);
-    if (el) chartInstances.push(new Chart(el, config));
+    if (el) {
+      const existing = Chart.getChart(el);
+      if (existing) existing.destroy();
+      chartInstances.push(new Chart(el, config));
+    }
   };
 
   if (view.value === 'promotore') {
@@ -2481,6 +2485,87 @@ const renderSopravvivenza = async () => {
   }
 };
 
+const caricaGraficiCliente = async () => {
+  const ADAPT = '#178A57', FISSO = '#2E6FD6';
+  const mkChart = (id, config) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const existing = Chart.getChart(el);
+      if (existing) existing.destroy();
+      chartInstances.push(new Chart(el, config));
+    }
+  };
+
+  let fiduciaAdapt = [], fiduciaFisso = [], fiduciaLabels = [];
+  try {
+    const res = await fetch(`http://10.12.7.53:8000/api/charts/fiducia-evolution?scenario_id=${scenario.value}`);
+    if (res.ok) {
+      const data = await res.json();
+      fiduciaAdapt = data.fiducia_adapt || [];
+      fiduciaFisso = data.fiducia_fisso || [];
+      fiduciaLabels = data.labels || [];
+    }
+  } catch (err) { console.warn('[cFiducia] Errore:', err.message); }
+
+  if (!fiduciaAdapt.length) fiduciaAdapt = Array.from({length: 200}, () => 50);
+  if (!fiduciaFisso.length) fiduciaFisso = Array.from({length: 200}, () => 55);
+  if (!fiduciaLabels.length) fiduciaLabels = Array.from({length: fiduciaAdapt.length}, (_, i) => `P${i + 1}`);
+
+  const smoothingWindow = (arr) => arr.map((_, idx, list) => {
+    const window = list.slice(Math.max(0, idx - 14), idx + 1);
+    return window.reduce((a, b) => a + b, 0) / window.length;
+  });
+
+  mkChart('cFiducia', {
+    type: 'line',
+    data: {
+      labels: fiduciaLabels,
+      datasets: [
+        { label: 'Fiducia Consulenza Adattiva', data: smoothingWindow(fiduciaAdapt), borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,0.1)', fill: true, tension: 0.4, borderWidth: 2.5, pointRadius: 0 },
+        { label: 'Fiducia Strategia Standard', data: smoothingWindow(fiduciaFisso), borderColor: FISSO, backgroundColor: 'rgba(46,111,214,0.1)', fill: true, tension: 0.4, borderWidth: 2.5, borderDash: [5,4], pointRadius: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { autoSkip: false, callback: (val, index) => (index === 0) ? 'P1' : ((index + 1) % 40 === 0) ? `P${index + 1}` : (index === fiduciaAdapt.length - 1) ? `P${index + 1}` : '', color: '#8593A8' }, grid: { display: false } },
+        y: { suggestedMin: 0, suggestedMax: 100, ticks: { color: '#8593A8', callback: val => val + '%' } }
+      }
+    }
+  });
+
+  // cRadar
+  let profiloLabels = ['Profilo Rischio', 'Fiducia Cliente', 'Adeguatezza Proposta'];
+  let profiloDichiarato = [35, 70, 75];
+  let portafoglioAssegnato = [40, 58, 48];
+  try {
+    const res = await fetch(`http://10.12.7.53:8000/api/charts/profilo-portafoglio?scenario_id=${scenario.value}`);
+    if (res.ok) {
+      const data = await res.json();
+      profiloLabels = data.labels || profiloLabels;
+      profiloDichiarato = data.profilo_dichiarato || profiloDichiarato;
+      portafoglioAssegnato = data.portafoglio_assegnato || portafoglioAssegnato;
+    }
+  } catch (err) { console.warn('[cRadar] Errore:', err.message); }
+
+  mkChart('cRadar', {
+    type: 'radar',
+    data: {
+      labels: profiloLabels,
+      datasets: [
+        { label: 'Profilo Dichiarato', data: profiloDichiarato, borderColor: FISSO, backgroundColor: 'rgba(46,111,214,.16)', borderDash: [4,4], borderWidth: 2, pointRadius: 0 },
+        { label: 'Portafoglio Assegnato', data: portafoglioAssegnato, borderColor: ADAPT, backgroundColor: 'rgba(23,138,87,.16)', borderWidth: 2, pointRadius: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+      scales: { r: { suggestedMin: 0, suggestedMax: 100 } }
+    }
+  });
+};
+
 // FINSIM-MOD: Carica e renderizza il pannello Customer Sentiment (Vista Cliente)
 const caricaVistaCliente = async () => {
   try {
@@ -2991,7 +3076,9 @@ watch(scenario, async (newScenario, oldScenario) => {
   await fetchData();
 
 // Nuovi dati per i grafici
-await nextTick(() => renderCharts());
+if (view.value !== 'cliente') {
+  await nextTick(() => renderCharts());
+}
 if (view.value === 'banca') {
   await nextTick();
   await renderSpiderBanca();
@@ -3006,11 +3093,12 @@ if (view.value === 'banca') {
   ]).catch(err => console.error('[FINsim] Errore Vista Promotore:', err));
 } else if (view.value === 'cliente') {
   await nextTick();
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 300));
   await Promise.all([
     caricaVistaCliente(),
     caricaHeatmapRischio(),
-    renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', newScenario)
+    renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', newScenario),
+    caricaGraficiCliente()
   ]).catch(err => console.error('[FINsim] Errore Vista Cliente:', err));
 }
 console.log(`[FINsim] ✓ Dashboard aggiornata per scenario ${newScenario}`);
@@ -3038,15 +3126,16 @@ watch([view, scenario], async ([nuovaVista, nuovoScenario], [vecchiaVista, vecch
     await Promise.all([
       renderSopravvivenza(),
       renderPlotlyChart('/api/charts/guadagni', 'plotly-guadagni', nuovoScenario)
-    ]).catch(err => console.error('[FINsim] Errore nel rendering dei grafici:', err));
+    ]).catch(err => console.error('[FINsim] 👥 Errore nel rendering dei grafici:', err));
   } else if (nuovaVista === 'cliente') {
-    console.log('[FINsim] 👥 Vista Cliente attiva, caricando Intelligence/Sentiment per scenario:', nuovoScenario);
+    console.log('[FINsim] Vista Cliente attiva, caricando Intelligence/Sentiment per scenario:', nuovoScenario);
     await nextTick();
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 300));
     await Promise.all([
       caricaVistaCliente(),
       caricaHeatmapRischio(),
-      renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', nuovoScenario)
+      renderPlotlyChart('/api/charts/prodotti', 'plotly-bar-prodotti', nuovoScenario),
+      caricaGraficiCliente()
     ]).catch(err => console.error('[FINsim] Errore nel caricamento Vista Cliente:', err));
   } else if (nuovaVista === 'evoluzione') {
     console.log('[FINsim] 📈 Vista Evoluzione Cliente attiva, caricando dati del cluster...');
