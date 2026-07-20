@@ -590,8 +590,14 @@
               <strong>Deduzione:</strong> Un volume della Consulenza Adattiva sistematicamente più alto indica maggiore efficacia della strategia personalizzata. Picchi anomali suggeriscono fattori di mercato esterni.
             </div>
           </div>
+        <div class="panel" style="grid-column: span 12;">
+            <div class="panel-header"><h3>📐 Scostamento dalla Direttiva Bancaria al Momento dell'Accettazione</h3></div>
+            <div class="chart-container" @click="apriSpiegazioneGrafico('pScostamento', 'Scostamento Direttiva')" style="cursor:pointer;"><canvas id="pScostamento"></canvas></div>
+            <div class="chart-static-caption" style="margin-top: 8px;">
+              <strong>Come leggere:</strong> Ogni pallino rappresenta un round in cui almeno un cliente ha accettato la proposta. L'asse Y mostra l'adeguatezza media della proposta accettata rispetto alla direttiva bancaria (0-100%). <strong>Verde</strong> = Consulenza Adattiva, <strong>Blu</strong> = Strategia Standard. <strong>Deduzione:</strong> Pallini bassi indicano che il promotore si discosta dalla direttiva nel momento dell'accettazione — il cliente accetta ma la proposta è poco allineata agli obiettivi bancari.
+            </div>
+          </div>
         </div>
-
         <div v-if="view === 'cliente'" class="dashboard-grid">
 
           <div class="panel advisor-panel" style="grid-column: span 12;">
@@ -1566,6 +1572,8 @@ const renderCharts = () => {
     const blockLabels = ['Prop. 1-20', 'Prop. 21-40', 'Prop. 41-60', 'Prop. 61-80', 'Prop. 81-100', 'Prop. 101-120', 'Prop. 121-140', 'Prop. 141-160', 'Prop. 161-180', 'Prop. 181-200'];
     const accettateAdaptAgg = aggregateInBlocks(accettateAdapt.length ? accettateAdapt : Array.from({length:200}, ()=>0));
     const accettateFissoAgg = aggregateInBlocks(accettateFisso.length ? accettateFisso : Array.from({length:200}, ()=>0));
+    const adeguatezzaAccettataAdapt = datiGraficiPromotore.value.adeguatezza_accettata_adapt || [];
+    const adeguatezzaAccettataFisso = datiGraficiPromotore.value.adeguatezza_accettata_fisso || [];
 
     mkChart('pAccept', {
       type: 'bar',
@@ -1578,7 +1586,91 @@ const renderCharts = () => {
       },
       options: { ...baseCfg, scales: { x: { ticks: { color: '#8593A8' }, grid: { display: false } } }, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
     });
-
+    const smoothScostamento = (arr) => arr.map((v, i, list) => {
+      const validPoints = list.slice(Math.max(0, i - 9), i + 1).filter(x => x != null);
+      if (validPoints.length === 0) return null;
+      return validPoints.reduce((a, b) => a + b, 0) / validPoints.length;
+    });
+    const adeguatezzaAdaptSmoothed = smoothScostamento(adeguatezzaAccettataAdapt);
+    const adeguatezzaFissoSmoothed = smoothScostamento(adeguatezzaAccettataFisso);
+    mkChart('pScostamento', {
+      type: 'line',
+      data: {
+        labels: Array.from({length: 200}, (_, i) => i + 1),
+        datasets: [
+          {
+            label: 'Soglia Direttiva Bancaria (75%)',
+            data: Array(200).fill(75),
+            borderColor: 'rgba(255,200,0,0.8)',
+            borderDash: [8, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false
+          },
+          {
+            label: 'Consulenza Adattiva (media mobile)',
+            data: adeguatezzaAdaptSmoothed,
+            borderColor: '#178A57',
+            backgroundColor: 'rgba(23,138,87,0.1)',
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0.4,
+            fill: false
+          },
+          {
+            label: 'Strategia Standard (media mobile)',
+            data: adeguatezzaFissoSmoothed,
+            borderColor: '#2E6FD6',
+            backgroundColor: 'rgba(46,111,214,0.1)',
+            borderWidth: 2.5,
+            borderDash: [5, 4],
+            pointRadius: 0,
+            tension: 0.4,
+            fill: false
+          },
+          {
+            label: 'Punti accettazione ADAPT',
+            data: adeguatezzaAccettataAdapt.map((v, i) => v != null ? v : null),
+            borderColor: 'rgba(0,0,0,0)',
+            backgroundColor: 'rgba(23,138,87,0.4)',
+            pointRadius: (ctx) => adeguatezzaAccettataAdapt[ctx.dataIndex] != null ? 3 : 0,
+            pointStyle: 'circle',
+            showLine: false
+          },
+          {
+            label: 'Punti accettazione FISSO',
+            data: adeguatezzaAccettataFisso.map((v, i) => v != null ? v : null),
+            borderColor: 'rgba(0,0,0,0)',
+            backgroundColor: 'rgba(46,111,214,0.4)',
+            pointRadius: (ctx) => adeguatezzaAccettataFisso[ctx.dataIndex] != null ? 3 : 0,
+            pointStyle: 'circle',
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        ...baseCfg,
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+          annotation: {
+            annotations: {
+              soglia: {
+                type: 'label',
+                xValue: 195,
+                yValue: 76.5,
+                content: 'Soglia direttiva',
+                color: 'rgba(255,200,0,0.9)',
+                font: { size: 10 }
+              }
+            }
+          }
+        },
+        scales: {
+          x: { title: { display: true, text: 'Round', color: '#8593A8' }, min: 1, max: 200, ticks: { color: '#8593A8', maxTicksLimit: 10 }, grid: { color: 'rgba(199,213,230,0.08)' } },
+          y: { title: { display: true, text: 'Adeguatezza (%)', color: '#8593A8' }, suggestedMin: 40, suggestedMax: 100, ticks: { color: '#8593A8', callback: val => val + '%' } }
+        }
+      }
+    });
   } else if (view.value === 'banca') {
     // Assicura che i labels arrivino a 200 proposte
     let bancaLabels = trendData.value.labels.length ? trendData.value.labels : Array.from({length:200}, (_,i)=>'Prop. '+(i+1));

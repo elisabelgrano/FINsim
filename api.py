@@ -688,6 +688,8 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
 
     compliance_adapt = []
     compliance_fisso = []
+    adeguatezza_accettata_adapt = []
+    adeguatezza_accettata_fisso = []
     accettate_adapt = []
     accettate_fisso = []
     labels = []
@@ -700,6 +702,13 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
         adapt_adeguatezza_cumulata = 0
         adapt_conteggio = 0
         adapt_accettate = 0
+        adapt_adeguatezza_acc_cumulata = 0
+        adapt_conteggio_acc = 0
+        fisso_adeguatezza_cumulata = 0
+        fisso_conteggio = 0
+        fisso_accettate = 0
+        fisso_adeguatezza_acc_cumulata = 0
+        fisso_conteggio_acc = 0
 
         fisso_adeguatezza_cumulata = 0
         fisso_conteggio = 0
@@ -718,16 +727,21 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
                     adapt_conteggio += 1
                     if ha_accettato:
                         adapt_accettate += 1
-
+                        adapt_adeguatezza_acc_cumulata += adeguatezza
+                        adapt_conteggio_acc += 1
                 elif "FISSO" in promotore_id:
                     fisso_adeguatezza_cumulata += adeguatezza
                     fisso_conteggio += 1
                     if ha_accettato:
                         fisso_accettate += 1
+                        fisso_adeguatezza_acc_cumulata += adeguatezza
+                        fisso_conteggio_acc += 1
 
         # Media di adeguatezza per il round
         adapt_compliance = (adapt_adeguatezza_cumulata / adapt_conteggio * 100) if adapt_conteggio > 0 else 0
         fisso_compliance = (fisso_adeguatezza_cumulata / fisso_conteggio * 100) if fisso_conteggio > 0 else 0
+        adeguatezza_accettata_adapt.append(round(adapt_adeguatezza_acc_cumulata / adapt_conteggio_acc * 100, 1) if adapt_conteggio_acc > 0 else None)
+        adeguatezza_accettata_fisso.append(round(fisso_adeguatezza_acc_cumulata / fisso_conteggio_acc * 100, 1) if fisso_conteggio_acc > 0 else None)
 
         compliance_adapt.append(round(adapt_compliance, 1))
         compliance_fisso.append(round(fisso_compliance, 1))
@@ -739,7 +753,9 @@ def get_dati_promotore_grafici(scenario_id: str = "S0"):
         "compliance_adapt": compliance_adapt,
         "compliance_fisso": compliance_fisso,
         "accettate_adapt": accettate_adapt,
-        "accettate_fisso": accettate_fisso
+        "accettate_fisso": accettate_fisso,
+        "adeguatezza_accettata_adapt": adeguatezza_accettata_adapt,
+        "adeguatezza_accettata_fisso": adeguatezza_accettata_fisso
     }
 
 @app.get("/api/dati-cliente")
